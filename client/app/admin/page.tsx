@@ -155,7 +155,7 @@ export default function AdminPage() {
                   <button 
                     onClick={() => {
                         setEditingUser(null);
-                        setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "" });
+                        setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", leaveQuota: 12 });
                         setShowUserModal(true);
                     }}
                     className="bg-[#0F4D39] text-white px-4 py-2 rounded flex items-center space-x-2"
