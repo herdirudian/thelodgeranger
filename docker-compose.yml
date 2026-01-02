@@ -1,0 +1,48 @@
+services:
+  server:
+    build: ./server
+    container_name: ranger-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=mysql://lodgeranger:password_kuat_anda@db:3306/thelodgeranger
+      - PORT=5000
+    depends_on:
+      - db
+    networks:
+      - ranger-network
+
+  client:
+    build: ./client
+    container_name: ranger-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5000/api
+    depends_on:
+      - server
+    networks:
+      - ranger-network
+
+  db:
+    image: mysql:8.0
+    container_name: ranger-db
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password_change_me
+      - MYSQL_DATABASE=thelodgeranger
+      - MYSQL_USER=lodgeranger
+      - MYSQL_PASSWORD=password_kuat_anda
+    volumes:
+      - db-data:/var/lib/mysql
+    networks:
+      - ranger-network
+
+networks:
+  ranger-network:
+    driver: bridge
+
+volumes:
+  db-data:

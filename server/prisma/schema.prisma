@@ -1,0 +1,264 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STAFF
+  HOD
+  HR
+  GM
+  SUPERVISOR
+  FINANCE
+  STORE
+}
+
+enum ProcurementStatus {
+  PENDING_HOD
+  PENDING_SUPERVISOR
+  PENDING_FINANCE
+  PENDING_GM
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum AttendanceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RequestType {
+  LEAVE           // Cuti Tahunan
+  UNPAID_LEAVE    // Cuti Tanpa Gaji / Diluar Tanggungan
+  ADD_MANPOWER    // Izin Tambah Man Power
+  SHIFT_EXCHANGE  // Form Tukar Jadwal
+  SICK            // Sakit
+  PERMISSION      // Izin
+  OFF             // Off
+  OVERTIME        // Lembur
+  EXTERNAL_DUTY   // Dinas Luar
+}
+
+enum RequestStatus {
+  PENDING_HOD
+  PENDING_HR
+  PENDING_GM
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(STAFF)
+  department String?
+  leaveQuota Int      @default(12)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attendances     Attendance[]
+  schedules       Schedule[]
+  requests        Request[]
+  procurements    Procurement[]
+  feedbacks       CustomerFeedback[]
+  announcements   Announcement[]
+  notifications   Notification[]
+
+  createdMonthlySchedules MonthlySchedule[] @relation("CreatedSchedules")
+}
+
+model MonthlySchedule {
+  id          Int       @id @default(autoincrement())
+  department  String
+  month       Int       // 1-12
+  year        Int
+  data        Json      // Stores the grid data
+  status      RequestStatus @default(PENDING_HR)
+  
+  createdByUserId Int
+  createdByUser   User @relation("CreatedSchedules", fields: [createdByUserId], references: [id])
+
+  hodApproved Boolean @default(false)
+  hrApproved  Boolean @default(false)
+  gmApproved  Boolean @default(false)
+  
+  rejectionReason String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Procurement {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  
+  title       String?  // Optional title/reference
+  reason      String   // General reason for the whole request
+  totalPrice  Float    // Sum of all items
+  requiredDate DateTime
+  attachmentUrl String?
+
+  items       ProcurementItem[]
+
+  status      ProcurementStatus @default(PENDING_HOD)
+
+  // Approval Tracking
+  hodApproved      Boolean @default(false)
+  hodDate          DateTime?
+  hodNote          String?
+
+  spvApproved      Boolean @default(false)
+  spvDate          DateTime?
+  spvNote          String?
+
+  financeApproved  Boolean @default(false)
+  financeDate      DateTime?
+  financeNote      String?
+
+  gmApproved       Boolean @default(false)
+  gmDate           DateTime?
+  gmNote           String?
+
+  rejectionReason  String?
+  rejectedByRole   Role?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ProcurementItem {
+  id            Int      @id @default(autoincrement())
+  procurementId Int
+  procurement   Procurement @relation(fields: [procurementId], references: [id], onDelete: Cascade)
+
+  itemName    String
+  description String?
+  imageUrl    String?
+  category    String   // ATK, Operasional, Maintenance, Event, Lainnya
+  quantity    Int
+  unitPrice   Float
+  totalPrice  Float
+}
+
+model Attendance {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   // CHECK_IN, CHECK_OUT, EXTERNAL
+  timestamp DateTime @default(now())
+  latitude  Float?
+  longitude Float?
+  location  String?  // Text address
+  photoUrl  String?
+  status    AttendanceStatus @default(APPROVED) // Normal check-in is auto-approved, External might be pending
+  notes     String?
+}
+
+model Request {
+  id          Int           @id @default(autoincrement())
+  userId      Int
+  user        User          @relation(fields: [userId], references: [id])
+  type        RequestType
+  startDate   DateTime
+  endDate     DateTime
+  reason      String
+  status      RequestStatus @default(PENDING_HOD)
+  
+  // Additional Fields for various forms
+  returnDate      DateTime?
+  replacementName String?
+  quantity        Int?
+  startTime       String?
+  endTime         String?
+  newEmployeeName String?
+  targetDepartment String?
+
+  // Approval tracking
+  hodApproved Boolean       @default(false)
+  hrApproved  Boolean       @default(false)
+  gmApproved  Boolean       @default(false)
+  
+  hodNote     String?
+  hrNote      String?
+  gmNote      String?
+
+  rejectionReason String?
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Schedule {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  date      DateTime
+  shiftStart DateTime
+  shiftEnd   DateTime
+  description String?
+}
+
+model CustomerFeedback {
+  id                Int      @id @default(autoincrement())
+  staffId           Int
+  staff             User     @relation(fields: [staffId], references: [id])
+  ratingFriendliness Int
+  ratingExplanation Int
+  ratingHelpfulness Int
+  ratingRecommend   Int
+  likedAspects      String?  @db.Text
+  improvementAreas  String?  @db.Text
+  customerName      String
+  customerPhone     String?
+  customerEmail     String?
+  wantFollowUp      Boolean  @default(false)
+  privacyConsent    Boolean  @default(false)
+  marketingConsent  Boolean  @default(false)
+  createdAt         DateTime @default(now())
+}
+
+model Announcement {
+  id          Int      @id @default(autoincrement())
+  title       String
+  date        DateTime
+  description String   @db.Text
+  imageUrl    String?
+  pdfUrl      String?
+  
+  targetType  String   @default("ALL") // ALL, ROLE, USER
+  targetIds   String?  // JSON string of roles or user IDs
+  
+  authorId    Int
+  author      User     @relation(fields: [authorId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model InventoryItem {
+  id            Int      @id @default(autoincrement())
+  name          String
+  category      String
+  currentStock  Int
+  minStockLevel Int
+  unit          String
+  lastUpdated   DateTime @updatedAt
+}
