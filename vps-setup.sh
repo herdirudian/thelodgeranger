@@ -6,7 +6,7 @@ REPO_URL="https://github.com/herdirudian/thelodgeranger.git"
 DB_NAME="thelodgeranger"
 DB_USER="lodgeranger"
 DB_PASS="LodgeRanger2025!" # Default password
-DOMAIN="localhost"
+DOMAIN="ranger.thelodgegroup.id"
 
 # Colors
 GREEN='\033[0;32m'
@@ -89,16 +89,11 @@ echo "Setting up Frontend..."
 cd $APP_DIR/client
 npm install
 # Setup Client Env
-if [ ! -f .env.local ]; then
-    # Ask for Domain/IP
-    read -p "Enter your VPS IP Address or Domain (e.g. 103.x.x.x): " DOMAIN_INPUT
-    DOMAIN=${DOMAIN_INPUT:-$DOMAIN}
-    
     echo "Creating client .env.local..."
-    echo "NEXT_PUBLIC_API_URL=http://${DOMAIN}/api" > .env.local
+    echo "NEXT_PUBLIC_API_URL=https://www.${DOMAIN}/api" > .env.local
 else
     # Read existing domain for nginx config later
-    DOMAIN="localhost" 
+    DOMAIN="ranger.thelodgegroup.id" 
 fi
 
 echo "Building Frontend (this may take a while)..."
@@ -119,7 +114,7 @@ echo -e "${GREEN}[8/8] Configuring Nginx...${NC}"
 cat > /etc/nginx/sites-available/thelodgeranger << EOL
 server {
     listen 80;
-    server_name ${DOMAIN} _;
+    server_name ${DOMAIN} www.${DOMAIN};
 
     location / {
         proxy_pass http://localhost:3000;
