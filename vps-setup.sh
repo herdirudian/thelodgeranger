@@ -21,6 +21,23 @@ if [ "$EUID" -ne 0 ]; then
   exit
 fi
 
+# Function to add swap
+setup_swap() {
+    if [ ! -f /swapfile ]; then
+        echo -e "${GREEN}Creating 4GB Swap file to prevent build crashes...${NC}"
+        fallocate -l 4G /swapfile
+        chmod 600 /swapfile
+        mkswap /swapfile
+        swapon /swapfile
+        echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
+        echo "Swap created successfully."
+    else
+        echo "Swap file already exists."
+    fi
+}
+
+setup_swap
+
 # 1. Update System
 echo -e "${GREEN}[1/8] Updating System...${NC}"
 apt update && apt upgrade -y
@@ -98,7 +115,16 @@ NEXT_PUBLIC_API_URL=https://${DOMAIN}/api
 EOL
 
 echo "--> Building Frontend..."
+# Increase memory limit for build
+export NODE_OPTIONS="--max-old-space-size=4096"
 npm run build
+
+# Check if build succeeded
+if [ ! -d ".next" ]; then
+    echo -e "${RED}Build failed! .next directory not found.${NC}"
+    echo "Check memory usage or build logs."
+    exit 1
+fi
 
 # 7. Setup PM2
 echo -e "${GREEN}[7/8] Setting up PM2 Process Manager...${NC}"
@@ -113,7 +139,8 @@ pm2 start index.js --name "ranger-backend"
 
 # Start Frontend
 cd $APP_DIR/client
-pm2 start npm --name "ranger-frontend" -- start -- -p 3000
+# Use next start directly to avoid npm overhead and ensure envs are passed
+pm2 start "npm start" --name "ranger-frontend"
 
 # Save PM2 list
 pm2 save
