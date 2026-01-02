@@ -68,7 +68,7 @@ export default function AdminPage() {
           }
           setShowUserModal(false);
           setEditingUser(null);
-          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "" });
+          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", leaveQuota: 12 });
           fetchUsers();
       } catch (err: any) {
           alert(err.response?.data?.message || "Error saving user");
