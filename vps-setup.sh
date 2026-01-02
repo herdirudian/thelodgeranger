@@ -89,12 +89,8 @@ echo "Setting up Frontend..."
 cd $APP_DIR/client
 npm install
 # Setup Client Env
-    echo "Creating client .env.local..."
-    echo "NEXT_PUBLIC_API_URL=https://www.${DOMAIN}/api" > .env.local
-else
-    # Read existing domain for nginx config later
-    DOMAIN="ranger.thelodgegroup.id" 
-fi
+echo "Creating client .env.local..."
+echo "NEXT_PUBLIC_API_URL=https://www.${DOMAIN}/api" > .env.local
 
 echo "Building Frontend (this may take a while)..."
 npm run build
