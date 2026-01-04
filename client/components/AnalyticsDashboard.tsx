@@ -141,7 +141,7 @@ export default function AnalyticsDashboard() {
                                             <PieCell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                         ))}
                                     </Pie>
-                                    <Tooltip formatter={(value: number) => `Rp ${value.toLocaleString('id-ID')}`} />
+                                    <Tooltip formatter={(value?: number | string) => `Rp ${Number(value ?? 0).toLocaleString('id-ID')}`} />
                                 </PieChart>
                             </ResponsiveContainer>
                         </div>
