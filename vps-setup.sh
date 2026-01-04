@@ -111,7 +111,7 @@ npm ci
 echo "Creating client .env.local..."
 # Note: In production, NEXT_PUBLIC_API_URL should point to the public domain/IP
 cat > .env.local << EOL
-NEXT_PUBLIC_API_URL=https://${DOMAIN}/api
+NEXT_PUBLIC_API_URL=http://${DOMAIN}/api
 EOL
 
 echo "--> Building Frontend..."
