@@ -179,7 +179,10 @@ export default function ProcurementPage() {
       setItems([]);
       setNewItem({
         itemName: "",
+        description: "",
+        imageUrl: "",
         category: "ATK",
+        customCategory: "",
         quantity: "",
         unitPrice: ""
       });
