@@ -8,7 +8,7 @@ interface User {
   id: number;
   name: string;
   email: string;
-  role: 'STAFF' | 'HOD' | 'HR' | 'GM';
+  role: 'STAFF' | 'HOD' | 'HR' | 'GM' | 'FINANCE' | 'STORE' | 'SUPERVISOR';
   department?: string;
   leaveQuota?: number;
 }
