@@ -32,8 +32,11 @@ export default function LoginPage() {
       const res = await api.post("/auth/signin", { email, password });
       login(res.data.accessToken, res.data);
     } catch (err: any) {
-      console.error("Login Error Details:", err.response?.data);
-      const msg = err.response?.data?.message || "Login failed";
+      console.error("Login Error Details:", err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Login failed";
       setError(msg);
     } finally {
         setIsLoading(false);

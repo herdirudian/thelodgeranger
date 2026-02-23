@@ -5,6 +5,33 @@ import api from "@/lib/api";
 import { Star, X, Shield, Lock } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
+function StarRating({ value, onChange, label, description }: { value: number, onChange: (v: number) => void, label: string, description?: string }) {
+  return (
+    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+        <label className="block text-sm font-bold text-gray-800 mb-1">{label}</label>
+        {description && <p className="text-xs text-gray-500 mb-3">{description}</p>}
+        <div className="flex gap-2">
+            {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                    key={star}
+                    type="button"
+                    onClick={() => onChange(star)}
+                    className="focus:outline-none transition-transform hover:scale-110"
+                >
+                    <Star 
+                        className={`w-8 h-8 ${star <= value ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} 
+                    />
+                </button>
+            ))}
+        </div>
+        <div className="flex justify-between mt-2 text-[10px] text-gray-400 font-medium">
+             <span>Sangat Buruk</span>
+             <span>Sangat Baik</span>
+        </div>
+    </div>
+  );
+}
+
 function FeedbackForm() {
   const searchParams = useSearchParams();
   const staffIdParam = searchParams.get('staffId');
@@ -37,16 +64,6 @@ function FeedbackForm() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showMarketingModal, setShowMarketingModal] = useState(false);
 
-  useEffect(() => {
-    if (staffIdParam) {
-        setStaffId(staffIdParam);
-        fetchStaffDetails(staffIdParam);
-    } else {
-        setIsLoadingStaff(false);
-        setStaffError("Link tidak valid (ID Karyawan tidak ditemukan).");
-    }
-  }, [staffIdParam]);
-
   const fetchStaffDetails = async (id: string) => {
     try {
         const res = await api.get(`/users/public/${id}`);
@@ -58,6 +75,16 @@ function FeedbackForm() {
         setIsLoadingStaff(false);
     }
   };
+
+  useEffect(() => {
+    if (staffIdParam) {
+        setStaffId(staffIdParam);
+        fetchStaffDetails(staffIdParam);
+    } else {
+        setIsLoadingStaff(false);
+        setStaffError("Link tidak valid (ID Karyawan tidak ditemukan).");
+    }
+  }, [staffIdParam]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,31 +130,6 @@ function FeedbackForm() {
       console.error(err);
     }
   };
-
-  const StarRating = ({ value, onChange, label, description }: { value: number, onChange: (v: number) => void, label: string, description?: string }) => (
-    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-        <label className="block text-sm font-bold text-gray-800 mb-1">{label}</label>
-        {description && <p className="text-xs text-gray-500 mb-3">{description}</p>}
-        <div className="flex gap-2">
-            {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                    key={star}
-                    type="button"
-                    onClick={() => onChange(star)}
-                    className="focus:outline-none transition-transform hover:scale-110"
-                >
-                    <Star 
-                        className={`w-8 h-8 ${star <= value ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} 
-                    />
-                </button>
-            ))}
-        </div>
-        <div className="flex justify-between mt-2 text-[10px] text-gray-400 font-medium">
-             <span>Sangat Buruk</span>
-             <span>Sangat Baik</span>
-        </div>
-    </div>
-  );
 
   if (isLoadingStaff) {
       return (

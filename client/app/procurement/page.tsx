@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { format } from "date-fns";
+import { formatWibDateTime } from "@/lib/wibHelpers";
 import { 
   ShoppingBag, 
   PlusCircle, 
@@ -21,7 +22,10 @@ import {
   Upload,
   Image as ImageIcon,
   Eye,
-  Printer
+  Printer,
+  Download,
+  Trash2,
+  Pencil
 } from "lucide-react";
 import { useReactToPrint } from 'react-to-print';
 import { ProcurementInvoice } from "@/components/ProcurementInvoice";
@@ -34,8 +38,24 @@ export default function ProcurementPage() {
   const [pendingProcurements, setPendingProcurements] = useState<any[]>([]);
   const [historyProcurements, setHistoryProcurements] = useState<any[]>([]);
   
+  // Export State
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportDateRange, setExportDateRange] = useState({
+      start: "",
+      end: ""
+  });
+  const [historyStartDate, setHistoryStartDate] = useState("");
+  const [historyEndDate, setHistoryEndDate] = useState("");
+  
+  // Filter & Search State
+  const [pendingDeptFilter, setPendingDeptFilter] = useState("");
+  const [pendingSearch, setPendingSearch] = useState("");
+  const [historyDeptFilter, setHistoryDeptFilter] = useState("");
+  const [historySearch, setHistorySearch] = useState("");
+  
   // Form State
   const [items, setItems] = useState<any[]>([]);
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [newItem, setNewItem] = useState({
       itemName: "",
       description: "",
@@ -48,6 +68,7 @@ export default function ProcurementPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [reason, setReason] = useState("");
   const [requiredDate, setRequiredDate] = useState("");
+  const [attachmentUrl, setAttachmentUrl] = useState("");
   
   // Approval Modal State
   const [approvalModal, setApprovalModal] = useState({
@@ -75,13 +96,17 @@ export default function ProcurementPage() {
   }, []);
 
   useEffect(() => {
-    if (user && (user.role === 'HOD' || user.role === 'SUPERVISOR' || user.role === 'FINANCE' || user.role === 'GM' || user.role === 'STORE')) {
-        fetchPendingProcurements();
-        if (user.role !== 'STORE') {
-            fetchHistoryProcurements();
-        }
+    if (user && (user.role === 'HOD' || user.role === 'SUPERVISOR' || user.role === 'FINANCE' || user.role === 'GM' || user.role === 'STORE' ||
+        user.role === 'MERCHANDISE_HOD' || user.role === 'MERCHANDISE_SPV' || user.role === 'PHOTOGRAPHER_HOD' || user.role === 'ADMIN')) {
+        fetchPendingProcurements(pendingDeptFilter || undefined, pendingSearch || undefined);
+        fetchHistoryProcurements(
+            historyStartDate || undefined, 
+            historyEndDate || undefined,
+            historyDeptFilter || undefined,
+            historySearch || undefined
+        );
     }
-  }, [user]);
+  }, [user, pendingDeptFilter, pendingSearch, historyDeptFilter, historySearch, historyStartDate, historyEndDate]);
 
   const fetchMyProcurements = async () => {
     try {
@@ -92,22 +117,57 @@ export default function ProcurementPage() {
     }
   };
 
-  const fetchPendingProcurements = async () => {
+  const fetchPendingProcurements = async (dept?: string, search?: string) => {
     try {
-      const res = await api.get("/procurement/pending");
+      const params: any = {};
+      if (dept) params.department = dept;
+      if (search) params.search = search;
+      const res = await api.get("/procurement/pending", { params });
       setPendingProcurements(res.data);
     } catch (err) {
       console.error(err);
     }
   };
 
-  const fetchHistoryProcurements = async () => {
+  const fetchHistoryProcurements = async (start?: string, end?: string, dept?: string, search?: string) => {
     try {
-      const res = await api.get("/procurement/history");
+      const params: any = {};
+      if (start) params.startDate = start;
+      if (end) params.endDate = end;
+      if (dept) params.department = dept;
+      if (search) params.search = search;
+      const res = await api.get("/procurement/history", { params });
       setHistoryProcurements(res.data);
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleApplyHistoryFilter = () => {
+    fetchHistoryProcurements(
+        historyStartDate || undefined, 
+        historyEndDate || undefined,
+        historyDeptFilter || undefined,
+        historySearch || undefined
+    );
+  };
+
+  const handleApplyPendingFilter = () => {
+    fetchPendingProcurements(pendingDeptFilter || undefined, pendingSearch || undefined);
+  };
+
+  const handleResetPendingFilter = () => {
+    setPendingDeptFilter("");
+    setPendingSearch("");
+    fetchPendingProcurements();
+  };
+
+  const handleResetHistoryFilter = () => {
+    setHistoryStartDate("");
+    setHistoryEndDate("");
+    setHistoryDeptFilter("");
+    setHistorySearch("");
+    fetchHistoryProcurements();
   };
 
   const handleAddItem = () => {
@@ -120,7 +180,17 @@ export default function ProcurementPage() {
         ? newItem.customCategory 
         : newItem.category;
 
-    setItems([...items, { ...newItem, category: finalCategory }]);
+    const itemData = { ...newItem, category: finalCategory };
+
+    if (editingItemIndex !== null) {
+        const updatedItems = [...items];
+        updatedItems[editingItemIndex] = itemData;
+        setItems(updatedItems);
+        setEditingItemIndex(null);
+    } else {
+        setItems([...items, itemData]);
+    }
+
     setNewItem({
         itemName: "",
         description: "",
@@ -130,6 +200,35 @@ export default function ProcurementPage() {
         quantity: "",
         unitPrice: ""
     });
+  };
+
+  const handleEditItem = (index: number) => {
+    const itemToEdit = items[index];
+    const isStandardCategory = ["ATK", "Operasional", "Maintenance", "Event"].includes(itemToEdit.category);
+    
+    setNewItem({
+        itemName: itemToEdit.itemName,
+        description: itemToEdit.description || "",
+        imageUrl: itemToEdit.imageUrl || "",
+        category: isStandardCategory ? itemToEdit.category : "Lainnya",
+        customCategory: isStandardCategory ? "" : itemToEdit.category,
+        quantity: itemToEdit.quantity,
+        unitPrice: itemToEdit.unitPrice
+    });
+    setEditingItemIndex(index);
+  };
+
+  const cancelEdit = () => {
+    setNewItem({
+        itemName: "",
+        description: "",
+        imageUrl: "",
+        category: "ATK",
+        customCategory: "",
+        quantity: "",
+        unitPrice: ""
+    });
+    setEditingItemIndex(null);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,6 +256,20 @@ export default function ProcurementPage() {
 
   const handleRemoveItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
+    if (editingItemIndex === index) {
+        setEditingItemIndex(null);
+        setNewItem({
+            itemName: "",
+            description: "",
+            imageUrl: "",
+            category: "ATK",
+            customCategory: "",
+            quantity: "",
+            unitPrice: ""
+        });
+    } else if (editingItemIndex !== null && editingItemIndex > index) {
+        setEditingItemIndex(editingItemIndex - 1);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -165,11 +278,19 @@ export default function ProcurementPage() {
         alert("Please add at least one item.");
         return;
     }
+
+    const wordCount = reason.trim().split(/\s+/).filter(Boolean).length;
+    if (wordCount > 50) {
+        alert(`Reason exceeds the maximum word limit of 50 words. Current: ${wordCount} words.`);
+        return;
+    }
+
     try {
       await api.post("/procurement", {
           items,
           reason,
-          requiredDate
+          requiredDate,
+          attachmentUrl
       });
       alert("Procurement request submitted successfully!");
       fetchMyProcurements();
@@ -177,6 +298,7 @@ export default function ProcurementPage() {
       
       // Reset form
       setItems([]);
+      setEditingItemIndex(null);
       setNewItem({
         itemName: "",
         description: "",
@@ -188,9 +310,33 @@ export default function ProcurementPage() {
       });
       setReason("");
       setRequiredDate("");
+      setAttachmentUrl("");
       
     } catch (err: any) {
       alert("Error submitting request: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setIsUploading(true);
+    try {
+        const res = await api.post('/upload', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+        setAttachmentUrl(res.data.url);
+    } catch (err) {
+        alert("Error uploading attachment");
+        console.error(err);
+    } finally {
+        setIsUploading(false);
     }
   };
 
@@ -223,7 +369,24 @@ export default function ProcurementPage() {
       }
   };
 
-  const canApprove = user?.role === 'HOD' || user?.role === 'SUPERVISOR' || user?.role === 'FINANCE' || user?.role === 'GM' || user?.role === 'STORE';
+  const handleDelete = async (id: number) => {
+      if (!confirm('Are you sure you want to delete this procurement request? This action cannot be undone.')) return;
+      
+      try {
+          await api.delete(`/procurement/${id}`);
+          alert('Procurement request deleted successfully');
+          if (activeTab === 'approvals') {
+              fetchPendingProcurements();
+          } else {
+              fetchHistoryProcurements(historyStartDate || undefined, historyEndDate || undefined);
+          }
+      } catch (err: any) {
+          alert("Error deleting request: " + (err.response?.data?.message || err.message));
+      }
+  };
+
+  const canApprove = user?.role === 'HOD' || user?.role === 'SUPERVISOR' || user?.role === 'FINANCE' || user?.role === 'GM' || user?.role === 'STORE' || 
+    user?.role === 'MERCHANDISE_HOD' || user?.role === 'MERCHANDISE_SPV' || user?.role === 'PHOTOGRAPHER_HOD' || user?.role === 'ADMIN';
   const isStore = user?.role === 'STORE';
 
   const getStatusBadge = (status: string) => {
@@ -248,6 +411,71 @@ export default function ProcurementPage() {
       return acc + (parseInt(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0);
   }, 0);
 
+  const handleExport = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!exportDateRange.start || !exportDateRange.end) {
+          alert("Please select both start and end dates");
+          return;
+      }
+
+      try {
+          const res = await api.get('/procurement/export', {
+              params: {
+                  startDate: exportDateRange.start,
+                  endDate: exportDateRange.end
+              }
+          });
+
+          if (res.data.length === 0) {
+              alert("No completed procurements found for the selected date range.");
+              return;
+          }
+          
+          const escapeCsv = (str: any) => {
+            if (str === null || str === undefined) return '';
+            const stringValue = String(str);
+            if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+                return `"${stringValue.replace(/"/g, '""')}"`;
+            }
+            return stringValue;
+          };
+
+          const rows = [];
+          // Header
+          rows.push(['ID', 'Requester', 'Department', 'Date Completed', 'Item Name', 'Category', 'Quantity', 'Unit Price', 'Total Price'].join(','));
+          
+          res.data.forEach((p: any) => {
+              p.items.forEach((item: any) => {
+                  rows.push([
+                      p.id,
+                      p.user.name,
+                      p.user.department,
+                      formatWibDateTime(p.updatedAt),
+                      item.itemName,
+                      item.category,
+                      item.quantity,
+                      item.unitPrice,
+                      item.quantity * item.unitPrice
+                  ].map(escapeCsv).join(','));
+              });
+          });
+
+          const csvContent = "data:text/csv;charset=utf-8," + rows.join("\n");
+          const encodedUri = encodeURI(csvContent);
+          const link = document.createElement("a");
+          link.setAttribute("href", encodedUri);
+          link.setAttribute("download", `procurement_export_${exportDateRange.start}_${exportDateRange.end}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          setShowExportModal(false);
+
+      } catch (err: any) {
+          alert("Error exporting data: " + (err.response?.data?.message || err.message));
+      }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -261,13 +489,24 @@ export default function ProcurementPage() {
             <p className="text-gray-500 mt-2 text-lg">Manage operational item requests.</p>
         </div>
         
-        <button 
-            onClick={() => setActiveTab('new-request')}
-            className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-[#0F4D39] hover:bg-[#0a3628] shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all gap-2"
-        >
-            <PlusCircle className="w-5 h-5" />
-            New Request
-        </button>
+        <div className="flex gap-3">
+            {canApprove && (
+                <button 
+                    onClick={() => setShowExportModal(true)}
+                    className="inline-flex items-center justify-center px-4 py-3 border border-gray-300 bg-white text-gray-700 text-base font-medium rounded-xl hover:bg-gray-50 shadow-sm transition-all gap-2"
+                >
+                    <Download className="w-5 h-5" />
+                    Export Data
+                </button>
+            )}
+            <button 
+                onClick={() => setActiveTab('new-request')}
+                className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-[#0F4D39] hover:bg-[#0a3628] shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all gap-2"
+            >
+                <PlusCircle className="w-5 h-5" />
+                New Request
+            </button>
+        </div>
       </div>
 
       {/* Modern Tabs */}
@@ -303,7 +542,6 @@ export default function ProcurementPage() {
                         </span>
                     )}
                 </button>
-          {!isStore && (
             <button 
                 onClick={() => setActiveTab('history')}
                 className={`${
@@ -313,9 +551,8 @@ export default function ProcurementPage() {
                 } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors`}
             >
                 <Clock className="w-4 h-4" />
-                Approval History
+                {isStore ? 'Fulfillment History' : 'Approval History'}
             </button>
-          )}
             </>
           )}
         </nav>
@@ -323,6 +560,64 @@ export default function ProcurementPage() {
 
       {/* Content */}
       <div className="min-h-[400px]">
+        
+        {activeTab === 'approvals' && (
+            <div className="mb-6 bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-end">
+                <div className="flex-1 w-full">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Search reason, employee, or item..."
+                            value={pendingSearch}
+                            onChange={(e) => setPendingSearch(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0F4D39] focus:border-transparent"
+                        />
+                        <div className="absolute left-3 top-2.5 text-gray-400">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                <div className="w-full md:w-64">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                    <select
+                        value={pendingDeptFilter}
+                        onChange={(e) => setPendingDeptFilter(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0F4D39] focus:border-transparent"
+                    >
+                        <option value="">All Departments</option>
+                            <option value="Front Office">Front Office</option>
+                            <option value="Housekeeping">Housekeeping</option>
+                            <option value="Public Area">Public Area</option>
+                            <option value="F&B Service">F&B Service</option>
+                            <option value="F&B Product">F&B Product</option>
+                            <option value="Engineering">Engineering</option>
+                            <option value="HR">HR</option>
+                            <option value="Finance">Finance</option>
+                            <option value="Cashier">Cashier</option>
+                            <option value="Sales & Marketing">Sales & Marketing</option>
+                            <option value="Sales & Business Development">Sales & Business Development</option>
+                            <option value="IT">IT</option>
+                            <option value="Security">Security</option>
+                            <option value="General Affair">General Affair</option>
+                            <option value="Merchandise">Merchandise</option>
+                            <option value="Photographer">Photographer</option>
+                            <option value="Admin">Admin</option>
+                    </select>
+                </div>
+                <button
+                    onClick={() => {
+                        setPendingSearch("");
+                        setPendingDeptFilter("");
+                    }}
+                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium"
+                >
+                    Reset
+                </button>
+            </div>
+        )}
         
         {/* New Request Form */}
         {activeTab === 'new-request' && (
@@ -372,9 +667,14 @@ export default function ProcurementPage() {
                                                     {(parseInt(item.quantity) * parseFloat(item.unitPrice)).toLocaleString()}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                    <button type="button" onClick={() => handleRemoveItem(index)} className="text-red-600 hover:text-red-900">
-                                                        <XCircle className="w-5 h-5" />
-                                                    </button>
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <button type="button" onClick={() => handleEditItem(index)} className="text-blue-600 hover:text-blue-900">
+                                                            <Pencil className="w-4 h-4" />
+                                                        </button>
+                                                        <button type="button" onClick={() => handleRemoveItem(index)} className="text-red-600 hover:text-red-900">
+                                                            <XCircle className="w-5 h-5" />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
@@ -384,8 +684,8 @@ export default function ProcurementPage() {
                         )}
 
                         {/* Add Item Form */}
-                        <div className="bg-gray-50 p-6 rounded-xl border border-dashed border-gray-300">
-                            <h4 className="text-sm font-medium text-gray-700 mb-4">Add New Item</h4>
+                        <div className={`p-6 rounded-xl border border-dashed ${editingItemIndex !== null ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 border-gray-300'}`}>
+                            <h4 className="text-sm font-medium text-gray-700 mb-4">{editingItemIndex !== null ? 'Edit Item' : 'Add New Item'}</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
                                     <label className="block text-xs font-medium text-gray-500 mb-1">Item Name</label>
@@ -444,9 +744,14 @@ export default function ProcurementPage() {
                                     />
                                 </div>
                             </div>
-                            <div className="mt-4 flex justify-end">
-                                <button type="button" onClick={handleAddItem} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
-                                    Add Item
+                            <div className="mt-4 flex justify-end gap-2">
+                                {editingItemIndex !== null && (
+                                    <button type="button" onClick={cancelEdit} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+                                        Cancel
+                                    </button>
+                                )}
+                                <button type="button" onClick={handleAddItem} className={`px-4 py-2 border rounded-lg text-sm font-medium ${editingItemIndex !== null ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
+                                    {editingItemIndex !== null ? 'Update Item' : 'Add Item'}
                                 </button>
                             </div>
                         </div>
@@ -460,6 +765,23 @@ export default function ProcurementPage() {
                     </div>
 
                     <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Supporting Document (Optional)</label>
+                        <div className="flex items-center gap-2">
+                            <label className="cursor-pointer px-4 py-3 border border-gray-300 rounded-xl bg-white hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-600 w-full">
+                                <Upload className="w-5 h-5 text-gray-400" />
+                                <span className="flex-1">{isUploading ? "Uploading..." : "Upload Document (PDF/Image)"}</span>
+                                <input type="file" className="hidden" onChange={handleAttachmentUpload} accept="image/*,.pdf" />
+                            </label>
+                            {attachmentUrl && (
+                                <a href={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${attachmentUrl}`} target="_blank" rel="noopener noreferrer" className="p-3 bg-green-50 text-green-700 rounded-xl hover:bg-green-100 transition-colors border border-green-200" title="View Uploaded File">
+                                    <CheckCircle className="w-5 h-5" />
+                                </a>
+                            )}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">Upload supporting documents like quotation, brochure, or reference.</p>
+                    </div>
+
+                    <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Required Date</label>
                         <input type="date" className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0F4D39] focus:border-transparent outline-none transition-all" 
                             required value={requiredDate} onChange={e => setRequiredDate(e.target.value)}
@@ -467,10 +789,15 @@ export default function ProcurementPage() {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Reason / Justification</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Reason / Justification <span className="text-gray-400 font-normal text-xs">(Max 50 words)</span>
+                        </label>
                         <textarea className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0F4D39] focus:border-transparent outline-none transition-all" 
                             required rows={3} value={reason} onChange={e => setReason(e.target.value)} placeholder="Why is this item needed?"
                         ></textarea>
+                        <div className={`text-right text-xs mt-1 ${reason.trim().split(/\s+/).filter(Boolean).length > 50 ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                            {reason.trim().split(/\s+/).filter(Boolean).length} / 50 words
+                        </div>
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4">
@@ -541,12 +868,166 @@ export default function ProcurementPage() {
         {/* Approvals & History List */}
         {(activeTab === 'approvals' || activeTab === 'history') && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                {/* Filter Bar for Pending Tab */}
+                {activeTab === 'approvals' && (
+                    <div className="bg-white p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 items-end">
+                        <div className="flex-1 w-full">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder="Search reason, employee, or item..."
+                                    value={pendingSearch}
+                                    onChange={(e) => setPendingSearch(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0F4D39] focus:border-transparent"
+                                />
+                                <div className="absolute left-3 top-2.5 text-gray-400">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="w-full md:w-64">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                            <select
+                                value={pendingDeptFilter}
+                                onChange={(e) => setPendingDeptFilter(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0F4D39] focus:border-transparent"
+                            >
+                                <option value="">All Departments</option>
+                                <option value="Front Office">Front Office</option>
+                                <option value="Housekeeping">Housekeeping</option>
+                                <option value="Public Area">Public Area</option>
+                                <option value="F&B Service">F&B Service</option>
+                                <option value="F&B Product">F&B Product</option>
+                                <option value="Engineering">Engineering</option>
+                                <option value="HR">HR</option>
+                                <option value="Finance">Finance</option>
+                                <option value="Cashier">Cashier</option>
+                                <option value="Sales & Marketing">Sales & Marketing</option>
+                                <option value="Sales & Business Development">Sales & Business Development</option>
+                                <option value="IT">IT</option>
+                                <option value="Security">Security</option>
+                                <option value="General Affair">General Affair</option>
+                                <option value="Merchandise">Merchandise</option>
+                                <option value="Photographer">Photographer</option>
+                                <option value="Admin">Admin</option>
+                            </select>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={handleApplyPendingFilter}
+                                className="px-4 py-2 bg-[#0F4D39] text-white rounded-lg text-sm font-bold hover:bg-[#0a3628] transition-colors"
+                            >
+                                Apply
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleResetPendingFilter}
+                                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                            >
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                )}
+                {/* Filter Bar for History Tab */}
+                {activeTab === 'history' && (
+                    <div className="bg-white p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 items-end">
+                        <div className="flex-1 w-full">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder="Search reason, employee, or item..."
+                                    value={historySearch}
+                                    onChange={(e) => setHistorySearch(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0F4D39] focus:border-transparent"
+                                />
+                                <div className="absolute left-3 top-2.5 text-gray-400">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="w-full md:w-64">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                            <select
+                                value={historyDeptFilter}
+                                onChange={(e) => setHistoryDeptFilter(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0F4D39] focus:border-transparent"
+                            >
+                                <option value="">All Departments</option>
+                                <option value="Front Office">Front Office</option>
+                                <option value="Housekeeping">Housekeeping</option>
+                                <option value="Public Area">Public Area</option>
+                                <option value="F&B Service">F&B Service</option>
+                                <option value="F&B Product">F&B Product</option>
+                                <option value="Engineering">Engineering</option>
+                                <option value="HR">HR</option>
+                                <option value="Finance">Finance</option>
+                                <option value="Cashier">Cashier</option>
+                                <option value="Sales & Marketing">Sales & Marketing</option>
+                                <option value="Sales & Business Development">Sales & Business Development</option>
+                                <option value="IT">IT</option>
+                                <option value="Security">Security</option>
+                                <option value="General Affair">General Affair</option>
+                                <option value="Merchandise">Merchandise</option>
+                                <option value="Photographer">Photographer</option>
+                                <option value="Admin">Admin</option>
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="flex flex-col">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Start</label>
+                                <input
+                                    type="date"
+                                    className="border border-gray-200 rounded px-2 py-2 text-sm"
+                                    value={historyStartDate}
+                                    onChange={e => setHistoryStartDate(e.target.value)}
+                                />
+                            </div>
+                            <div className="flex flex-col">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">End</label>
+                                <input
+                                    type="date"
+                                    className="border border-gray-200 rounded px-2 py-2 text-sm"
+                                    value={historyEndDate}
+                                    onChange={e => setHistoryEndDate(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleApplyHistoryFilter}
+                            className="px-4 py-2 bg-[#0F4D39] text-white rounded-lg text-sm font-bold hover:bg-[#0a3628] transition-colors"
+                        >
+                            Apply
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleResetHistoryFilter}
+                            className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                )}
+                <div className="px-6 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+                    <h2 className="font-semibold text-gray-800">
+                        {activeTab === 'approvals' ? (isStore ? 'Pending Fulfillment' : 'Pending Approvals') : (isStore ? 'Fulfillment History' : 'Approval History')}
+                    </h2>
+                </div>
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requester</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items Summary</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Required Date</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -565,6 +1046,9 @@ export default function ProcurementPage() {
                                             {req.items?.map((i: any) => i.itemName).join(", ")}
                                         </div>
                                     </td>
+                                    <td className="px-6 py-4 text-sm text-gray-500">
+                                        {req.requiredDate ? format(new Date(req.requiredDate), 'dd MMM yyyy') : '-'}
+                                    </td>
                                     <td className="px-6 py-4 text-sm font-bold text-gray-700">IDR {req.totalPrice.toLocaleString()}</td>
                                     <td className="px-6 py-4">{getStatusBadge(req.status)}</td>
                                     <td className="px-6 py-4 text-right">
@@ -576,6 +1060,15 @@ export default function ProcurementPage() {
                                             >
                                                 <Eye className="w-5 h-5" />
                                             </button>
+                                            {user?.role === 'ADMIN' && (
+                                                <button 
+                                                    onClick={() => handleDelete(req.id)}
+                                                    className="text-gray-400 hover:text-red-600 transition-colors p-2 rounded-full hover:bg-gray-100"
+                                                    title="Delete Request"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            )}
                                             {activeTab === 'approvals' && (
                                                 <>
                                                     <button onClick={() => handleApproval(req.id, 'APPROVE')} className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold hover:bg-green-100 border border-green-200">
@@ -592,7 +1085,7 @@ export default function ProcurementPage() {
                             ))}
                              {(activeTab === 'approvals' ? pendingProcurements : historyProcurements).length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">No records found</td>
+                                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">No records found</td>
                                 </tr>
                             )}
                         </tbody>
@@ -627,26 +1120,87 @@ export default function ProcurementPage() {
                                <span className="text-gray-500">Requester:</span>
                                <span className="font-medium text-gray-900">{approvalModal.request.user?.name} ({approvalModal.request.user?.department})</span>
                            </div>
+                           <div className="flex justify-between">
+                               <span className="text-gray-500">Required Date:</span>
+                               <span className="font-medium text-gray-900">
+                                   {approvalModal.request.requiredDate ? format(new Date(approvalModal.request.requiredDate), 'dd MMM yyyy') : '-'}
+                               </span>
+                           </div>
                            
                            <div className="border-t border-gray-200 pt-2 mt-2">
                                <span className="text-gray-500 block mb-2">Items:</span>
-                               <ul className="space-y-1 max-h-[150px] overflow-y-auto">
+                               <ul className="space-y-1 max-h-[200px] overflow-y-auto pr-2">
                                    {approvalModal.request.items?.map((item: any, idx: number) => (
-                                       <li key={idx} className="flex justify-between text-gray-900">
-                                           <span>{item.itemName} ({item.quantity}x)</span>
-                                           <span>IDR {(item.quantity * item.unitPrice).toLocaleString()}</span>
+                                       <li key={idx} className="flex flex-col py-2 border-b border-gray-100 last:border-0">
+                                           <div className="flex justify-between text-gray-900">
+                                               <span>{item.itemName} ({item.quantity}x)</span>
+                                               <span className="font-medium">IDR {(item.quantity * item.unitPrice).toLocaleString()}</span>
+                                           </div>
+                                           {item.imageUrl && (
+                                                <a 
+                                                    href={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${item.imageUrl}`} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1 w-fit bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                                                >
+                                                    <ImageIcon className="w-3 h-3" /> View Item Image
+                                                </a>
+                                           )}
                                        </li>
                                    ))}
                                </ul>
                            </div>
 
-                           <div className="flex justify-between border-t border-gray-200 pt-2 mt-2">
+                           <div className="flex justify-between border-t border-gray-200 pt-3 mt-2 bg-gray-100/50 p-2 rounded-lg">
                                <span className="text-gray-700 font-bold">Total Cost:</span>
                                <span className="font-bold text-[#0F4D39]">IDR {approvalModal.request.totalPrice.toLocaleString()}</span>
                            </div>
+                           
+                           {approvalModal.request.attachmentUrl && (
+                                <div className="pt-2 border-t border-gray-200 mt-2">
+                                    <span className="text-gray-500 block mb-1 text-xs uppercase tracking-wide">Supporting Document:</span>
+                                    <div className="flex gap-2">
+                                        <a 
+                                            href={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${approvalModal.request.attachmentUrl}`} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-2 font-medium p-2 bg-blue-50 rounded-lg border border-blue-100 hover:bg-blue-100 transition-all flex-1 justify-center"
+                                        >
+                                            <FileText className="w-4 h-4" /> 
+                                            Download/View
+                                        </a>
+                                        <button
+                                            onClick={() => {
+                                                setApprovalModal({ ...approvalModal, isOpen: false });
+                                                setPreviewModal({ isOpen: true, data: approvalModal.request });
+                                            }}
+                                            className="text-[#0F4D39] hover:text-[#0a3628] text-sm flex items-center gap-2 font-medium p-2 bg-[#0F4D39]/10 rounded-lg border border-[#0F4D39]/20 hover:bg-[#0F4D39]/20 transition-all flex-1 justify-center"
+                                        >
+                                            <Eye className="w-4 h-4" />
+                                            Full Preview
+                                        </button>
+                                    </div>
+                                </div>
+                           )}
+
+                           {!approvalModal.request.attachmentUrl && (
+                                <div className="pt-2 border-t border-gray-200 mt-2">
+                                    <button
+                                        onClick={() => {
+                                            setApprovalModal({ ...approvalModal, isOpen: false });
+                                            setPreviewModal({ isOpen: true, data: approvalModal.request });
+                                        }}
+                                        className="w-full text-[#0F4D39] hover:text-[#0a3628] text-sm flex items-center justify-center gap-2 font-medium p-2 bg-[#0F4D39]/10 rounded-lg border border-[#0F4D39]/20 hover:bg-[#0F4D39]/20 transition-all"
+                                    >
+                                        <Eye className="w-4 h-4" />
+                                        View Full Request Preview
+                                    </button>
+                                </div>
+                           )}
+
                            <div className="pt-2 border-t border-gray-200 mt-2">
                                <span className="text-gray-500 block mb-1">Reason:</span>
-                               <p className="text-gray-800 italic">{approvalModal.request.reason}</p>
+                               <p className="text-gray-800 italic bg-white p-2 rounded border border-gray-100">"{approvalModal.request.reason}"</p>
                            </div>
                        </div>
  
@@ -722,10 +1276,128 @@ export default function ProcurementPage() {
                     
                     {/* Modal Content - Scrollable */}
                     <div className="flex-1 overflow-auto bg-gray-100 p-4 md:p-8">
-                        <div className="shadow-lg min-w-[800px] md:min-w-0">
-                            <ProcurementInvoice ref={printRef} data={previewModal.data} />
+                        <div className="flex gap-6 flex-col lg:flex-row items-start justify-center">
+                             {/* Invoice Preview */}
+                             <div className="shadow-lg min-w-[800px] md:min-w-0 bg-white rounded-lg flex-1 w-full max-w-4xl">
+                                <ProcurementInvoice ref={printRef} data={previewModal.data} />
+                             </div>
+
+                             {/* Side Panel for Attachment Preview (if any) */}
+                             {previewModal.data.attachmentUrl && (
+                                <div className="w-full lg:w-1/3 space-y-4 print:hidden">
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                                        <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                            <FileText className="w-4 h-4" /> Supporting Document
+                                        </h4>
+                                        {previewModal.data.attachmentUrl.endsWith('.pdf') ? (
+                                            <iframe 
+                                                src={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${previewModal.data.attachmentUrl}`}
+                                                className="w-full h-[400px] rounded border border-gray-200"
+                                            ></iframe>
+                                        ) : (
+                                            <div className="relative group">
+                                                <img 
+                                                    src={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${previewModal.data.attachmentUrl}`}
+                                                    alt="Attachment"
+                                                    className="w-full rounded border border-gray-200"
+                                                />
+                                                <a 
+                                                    href={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${previewModal.data.attachmentUrl}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white font-medium transition-opacity rounded"
+                                                >
+                                                    View Full Size
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                             )}
                         </div>
                     </div>
+
+                    {/* Footer Actions for Approvers */}
+                    {pendingProcurements.find(r => r.id === previewModal.data.id) && (
+                        <div className="px-6 py-4 border-t bg-white flex justify-between items-center">
+                            <span className="text-sm text-gray-500">
+                                You have a pending action for this request.
+                            </span>
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={() => {
+                                        setPreviewModal({ isOpen: false, data: null });
+                                        handleApproval(previewModal.data.id, 'REJECT');
+                                    }} 
+                                    className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-700 rounded-lg text-sm font-bold hover:bg-red-100 border border-red-200 transition-colors"
+                                >
+                                    <X className="w-4 h-4" /> Reject
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        setPreviewModal({ isOpen: false, data: null });
+                                        handleApproval(previewModal.data.id, 'APPROVE');
+                                    }} 
+                                    className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-bold hover:bg-green-100 border border-green-200 transition-colors"
+                                >
+                                    <Check className="w-4 h-4" /> Approve
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+       )}
+       {/* Export Data Modal */}
+       {showExportModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+                    <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
+                        <h3 className="text-lg font-bold text-gray-900">Export Procurement Data</h3>
+                        <button onClick={() => setShowExportModal(false)} className="text-gray-500 hover:text-gray-700">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+                    
+                    <form onSubmit={handleExport} className="p-6 space-y-4">
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                            <input 
+                                type="date" 
+                                required
+                                className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0F4D39] outline-none"
+                                value={exportDateRange.start}
+                                onChange={e => setExportDateRange({...exportDateRange, start: e.target.value})}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">End Date</label>
+                            <input 
+                                type="date" 
+                                required
+                                className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0F4D39] outline-none"
+                                value={exportDateRange.end}
+                                onChange={e => setExportDateRange({...exportDateRange, end: e.target.value})}
+                            />
+                        </div>
+                        
+                        <div className="pt-4 flex justify-end gap-3">
+                            <button 
+                                type="button"
+                                onClick={() => setShowExportModal(false)}
+                                className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                type="submit"
+                                className="px-4 py-2 bg-[#0F4D39] text-white font-medium rounded-lg hover:bg-[#0a3628] shadow-lg flex items-center gap-2"
+                            >
+                                <Download className="w-4 h-4" />
+                                Export CSV
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
        )}

@@ -1,68 +1,48 @@
-# Panduan Deployment The Lodge Ranger ke VPS (Ubuntu)
-
-Dokumen ini menjelaskan langkah-langkah untuk melakukan deployment aplikasi **The Lodge Ranger** (Next.js + Express + MySQL) ke VPS menggunakan sistem operasi **Ubuntu 22.04 LTS** atau **24.04 LTS**.
+# Panduan Deployment The Lodge Ranger
 
 ## 1. Persiapan VPS
+Pastikan VPS Anda menggunakan Ubuntu 20.04/22.04 LTS.
 
-Masuk ke VPS Anda via SSH:
+Akses VPS via SSH:
 ```bash
-ssh root@ip-address-vps-anda
+ssh root@ip-address-vps
 ```
 
-Update package list:
+## 2. Cara Cepat (Automated Script)
+Kami telah menyediakan script otomatis untuk setup awal.
+
+1. Upload file `vps-setup.sh` ke VPS.
+2. Beri izin eksekusi dan jalankan:
+   ```bash
+   chmod +x vps-setup.sh
+   ./vps-setup.sh
+   ```
+3. Ikuti instruksi di layar.
+
+---
+
+## 3. Cara Manual (Langkah demi Langkah)
+
+### Prasyarat
+Install software yang dibutuhkan:
 ```bash
-sudo apt update && sudo apt upgrade -y
+sudo apt update
+sudo apt install -y nodejs npm nginx mysql-server git ufw
 ```
+*(Pastikan Node.js versi 18+)*
 
-## 2. Instalasi Dependensi Utama
+### Setup Database
+1. Login ke MySQL: `sudo mysql`
+2. Buat user dan db:
+   ```sql
+   CREATE DATABASE thelodgeranger;
+   CREATE USER 'lodgeranger'@'localhost' IDENTIFIED BY 'password_kuat_anda';
+   GRANT ALL PRIVILEGES ON thelodgeranger.* TO 'lodgeranger'@'localhost';
+   FLUSH PRIVILEGES;
+   EXIT;
+   ```
 
-Kita akan menginstall:
-- **Node.js** (Versi LTS)
-- **MySQL Server** (Database)
-- **Nginx** (Web Server / Reverse Proxy)
-- **PM2** (Process Manager agar aplikasi tetap jalan walau terminal ditutup)
-
-### Install Node.js
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
-```
-
-### Install MySQL
-```bash
-sudo apt install mysql-server -y
-sudo mysql_secure_installation
-# Ikuti instruksi di layar (set password root, remove anonymous users, disallow root login remotely, dll)
-```
-
-### Install Nginx
-```bash
-sudo apt install nginx -y
-```
-
-### Install PM2
-```bash
-sudo npm install -g pm2
-```
-
-## 3. Setup Database
-
-Masuk ke MySQL console:
-```bash
-sudo mysql -u root -p
-```
-
-Buat database dan user baru (jangan pakai root untuk aplikasi):
-```sql
-CREATE DATABASE thelodgeranger;
-CREATE USER 'lodgeranger'@'localhost' IDENTIFIED BY 'BI5mill4h@@@';
-GRANT ALL PRIVILEGES ON thelodgeranger.* TO 'lodgeranger'@'localhost';
-FLUSH PRIVILEGES;
-EXIT;
-```
-
-## 4. Setup Aplikasi
-
+### Upload Kode
 Anda bisa mengupload kode menggunakan Git (GitHub/GitLab) atau SCP. Asumsi kita menggunakan Git di folder `/var/www`.
 
 ```bash
@@ -99,7 +79,9 @@ cd thelodgeranger
 
 4. Jalankan dengan PM2:
    ```bash
-   pm2 start index.js --name "ranger-backend"
+   pm2 start ecosystem.config.js
+   # Atau jika belum ada ecosystem file:
+   # pm2 start index.js --name "ranger-backend"
    ```
 
 ### Setup Frontend (Client)
@@ -116,7 +98,9 @@ cd thelodgeranger
    ```
    Isi dengan URL domain/IP VPS:
    ```env
-   NEXT_PUBLIC_API_URL=http://ip-address-atau-domain-anda/api
+   # PENTING: Gunakan HTTPS jika sudah disetting, atau HTTP jika belum.
+   # Jangan pakai port :5000, arahkan ke /api (Nginx akan menghandle)
+   NEXT_PUBLIC_API_URL=https://ranger.thelodgegroup.id/api
    ```
 
 3. Build aplikasi Next.js:
@@ -135,20 +119,23 @@ cd thelodgeranger
    pm2 startup
    ```
 
-## 5. Konfigurasi Nginx (Reverse Proxy)
+## 4. Setup Domain & Keamanan Jaringan (PENTING)
 
-Nginx akan mengatur agar user mengakses port 80 (HTTP) dan diteruskan ke port 3000 (Frontend) dan 5000 (Backend).
+Masalah umum: "Sistem tidak bisa diakses dari jaringan kantor/WiFi tertentu".
+Solusi: Gunakan **Nginx Reverse Proxy** dan **SSL (HTTPS)**.
 
-1. Buat file konfigurasi:
+### Langkah 1: Konfigurasi Nginx
+Nginx bertugas sebagai "resepsionis" yang menerima tamu di pintu utama (Port 80/443) lalu mengarahkan ke kamar yang tepat (Port 3000/5000). Ini membuat sistem bisa diakses tanpa mengetik port, dan menembus firewall kantor.
+
+1. Buat konfigurasi:
    ```bash
    sudo nano /etc/nginx/sites-available/thelodgeranger
    ```
 
-2. Isi dengan konfigurasi berikut:
+2. Isi file:
    ```nginx
    server {
-       listen 80;
-       server_name domain-anda.com www.domain-anda.com; # Atau IP address jika belum ada domain
+       server_name ranger.thelodgegroup.id; # Ganti dengan domain Anda
 
        # Frontend (Next.js)
        location / {
@@ -160,7 +147,7 @@ Nginx akan mengatur agar user mengakses port 80 (HTTP) dan diteruskan ke port 30
            proxy_cache_bypass $http_upgrade;
        }
 
-       # Backend (Express API)
+       # Backend (API)
        location /api {
            proxy_pass http://localhost:5000;
            proxy_http_version 1.1;
@@ -172,22 +159,81 @@ Nginx akan mengatur agar user mengakses port 80 (HTTP) dan diteruskan ke port 30
    }
    ```
 
-3. Aktifkan konfigurasi:
+3. Aktifkan:
    ```bash
-   sudo ln -s /etc/nginx/sites-available/thelodgeranger /etc/nginx/sites-enabled/
-   sudo rm /etc/nginx/sites-enabled/default # Hapus default config jika perlu
-   sudo nginx -t # Test konfigurasi
+   sudo ln -sf /etc/nginx/sites-available/thelodgeranger /etc/nginx/sites-enabled/
+   sudo rm -f /etc/nginx/sites-enabled/default
+   sudo nginx -t
    sudo systemctl restart nginx
+   ``````
+
+### Langkah 2: Pasang SSL (HTTPS) Gratis
+Agar aman dan tidak diblokir browser/firewall, wajib gunakan HTTPS.
+
+1. Install Certbot:
+   ```bash
+   sudo apt install certbot python3-certbot-nginx
    ```
 
-## 6. Selesai!
+2. Generate Sertifikat:
+   ```bash
+   sudo certbot --nginx -d ranger.thelodgegroup.id
+   ```
+   *Pilih opsi "2: Redirect" jika ditanya, agar semua akses otomatis ke HTTPS.*
 
-Sekarang aplikasi Anda sudah bisa diakses melalui IP Address VPS atau Domain Anda.
+### Langkah 3: Cloudflare (Solusi Pamungkas)
+Jika Nginx + HTTPS masih diblokir (biasanya karena IP VPS kena blacklist firewall kantor), gunakan Cloudflare.
 
-### Tips Tambahan (Keamanan)
-Jika sudah menggunakan domain, sangat disarankan menginstall SSL (HTTPS) menggunakan Certbot:
+**PERINGATAN:** Langkah ini mengharuskan Anda memindahkan DNS utama domain `thelodgegroup.id`. Jika domain ini dipakai untuk email/website perusahaan utama lainnya, **WAJIB konsultasi dengan tim IT yang mengurus domain tersebut** agar email tidak mati.
 
+1. **Daftar Akun:**
+   Buka [dash.cloudflare.com](https://dash.cloudflare.com/sign-up) dan daftar gratis.
+
+2. **Add Site:**
+   - Klik tombol **Add a Site**.
+   - Masukkan domain utama: `thelodgegroup.id` (bukan ranger.thelodgegroup.id).
+   - Pilih **Free Plan** (paling bawah).
+
+3. **Review DNS Records (PENTING):**
+   - Cloudflare akan otomatis menscan record DNS lama Anda (Mail, WWW, dll).
+   - **Pastikan semua record ada**. Jika ada yang hilang, email kantor bisa tidak bisa diakses.
+   - Tambahkan record baru untuk Ranger:
+     - **Type:** A
+     - **Name:** ranger
+     - **Content:** [Masukkan IP Public VPS Anda, contoh: 103.100.x.x]
+     - **Proxy status:** **Proxied** (Awan Oranye). Ini kuncinya agar IP asli tersembunyi.
+
+4. **Ubah Nameservers:**
+   - Cloudflare akan memberikan 2 Nameserver (contoh: `bob.ns.cloudflare.com`).
+   - Login ke tempat Anda membeli domain (Niagahoster/Rumahweb/dll).
+   - Cari menu **Nameservers** dan ganti dengan yang dari Cloudflare.
+   - Tunggu 1-24 jam untuk propagasi.
+
+5. **Setting SSL/TLS (WAJIB):**
+   - Di dashboard Cloudflare, menu sebelah kiri klik **SSL/TLS**.
+   - Ubah mode menjadi **Full** atau **Full (Strict)**.
+   - *Jangan pilih Flexible*, karena akan bentrok dengan settingan Nginx di VPS dan menyebabkan error "Too many redirects".
+
+Dengan setup ini, user mengakses `Cloudflare -> VPS Anda`. Firewall kantor hanya melihat koneksi ke Cloudflare (yang aman), bukan ke IP VPS Anda.
+
+## 5. Update Aplikasi
+
+Jika ada perubahan kode (seperti fitur baru):
+
+**Backend:**
 ```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d domain-anda.com
+cd /var/www/thelodgeranger/server
+git pull
+npm install
+npx prisma db push
+pm2 restart server-api
+```
+
+**Frontend:**
+```bash
+cd /var/www/thelodgeranger/client
+git pull
+npm install
+npm run build
+pm2 restart ranger-frontend
 ```

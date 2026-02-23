@@ -3,40 +3,73 @@
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { format } from "date-fns";
-import { User, Calendar, Trash2, Edit2, Plus } from "lucide-react";
+import { format, differenceInDays } from "date-fns";
+import { formatWibDate, formatWibMonthDay, formatWibTime } from "@/lib/wibHelpers";
+import { User, Calendar, Trash2, Edit2, Plus, Download, Bug, Settings2, Info, MessageSquare } from "lucide-react";
+import { ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 export default function AdminPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState("staff");
   
   // Data
   const [users, setUsers] = useState<any[]>([]);
+  const [expiringUsers, setExpiringUsers] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
+  const [bugReports, setBugReports] = useState<any[]>([]);
+  const [approvalConfigs, setApprovalConfigs] = useState<any[]>([]);
+  const [selectedApprovalModule, setSelectedApprovalModule] = useState<"REQUEST" | "PROCUREMENT">("REQUEST");
+  const [selectedApprovalDepartment, setSelectedApprovalDepartment] = useState<string>("");
+  const [editingApprovalConfig, setEditingApprovalConfig] = useState<any | null>(null);
+  const [approvalSteps, setApprovalSteps] = useState<{ order: number; role: string }[]>([]);
+  const [approvalAssignments, setApprovalAssignments] = useState<{ userId: number; role?: string | null }[]>([]);
+  const [isSavingApprovalConfig, setIsSavingApprovalConfig] = useState(false);
+  const [showAdvancedAssignments, setShowAdvancedAssignments] = useState(false);
+  const [bugStartDate, setBugStartDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [bugEndDate, setBugEndDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [staffSearch, setStaffSearch] = useState('');
+  const [scheduleSearch, setScheduleSearch] = useState('');
+  const [contractSearch, setContractSearch] = useState('');
+  const [waUsers, setWaUsers] = useState<any[]>([]);
+  const [waSearch, setWaSearch] = useState('');
+  const [waDept, setWaDept] = useState('');
+  const waFiltered = waUsers.filter(u => {
+    const q = waSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (u.name || '').toLowerCase().includes(q) ||
+      (u.department || '').toLowerCase().includes(q)
+    );
+  });
+  const waVerifiedCount = waFiltered.filter(u => !!u.whatsappVerifiedAt).length;
+  const waUnverifiedCount = waFiltered.length - waVerifiedCount;
+  const waPieData = [
+    { name: 'Verified', value: waVerifiedCount },
+    { name: 'Unverified', value: waUnverifiedCount }
+  ];
+  const waPieColors = ['#0F4D39', '#D1D5DB'];
   
   // Forms
   const [showUserModal, setShowUserModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [bugForm, setBugForm] = useState({
+      title: "",
+      description: "",
+      type: "BUG",
+      priority: "MEDIUM"
+  });
   
   // User Form State
   const [editingUser, setEditingUser] = useState<any>(null);
   const [formDataUser, setFormDataUser] = useState({
-      name: "", email: "", password: "", role: "STAFF", department: "", leaveQuota: 12
+      name: "", email: "", password: "", role: "STAFF", department: "", leaveQuota: 12, pdo: 0,
+      contractStartDate: "", contractEndDate: ""
   });
 
   // Schedule Form State
   const [formDataSchedule, setFormDataSchedule] = useState({
       userId: "", date: "", shiftStart: "", shiftEnd: "", description: ""
   });
-
-  useEffect(() => {
-    if (user?.role === 'HR' || user?.role === 'GM') {
-        fetchUsers();
-        if (activeTab === 'schedule') {
-            fetchSchedules();
-        }
-    }
-  }, [user, activeTab]);
 
   const fetchUsers = async () => {
     try {
@@ -45,6 +78,47 @@ export default function AdminPage() {
     } catch (err) {
       console.error(err);
     }
+  };
+ 
+  const fetchExpiringContracts = async () => {
+    try {
+      const res = await api.get("/users/expiring");
+      setExpiringUsers(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchWhatsAppStatus = async () => {
+    try {
+      const params: any = {};
+      if (waDept && waDept.trim() !== '') params.department = waDept.trim();
+      const res = await api.get("/users/wa/status", { params });
+      setWaUsers(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+  const exportWhatsAppCSV = () => {
+    const headers = ["Name","Department","Role","WhatsAppNumber","VerifiedAt"];
+    const rows = waFiltered.map(u => [
+      u.name,
+      u.department || "",
+      u.role,
+      u.whatsappNumber || "",
+      u.whatsappVerifiedAt ? `${formatWibDate(u.whatsappVerifiedAt)} ${formatWibTime(u.whatsappVerifiedAt)}` : ""
+    ]);
+    const q = (v: any) => `"${String(v ?? '').replace(/"/g,'""')}"`;
+    const csv = [headers.map(q).join(','), ...rows.map(r => r.map(q).join(','))].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `whatsapp_status_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const fetchSchedules = async () => {
@@ -56,19 +130,196 @@ export default function AdminPage() {
     }
   };
 
+  const fetchBugReports = async (start?: string, end?: string) => {
+    try {
+      const params: any = {};
+      if (start) params.startDate = start;
+      if (end) params.endDate = end;
+      const res = await api.get("/bug-reports", { params });
+      setBugReports(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchApprovalConfigs = async () => {
+    try {
+      const params: any = {};
+      if (selectedApprovalModule) params.module = selectedApprovalModule;
+      if (selectedApprovalDepartment) params.department = selectedApprovalDepartment;
+      const res = await api.get("/approval-configs", { params });
+      setApprovalConfigs(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchUsersForAssignments = async () => {
+    try {
+      const res = await api.get("/users");
+      setUsers(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const filteredStaff = users.filter(u => {
+    const q = staffSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (u.name || '').toLowerCase().includes(q) ||
+      (u.email || '').toLowerCase().includes(q) ||
+      (u.department || '').toLowerCase().includes(q)
+    );
+  });
+
+  const filteredSchedules = schedules.filter(s => {
+    const q = scheduleSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (s.user?.name || '').toLowerCase().includes(q) ||
+      (s.user?.department || '').toLowerCase().includes(q)
+    );
+  });
+
+  const filteredContracts = expiringUsers.filter(u => {
+    const q = contractSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (u.name || '').toLowerCase().includes(q) ||
+      (u.department || '').toLowerCase().includes(q)
+    );
+  });
+
+  useEffect(() => {
+    if (!user) return;
+
+    if (user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN') {
+      if (activeTab === 'staff' || activeTab === 'schedule' || activeTab === 'contracts' || activeTab === 'approval') {
+        fetchUsers();
+      }
+
+      if (activeTab === 'schedule') {
+        fetchSchedules();
+      } else if (activeTab === 'contracts') {
+        fetchExpiringContracts();
+      } else if (activeTab === 'approval') {
+        fetchApprovalConfigs();
+      } else if (activeTab === 'whatsapp') {
+        fetchWhatsAppStatus();
+      }
+    }
+
+    if (activeTab === 'bugs' && (user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN')) {
+      fetchBugReports(bugStartDate || undefined, bugEndDate || undefined);
+    }
+  }, [user, activeTab, selectedApprovalModule, selectedApprovalDepartment, bugStartDate, bugEndDate]);
+ 
+  const exportStaffCSV = () => {
+    const headers = ["Name","Email","Role","Department","LeaveQuota","PDO","ContractStart","ContractEnd","CreatedAt"];
+    const rows = users.map(u => [
+      u.name,
+      u.email,
+      u.role,
+      u.department || "",
+      u.leaveQuota ?? 12,
+      u.pdo ?? 0,
+      u.contractStartDate ? formatWibDate(u.contractStartDate) : "",
+      u.contractEndDate ? formatWibDate(u.contractEndDate) : "",
+      u.createdAt ? formatWibDate(u.createdAt) + " " + formatWibTime(u.createdAt) : ""
+    ]);
+    const q = (v: any) => `"${String(v ?? '').replace(/"/g,'""')}"`;
+    const csv = [headers.map(q).join(','), ...rows.map(r => r.map(q).join(','))].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `staff_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+ 
+  const exportScheduleCSV = () => {
+    const headers = ["Staff","Department","Date","ShiftStart","ShiftEnd","Description"];
+    const rows = schedules.map(s => [
+      s.user?.name || "",
+      s.user?.department || "",
+      s.date ? formatWibDate(s.date) : "",
+      s.shiftStart ? formatWibTime(s.shiftStart) : "",
+      s.shiftEnd ? formatWibTime(s.shiftEnd) : "",
+      s.description || ""
+    ]);
+    const q = (v: any) => `"${String(v ?? '').replace(/"/g,'""')}"`;
+    const csv = [headers.map(q).join(','), ...rows.map(r => r.map(q).join(','))].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `schedules_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+ 
+  const exportContractsCSV = () => {
+    const headers = ["Name","Department","ContractStart","ContractEnd","DaysRemaining","Status"];
+      const rows = expiringUsers.map(u => {
+      const days = u.contractEndDate ? differenceInDays(new Date(u.contractEndDate), new Date()) : "";
+      const status = typeof days === 'number'
+        ? (days < 0 ? 'Expired' : (days < 30 ? 'Expiring Soon' : 'Active'))
+        : '';
+        return [
+        u.name,
+        u.department || "",
+          u.contractStartDate ? formatWibDate(u.contractStartDate) : "",
+          u.contractEndDate ? formatWibDate(u.contractEndDate) : "",
+        days,
+        status
+      ];
+    });
+    const q = (v: any) => `"${String(v ?? '').replace(/"/g,'""')}"`;
+    const csv = [headers.map(q).join(','), ...rows.map(r => r.map(q).join(','))].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `contracts_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleApplyBugFilter = () => {
+    fetchBugReports(bugStartDate || undefined, bugEndDate || undefined);
+  };
+
+  const handleResetBugFilter = () => {
+    const today = new Date().toISOString().split("T")[0];
+    setBugStartDate(today);
+    setBugEndDate(today);
+    fetchBugReports(today, today);
+  };
+
   const handleUserSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       try {
           if (editingUser) {
               await api.put(`/users/${editingUser.id}`, formDataUser);
               alert("User updated");
+              if (user && editingUser.id === user.id) {
+                  await refreshUser();
+              }
           } else {
               await api.post("/users", formDataUser);
               alert("User created");
           }
           setShowUserModal(false);
           setEditingUser(null);
-          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", leaveQuota: 12 });
+          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", leaveQuota: 12, pdo: 0, contractStartDate: "", contractEndDate: "" });
           fetchUsers();
       } catch (err: any) {
           alert(err.response?.data?.message || "Error saving user");
@@ -93,7 +344,10 @@ export default function AdminPage() {
           password: "", // Don't fill password
           role: user.role,
           department: user.department || "",
-          leaveQuota: user.leaveQuota || 12
+          leaveQuota: typeof user.leaveQuota === "number" ? user.leaveQuota : 12,
+          pdo: typeof user.pdo === "number" ? user.pdo : 0,
+          contractStartDate: user.contractStartDate ? new Date(user.contractStartDate).toISOString().split('T')[0] : "",
+          contractEndDate: user.contractEndDate ? new Date(user.contractEndDate).toISOString().split('T')[0] : ""
       });
       setShowUserModal(true);
   };
@@ -121,7 +375,171 @@ export default function AdminPage() {
       }
   };
 
-  if (user?.role !== 'HR' && user?.role !== 'GM') {
+  const handleBugSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      try {
+          await api.post("/bug-reports", bugForm);
+          alert("Laporan berhasil dikirim");
+          setBugForm({ title: "", description: "", type: "BUG", priority: "MEDIUM" });
+          fetchBugReports();
+      } catch (err: any) {
+          alert(err.response?.data?.message || "Error mengirim laporan");
+      }
+  };
+
+  const handleBugStatusUpdate = async (id: number, status: string) => {
+    try {
+      await api.put(`/bug-reports/${id}/status`, { status });
+      fetchBugReports();
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Gagal mengupdate status laporan.");
+    }
+  };
+
+  const resetApprovalForm = () => {
+    setEditingApprovalConfig(null);
+    setApprovalSteps([]);
+    setApprovalAssignments([]);
+    setShowAdvancedAssignments(false);
+  };
+
+  const handleEditApprovalConfig = (config: any) => {
+    setEditingApprovalConfig(config);
+    setSelectedApprovalModule(config.module);
+    setSelectedApprovalDepartment(config.department || "");
+    setApprovalSteps(
+      (config.steps || [])
+        .slice()
+        .sort((a: any, b: any) => a.order - b.order)
+        .map((s: any) => ({ order: s.order, role: s.role }))
+    );
+    setApprovalAssignments(
+      (config.assignments || []).map((a: any) => ({
+        userId: a.userId,
+        role: a.role || null
+      }))
+    );
+    setShowAdvancedAssignments((config.assignments || []).length > 0);
+  };
+
+  const getAvailableRolesForModule = (module: "REQUEST" | "PROCUREMENT") => {
+    // Defines sorting order for approval steps
+    const commonRoles = [
+        "PHOTOGRAPHER_HOD", 
+        "MERCHANDISE_HOD", 
+        "MERCHANDISE_SPV",
+        "HOD", 
+        "SUPERVISOR",
+        "GM"
+    ];
+
+    if (module === "REQUEST") {
+      return [...commonRoles.slice(0, 5), "HR", "FINANCE", "GM"]; // Insert HR and FINANCE before GM
+    }
+    return [...commonRoles.slice(0, 5), "FINANCE", "GM"]; // Insert FINANCE before GM
+  };
+
+  const toggleApprovalRole = (role: string) => {
+    const availableRoles = getAvailableRolesForModule(selectedApprovalModule);
+    const currentRoles = approvalSteps.map(s => s.role);
+    const exists = currentRoles.includes(role);
+    let nextRoles = exists ? currentRoles.filter(r => r !== role) : [...currentRoles, role];
+    nextRoles = availableRoles.filter(r => nextRoles.includes(r));
+    const nextSteps = nextRoles.map((r, index) => ({
+      order: index + 1,
+      role: r
+    }));
+    setApprovalSteps(nextSteps);
+  };
+
+  const handleAddApprovalAssignment = () => {
+    if (users.length === 0) return;
+    const firstUser = users[0];
+    setApprovalAssignments([
+      ...approvalAssignments,
+      { userId: firstUser.id, role: null }
+    ]);
+  };
+
+  const handleUpdateApprovalAssignmentUser = (index: number, userId: number) => {
+    setApprovalAssignments(
+      approvalAssignments.map((a, i) =>
+        i === index ? { ...a, userId } : a
+      )
+    );
+  };
+
+  const handleDeleteApprovalConfig = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this approval config?")) return;
+    try {
+      await api.delete(`/approval-configs/${id}`);
+      alert("Approval config deleted");
+      if (editingApprovalConfig?.id === id) {
+          resetApprovalForm();
+      }
+      fetchApprovalConfigs();
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Error deleting approval config");
+    }
+  };
+
+  const handleUpdateApprovalAssignmentRole = (index: number, role: string | null) => {
+    setApprovalAssignments(
+      approvalAssignments.map((a, i) =>
+        i === index ? { ...a, role } : a
+      )
+    );
+  };
+
+  const handleRemoveApprovalAssignment = (index: number) => {
+    setApprovalAssignments(
+      approvalAssignments.filter((_, i) => i !== index)
+    );
+  };
+
+  const handleApprovalConfigSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedApprovalModule) return;
+
+    const cleanedSteps = approvalSteps
+      .filter(s => s.role)
+      .sort((a, b) => a.order - b.order)
+      .map((s, index) => ({
+        order: index + 1,
+        role: s.role
+      }));
+
+    setIsSavingApprovalConfig(true);
+    try {
+      const payload: any = {
+        module: selectedApprovalModule,
+        department: selectedApprovalDepartment || null,
+        enabled: true,
+        steps: cleanedSteps,
+        assignments: approvalAssignments.map(a => ({
+          userId: a.userId,
+          role: a.role || null,
+          department: selectedApprovalDepartment || null
+        }))
+      };
+
+      if (editingApprovalConfig) {
+        await api.put(`/approval-configs/${editingApprovalConfig.id}`, payload);
+      } else {
+        await api.post(`/approval-configs`, payload);
+      }
+
+      alert("Approval config saved");
+      resetApprovalForm();
+      fetchApprovalConfigs();
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Error saving approval config");
+    } finally {
+      setIsSavingApprovalConfig(false);
+    }
+  };
+
+  if (user?.role !== 'HR' && user?.role !== 'GM' && user?.role !== 'ADMIN') {
       return <div>Access Denied</div>;
   }
 
@@ -145,23 +563,67 @@ export default function AdminPage() {
         >
             Schedule Management
         </button>
+        <button 
+            className={`pb-2 px-4 ${activeTab === 'contracts' ? 'border-b-2 border-[#0F4D39] font-bold text-[#0F4D39]' : 'text-gray-700'}`}
+            onClick={() => setActiveTab('contracts')}
+        >
+            Contract Expiry
+        </button>
+        <button 
+            className={`pb-2 px-4 flex items-center gap-2 ${activeTab === 'approval' ? 'border-b-2 border-[#0F4D39] font-bold text-[#0F4D39]' : 'text-gray-700'}`}
+            onClick={() => {
+              setActiveTab('approval');
+              fetchUsersForAssignments();
+            }}
+        >
+            <Settings2 size={16} />
+            Approval Settings
+        </button>
+        <button 
+            className={`pb-2 px-4 flex items-center gap-2 ${activeTab === 'whatsapp' ? 'border-b-2 border-[#0F4D39] font-bold text-[#0F4D39]' : 'text-gray-700'}`}
+            onClick={() => setActiveTab('whatsapp')}
+        >
+            <MessageSquare size={16} />
+            WhatsApp Status
+        </button>
+        <button 
+            className={`pb-2 px-4 ${activeTab === 'bugs' ? 'border-b-2 border-[#0F4D39] font-bold text-[#0F4D39]' : 'text-gray-700'}`}
+            onClick={() => setActiveTab('bugs')}
+        >
+            Bug & Feature Requests
+        </button>
       </div>
 
       {/* STAFF TAB */}
       {activeTab === 'staff' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex justify-between mb-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
                   <h2 className="text-xl font-bold">All Staff</h2>
-                  <button 
-                    onClick={() => {
-                        setEditingUser(null);
-                        setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", leaveQuota: 12 });
-                        setShowUserModal(true);
-                    }}
-                    className="bg-[#0F4D39] text-white px-4 py-2 rounded flex items-center space-x-2"
-                  >
-                      <Plus size={18} /> <span>Add Staff</span>
-                  </button>
+                  <div className="flex flex-1 md:flex-none items-center gap-2 justify-end">
+                    <input
+                      type="text"
+                      placeholder="Search name / email / department..."
+                      className="border border-gray-300 rounded px-3 py-1.5 text-sm w-full md:w-64"
+                      value={staffSearch}
+                      onChange={e => setStaffSearch(e.target.value)}
+                    />
+                    <button 
+                      onClick={exportStaffCSV}
+                      className="border border-[#0F4D39] text-[#0F4D39] bg-white px-4 py-2 rounded flex items-center space-x-2"
+                    >
+                      <Download size={18} /> <span>Export CSV</span>
+                    </button>
+                    <button 
+                      onClick={() => {
+                          setEditingUser(null);
+                          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", leaveQuota: 12, pdo: 0, contractStartDate: "", contractEndDate: "" });
+                          setShowUserModal(true);
+                      }}
+                      className="bg-[#0F4D39] text-white px-4 py-2 rounded flex items-center space-x-2"
+                    >
+                        <Plus size={18} /> <span>Add Staff</span>
+                    </button>
+                  </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -173,11 +635,13 @@ export default function AdminPage() {
                             <th className="p-3">Role</th>
                             <th className="p-3">Department</th>
                             <th className="p-3">Leave Quota</th>
+                            <th className="p-3">PDO</th>
+                            <th className="p-3">Contract End</th>
                             <th className="p-3">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {users.map((u) => (
+                        {filteredStaff.map((u) => (
                             <tr key={u.id} className="border-b">
                                 <td className="p-3 font-medium">{u.name}</td>
                                 <td className="p-3">{u.email}</td>
@@ -185,7 +649,11 @@ export default function AdminPage() {
                                     <span className="bg-gray-100 px-2 py-1 rounded text-xs">{u.role}</span>
                                 </td>
                                 <td className="p-3">{u.department}</td>
-                                <td className="p-3 text-center">{u.leaveQuota || 12}</td>
+                                <td className="p-3 text-center">{u.leaveQuota ?? 12}</td>
+                                <td className="p-3 text-center">{u.pdo ?? 0}</td>
+                                <td className="p-3 text-sm">
+                                    {u.contractEndDate ? formatWibMonthDay(u.contractEndDate) + ", " + new Date(u.contractEndDate).getFullYear() : '-'}
+                                </td>
                                 <td className="p-3 flex space-x-2">
                                     <button onClick={() => handleEditUser(u)} className="text-blue-600 hover:text-blue-800"><Edit2 size={18} /></button>
                                     <button onClick={() => handleDeleteUser(u.id)} className="text-red-600 hover:text-red-800"><Trash2 size={18} /></button>
@@ -198,17 +666,145 @@ export default function AdminPage() {
           </div>
       )}
 
+      {/* WHATSAPP TAB */}
+      {activeTab === 'whatsapp' && (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+            <h2 className="text-xl font-bold">Status Nomor WhatsApp</h2>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Cari nama / departemen..."
+                className="border border-gray-300 rounded px-3 py-1.5 text-sm w-48"
+                value={waSearch}
+                onChange={e => setWaSearch(e.target.value)}
+              />
+              <select
+                className="border border-gray-300 rounded px-3 py-1.5 text-sm w-48 bg-white"
+                value={waDept}
+                onChange={e => { setWaDept(e.target.value); fetchWhatsAppStatus(); }}
+              >
+                <option value="">Semua Departemen</option>
+                <option value="Front Office">Front Office</option>
+                <option value="Housekeeping">Housekeeping</option>
+                <option value="Public Area">Public Area</option>
+                <option value="F&B Service">F&B Service</option>
+                <option value="F&B Product">F&B Product</option>
+                <option value="Engineering">Engineering</option>
+                <option value="HR">HR</option>
+                <option value="Finance">Finance</option>
+                <option value="Cashier">Cashier</option>
+                <option value="Sales & Marketing">Sales & Marketing</option>
+                <option value="Sales & Business Development">Sales & Business Development</option>
+                <option value="IT">IT</option>
+                <option value="Security">Security</option>
+                <option value="General Affair">General Affair</option>
+                <option value="Merchandise">Merchandise</option>
+                <option value="Photographer">Photographer</option>
+              </select>
+              <button 
+                onClick={exportWhatsAppCSV}
+                className="border border-[#0F4D39] text-[#0F4D39] bg-white px-4 py-2 rounded flex items-center space-x-2"
+              >
+                <Download size={18} /> <span>Export CSV</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="p-4 border border-gray-200 rounded-lg">
+              <div className="text-sm text-gray-500">Total</div>
+              <div className="text-2xl font-bold">{waFiltered.length}</div>
+            </div>
+            <div className="p-4 border border-gray-200 rounded-lg">
+              <div className="text-sm text-gray-500">Verified</div>
+              <div className="text-2xl font-bold text-[#0F4D39]">{waVerifiedCount}</div>
+            </div>
+            <div className="p-4 border border-gray-200 rounded-lg">
+              <div className="text-sm text-gray-500">Belum Verifikasi</div>
+              <div className="text-2xl font-bold text-gray-600">{waUnverifiedCount}</div>
+            </div>
+          </div>
+
+          <div className="w-full h-48 mb-6">
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie data={waPieData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70}>
+                  {waPieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={waPieColors[index % waPieColors.length]} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full border border-gray-200 rounded-lg overflow-hidden">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left px-4 py-2 border-b">Nama</th>
+                  <th className="text-left px-4 py-2 border-b">Departemen</th>
+                  <th className="text-left px-4 py-2 border-b">Role</th>
+                  <th className="text-left px-4 py-2 border-b">Nomor WhatsApp</th>
+                  <th className="text-left px-4 py-2 border-b">Verifikasi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {waFiltered.map(u => {
+                    const verified = !!u.whatsappVerifiedAt;
+                    return (
+                      <tr key={u.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 border-b">{u.name}</td>
+                        <td className="px-4 py-2 border-b">{u.department || '-'}</td>
+                        <td className="px-4 py-2 border-b">{u.role}</td>
+                        <td className="px-4 py-2 border-b">{u.whatsappNumber || '-'}</td>
+                        <td className="px-4 py-2 border-b">
+                          {verified
+                            ? `${formatWibDate(u.whatsappVerifiedAt)} ${formatWibTime(u.whatsappVerifiedAt)}`
+                            : 'Belum diverifikasi'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                {waUsers.length === 0 && (
+                  <tr>
+                    <td className="px-4 py-4 text-center text-gray-500" colSpan={5}>
+                      Tidak ada data
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* SCHEDULE TAB */}
       {activeTab === 'schedule' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-               <div className="flex justify-between mb-4">
+               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
                   <h2 className="text-xl font-bold">All Schedules</h2>
-                  <button 
-                    onClick={() => setShowScheduleModal(true)}
-                    className="bg-[#0F4D39] text-white px-4 py-2 rounded flex items-center space-x-2"
-                  >
-                      <Plus size={18} /> <span>Assign Schedule</span>
-                  </button>
+                  <div className="flex flex-1 md:flex-none items-center gap-2 justify-end">
+                    <input
+                      type="text"
+                      placeholder="Search staff / department..."
+                      className="border border-gray-300 rounded px-3 py-1.5 text-sm w-full md:w-64"
+                      value={scheduleSearch}
+                      onChange={e => setScheduleSearch(e.target.value)}
+                    />
+                    <button 
+                      onClick={exportScheduleCSV}
+                      className="border border-[#0F4D39] text-[#0F4D39] bg-white px-4 py-2 rounded flex items-center space-x-2"
+                    >
+                      <Download size={18} /> <span>Export CSV</span>
+                    </button>
+                    <button 
+                      onClick={() => setShowScheduleModal(true)}
+                      className="bg-[#0F4D39] text-white px-4 py-2 rounded flex items-center space-x-2"
+                    >
+                        <Plus size={18} /> <span>Assign Schedule</span>
+                    </button>
+                  </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -222,23 +818,514 @@ export default function AdminPage() {
                         </tr>
                     </thead>
                     <tbody>
-                        {schedules.map((s) => (
+                        {filteredSchedules.map((s) => (
                             <tr key={s.id} className="border-b">
                                 <td className="p-3 font-medium">
                                     {s.user.name} <span className="text-xs text-gray-700">({s.user.department})</span>
                                 </td>
-                                <td className="p-3">{format(new Date(s.date), 'MMM dd, yyyy')}</td>
+                                <td className="p-3">{formatWibMonthDay(s.date) + ", " + new Date(s.date).getFullYear()}</td>
                                 <td className="p-3">
-                                    {format(new Date(s.shiftStart), 'HH:mm')} - {format(new Date(s.shiftEnd), 'HH:mm')}
+                                    {formatWibTime(s.shiftStart)} - {formatWibTime(s.shiftEnd)}
                                 </td>
                                 <td className="p-3 text-sm text-gray-700">{s.description || '-'}</td>
                             </tr>
                         ))}
-                         {schedules.length === 0 && (
+                        {filteredSchedules.length === 0 && (
                             <tr><td colSpan={4} className="p-4 text-center text-gray-700">No schedules found</td></tr>
                         )}
                     </tbody>
                 </table>
+              </div>
+          </div>
+      )}
+
+      {/* CONTRACTS TAB */}
+      {activeTab === 'contracts' && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+                  <h2 className="text-xl font-bold">Expiring Contracts</h2>
+                  <div className="flex flex-1 md:flex-none items-center gap-2 justify-end">
+                    <input
+                      type="text"
+                      placeholder="Search name / department..."
+                      className="border border-gray-300 rounded px-3 py-1.5 text-sm w-full md:w-64"
+                      value={contractSearch}
+                      onChange={e => setContractSearch(e.target.value)}
+                    />
+                    <button 
+                      onClick={exportContractsCSV}
+                      className="border border-[#0F4D39] text-[#0F4D39] bg-white px-4 py-2 rounded flex items-center space-x-2"
+                    >
+                        <Download size={18} /> <span>Export CSV</span>
+                    </button>
+                  </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="p-3">Name</th>
+                            <th className="p-3">Department</th>
+                            <th className="p-3">Contract End</th>
+                            <th className="p-3">Days Remaining</th>
+                            <th className="p-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filteredContracts.map((u) => {
+                            const days = differenceInDays(new Date(u.contractEndDate), new Date());
+                            let statusColor = "bg-green-100 text-green-800";
+                            if (days < 0) statusColor = "bg-gray-100 text-gray-800";
+                            else if (days < 30) statusColor = "bg-red-100 text-red-800";
+                            else if (days < 60) statusColor = "bg-yellow-100 text-yellow-800";
+                            
+                            return (
+                                <tr key={u.id} className="border-b">
+                                    <td className="p-3 font-medium">{u.name}</td>
+                                    <td className="p-3">{u.department}</td>
+                                    <td className="p-3">{format(new Date(u.contractEndDate), 'MMM dd, yyyy')}</td>
+                                    <td className="p-3">{days} Days</td>
+                                    <td className="p-3">
+                                        <span className={`px-2 py-1 rounded text-xs font-bold ${statusColor}`}>
+                                            {days < 0 ? 'Expired' : (days < 30 ? 'Expiring Soon' : 'Active')}
+                                        </span>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        {filteredContracts.length === 0 && (
+                            <tr><td colSpan={5} className="p-4 text-center text-gray-700">No expiring contracts found</td></tr>
+                        )}
+                    </tbody>
+                </table>
+              </div>
+          </div>
+      )}
+
+      {/* APPROVAL CONFIG TAB */}
+      {activeTab === 'approval' && (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
+          <div className="flex justify-between items-start">
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold">Approval Settings</h2>
+              <p className="text-sm text-gray-600">
+                Atur flow approval untuk Request dan Procurement per departemen. Urutan approval
+                selalu tetap berdasarkan role (misalnya HOD → SUPERVISOR → HR/FINANCE → GM).
+              </p>
+              <p className="text-xs text-gray-500">
+                Kamu hanya memilih role yang ikut approve, sistem yang menentukan urutannya.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">Module</label>
+                <select
+                  className="w-full border p-2 rounded"
+                  value={selectedApprovalModule}
+                  onChange={e => setSelectedApprovalModule(e.target.value as "REQUEST" | "PROCUREMENT")}
+                >
+                  <option value="REQUEST">REQUEST (Cuti / Izin / dll)</option>
+                  <option value="PROCUREMENT">PROCUREMENT</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">Department (opsional)</label>
+                <input
+                  type="text"
+                  className="w-full border p-2 rounded"
+                  placeholder="Contoh: Marcomm, F&B, FO"
+                  value={selectedApprovalDepartment}
+                  onChange={e => setSelectedApprovalDepartment(e.target.value)}
+                />
+                <p className="text-xs text-gray-500">
+                  Kosongkan untuk config global (berlaku semua departemen).
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  className="px-4 py-2 bg-gray-100 text-gray-800 rounded"
+                  onClick={() => {
+                    resetApprovalForm();
+                    fetchApprovalConfigs();
+                  }}
+                >
+                  Reset Form
+                </button>
+              </div>
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-semibold mb-2">Config Aktif</h3>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {approvalConfigs.map((cfg: any) => (
+                    <div
+                      key={cfg.id}
+                      className={`w-full text-left border rounded p-2 text-sm flex justify-between items-center ${
+                        editingApprovalConfig?.id === cfg.id ? "border-[#0F4D39] bg-[#0F4D39]/5" : "border-gray-200"
+                      }`}
+                    >
+                      <div className="flex-1 cursor-pointer" onClick={() => handleEditApprovalConfig(cfg)}>
+                          <div className="font-semibold">
+                            {cfg.module} {cfg.department ? `- ${cfg.department}` : "(Global)"}
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            Steps: {(cfg.steps || []).length} | Assignments: {(cfg.assignments || []).length}
+                          </div>
+                      </div>
+                      <div className="flex gap-1 ml-2">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); handleEditApprovalConfig(cfg); }}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded border border-blue-100"
+                            title="Edit"
+                        >
+                            <Edit2 size={14} />
+                        </button>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); handleDeleteApprovalConfig(cfg.id); }}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-100"
+                            title="Hapus"
+                        >
+                            <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {approvalConfigs.length === 0 && (
+                    <div className="text-xs text-gray-500">
+                      Belum ada config untuk filter ini.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-2 space-y-6">
+              <form onSubmit={handleApprovalConfigSubmit} className="space-y-6">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold">Flow Approval</h3>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-[10px] px-2 py-0.5 text-gray-700">
+                      <Info className="w-3 h-3" />
+                      Auto-order by role
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Checklist role yang ikut approve. Urutan approval akan mengikuti urutan role
+                    standar sistem untuk module ini.
+                  </p>
+                  <p className="text-[11px] text-gray-400">
+                    REQUEST: HOD → SUPERVISOR → HR/FINANCE → GM | PROCUREMENT: HOD → SUPERVISOR → FINANCE → GM
+                  </p>
+                  <div className="space-y-2">
+                    {getAvailableRolesForModule(selectedApprovalModule).map(role => {
+                      const checked = approvalSteps.some(s => s.role === role);
+                      return (
+                        <label key={role} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={checked}
+                            onChange={() => toggleApprovalRole(role)}
+                          />
+                          <span>{role}</span>
+                        </label>
+                      );
+                    })}
+                    {approvalSteps.length === 0 && (
+                      <div className="text-xs text-gray-500">
+                        Belum ada role approval yang dipilih.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-sm font-semibold">Assign Approver (opsional)</h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvancedAssignments(!showAdvancedAssignments)}
+                      className="text-xs px-3 py-1 bg-gray-100 text-gray-800 rounded"
+                    >
+                      {showAdvancedAssignments ? "Tutup Pengaturan Lanjutan" : "Pengaturan Lanjutan"}
+                    </button>
+                  </div>
+                  {!showAdvancedAssignments && (
+                    <div className="text-xs text-gray-500">
+                      Default: sistem akan kirim ke semua user dengan role di flow approval di atas.
+                    </div>
+                  )}
+                  {showAdvancedAssignments && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs text-gray-500">
+                          Batasi ke staff tertentu per role jika diperlukan.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleAddApprovalAssignment}
+                          className="text-xs px-3 py-1 bg-gray-100 text-gray-800 rounded"
+                        >
+                          Tambah Approver
+                        </button>
+                      </div>
+                      {approvalAssignments.map((a, index) => {
+                        const selectedUser = users.find(u => u.id === a.userId);
+                        return (
+                          <div key={index} className="flex items-center gap-2">
+                            <select
+                              className="border p-2 rounded flex-1"
+                              value={a.userId}
+                              onChange={e => handleUpdateApprovalAssignmentUser(index, parseInt(e.target.value, 10))}
+                            >
+                              <option value="">Pilih Staff</option>
+                              {users.map(u => (
+                                <option key={u.id} value={u.id}>
+                                  {u.name} {u.department ? `(${u.department})` : ""}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              className="border p-2 rounded"
+                              value={a.role || ""}
+                              onChange={e =>
+                                handleUpdateApprovalAssignmentRole(index, e.target.value || null)
+                              }
+                            >
+                              <option value="">Ikuti Role User</option>
+                              <option value="HOD">HOD</option>
+                              <option value="SUPERVISOR">SUPERVISOR</option>
+                              <option value="HR">HR</option>
+                              <option value="FINANCE">FINANCE</option>
+                              <option value="GM">GM</option>
+                              <option value="MERCHANDISE_STAFF">MERCHANDISE STAFF</option>
+                              <option value="MERCHANDISE_HOD">MERCHANDISE HOD</option>
+                              <option value="MERCHANDISE_SPV">MERCHANDISE SPV</option>
+                              <option value="PHOTOGRAPHER_STAFF">PHOTOGRAPHER STAFF</option>
+                              <option value="PHOTOGRAPHER_HOD">PHOTOGRAPHER HOD</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveApprovalAssignment(index)}
+                              className="text-xs text-red-600 px-2 py-1"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        );
+                      })}
+                      {approvalAssignments.length === 0 && (
+                        <div className="text-xs text-gray-500">
+                          Jika tidak ada assignment, sistem akan kirim ke semua user dengan role tersebut.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={resetApprovalForm}
+                    className="px-4 py-2 text-gray-700 border rounded"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingApprovalConfig}
+                    className="px-4 py-2 bg-[#0F4D39] text-white rounded disabled:opacity-60"
+                  >
+                    {isSavingApprovalConfig ? "Menyimpan..." : "Simpan Config"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BUG REPORT TAB */}
+      {activeTab === 'bugs' && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
+              <div className="flex justify-between items-center gap-4">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                      <Bug size={20} className="text-red-500" />
+                      Bug Reports & Feature Requests
+                  </h2>
+                  <div className="flex items-center gap-2 text-xs">
+                      <input
+                          type="date"
+                          className="border border-gray-300 rounded px-2 py-1"
+                          value={bugStartDate}
+                          onChange={e => setBugStartDate(e.target.value)}
+                      />
+                      <span className="text-gray-500">s/d</span>
+                      <input
+                          type="date"
+                          className="border border-gray-300 rounded px-2 py-1"
+                          value={bugEndDate}
+                          onChange={e => setBugEndDate(e.target.value)}
+                      />
+                      <button
+                          type="button"
+                          onClick={handleApplyBugFilter}
+                          className="px-3 py-1 rounded bg-[#0F4D39] text-white"
+                      >
+                          Filter
+                      </button>
+                      <button
+                          type="button"
+                          onClick={handleResetBugFilter}
+                          className="px-2 py-1 rounded border border-gray-300 text-gray-700"
+                      >
+                          Reset
+                      </button>
+                  </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <form onSubmit={handleBugSubmit} className="space-y-4">
+                      <div>
+                          <label className="block text-sm font-medium">Judul</label>
+                          <input
+                              type="text"
+                              className="w-full border p-2 rounded"
+                              required
+                              value={bugForm.title}
+                              onChange={e => setBugForm({ ...bugForm, title: e.target.value })}
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium">Jenis</label>
+                          <select
+                              className="w-full border p-2 rounded"
+                              value={bugForm.type}
+                              onChange={e => setBugForm({ ...bugForm, type: e.target.value })}
+                          >
+                              <option value="BUG">Bug</option>
+                              <option value="FEATURE">Request Fitur</option>
+                          </select>
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium">Prioritas</label>
+                          <select
+                              className="w-full border p-2 rounded"
+                              value={bugForm.priority}
+                              onChange={e => setBugForm({ ...bugForm, priority: e.target.value })}
+                          >
+                              <option value="LOW">Low</option>
+                              <option value="MEDIUM">Medium</option>
+                              <option value="HIGH">High</option>
+                          </select>
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium">Deskripsi</label>
+                          <textarea
+                              className="w-full border p-2 rounded h-32"
+                              required
+                              value={bugForm.description}
+                              onChange={e => setBugForm({ ...bugForm, description: e.target.value })}
+                          />
+                      </div>
+                      <div className="flex justify-end">
+                          <button
+                              type="submit"
+                              className="bg-[#0F4D39] text-white px-4 py-2 rounded"
+                          >
+                              Kirim Laporan
+                          </button>
+                      </div>
+                  </form>
+
+                  <div className="overflow-x-auto">
+                      <table className="min-w-full text-left">
+                          <thead className="bg-gray-50">
+                              <tr>
+                                  <th className="p-3">Tanggal</th>
+                                  <th className="p-3">Judul</th>
+                                  <th className="p-3">Jenis</th>
+                                  <th className="p-3">Prioritas</th>
+                                  <th className="p-3">Status</th>
+                                  <th className="p-3">Dari</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {bugReports.map((b) => (
+                                  <tr key={b.id} className="border-b align-top">
+                                      <td className="p-3 text-sm">
+                                          {format(new Date(b.createdAt), 'dd MMM yyyy HH:mm')}
+                                      </td>
+                                      <td className="p-3">
+                                          <div className="font-semibold">{b.title}</div>
+                                          <div className="text-xs text-gray-600 whitespace-pre-wrap">
+                                              {b.description}
+                                          </div>
+                                          {b.imageUrl && (
+                                            <div className="mt-2">
+                                                <a 
+                                                    href={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${b.imageUrl}`} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="inline-block"
+                                                >
+                                                    <img 
+                                                        src={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${b.imageUrl}`} 
+                                                        alt="Attachment" 
+                                                        className="h-16 w-auto rounded border object-cover hover:opacity-80 transition-opacity" 
+                                                    />
+                                                </a>
+                                            </div>
+                                          )}
+                                      </td>
+                                      <td className="p-3 text-xs">
+                                          <span className="px-2 py-1 rounded bg-gray-100">
+                                              {b.type}
+                                          </span>
+                                      </td>
+                                      <td className="p-3 text-xs">
+                                          <span className="px-2 py-1 rounded bg-gray-100">
+                                              {b.priority}
+                                          </span>
+                                      </td>
+                                      <td className="p-3">
+                                          <select
+                                              value={b.status}
+                                              onChange={(e) => handleBugStatusUpdate(b.id, e.target.value)}
+                                              className={`px-2 py-1 rounded text-xs border cursor-pointer ${
+                                                  b.status === 'DONE' ? 'bg-green-100 text-green-800 border-green-200' :
+                                                  b.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                                                  b.status === 'IN_REVIEW' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                                                  'bg-gray-100 text-gray-800 border-gray-200'
+                                              }`}
+                                          >
+                                              <option value="OPEN">Open</option>
+                                              <option value="IN_REVIEW">Sedang di Review</option>
+                                              <option value="IN_PROGRESS">Sedang di Proses</option>
+                                              <option value="DONE">Selesai</option>
+                                          </select>
+                                      </td>
+                                      <td className="p-3 text-sm">
+                                          {b.createdBy?.name || '-'}
+                                          {b.createdBy?.department && (
+                                              <span className="text-xs text-gray-500 block">
+                                                  {b.createdBy.department}
+                                              </span>
+                                          )}
+                                      </td>
+                                  </tr>
+                              ))}
+                              {bugReports.length === 0 && (
+                                  <tr>
+                                      <td colSpan={5} className="p-4 text-center text-gray-700">
+                                          Belum ada laporan.
+                                      </td>
+                                  </tr>
+                              )}
+                          </tbody>
+                      </table>
+                  </div>
               </div>
           </div>
       )}
@@ -281,6 +1368,12 @@ export default function AdminPage() {
                                 <option value="SUPERVISOR">SUPERVISOR</option>
                                 <option value="FINANCE">FINANCE</option>
                                 <option value="STORE">STORE</option>
+                                <option value="ADMIN">ADMIN</option>
+                                <option value="MERCHANDISE_STAFF">MERCHANDISE STAFF</option>
+                                <option value="MERCHANDISE_HOD">MERCHANDISE HOD</option>
+                                <option value="MERCHANDISE_SPV">MERCHANDISE SPV</option>
+                                <option value="PHOTOGRAPHER_STAFF">PHOTOGRAPHER STAFF</option>
+                                <option value="PHOTOGRAPHER_HOD">PHOTOGRAPHER HOD</option>
                             </select>
                         </div>
                         <div>
@@ -295,6 +1388,26 @@ export default function AdminPage() {
                           <input type="number" className="w-full border p-2 rounded" 
                               value={formDataUser.leaveQuota} onChange={e => setFormDataUser({...formDataUser, leaveQuota: parseInt(e.target.value) || 0})}
                           />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium">PDO (Days)</label>
+                          <input type="number" className="w-full border p-2 rounded" 
+                              value={formDataUser.pdo} onChange={e => setFormDataUser({...formDataUser, pdo: parseInt(e.target.value) || 0})}
+                          />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium">Contract Start</label>
+                            <input type="date" className="w-full border p-2 rounded" 
+                                value={formDataUser.contractStartDate} onChange={e => setFormDataUser({...formDataUser, contractStartDate: e.target.value})}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium">Contract End</label>
+                            <input type="date" className="w-full border p-2 rounded" 
+                                value={formDataUser.contractEndDate} onChange={e => setFormDataUser({...formDataUser, contractEndDate: e.target.value})}
+                            />
+                        </div>
                       </div>
                       <div className="flex justify-end space-x-2 mt-4">
                           <button type="button" onClick={() => setShowUserModal(false)} className="px-4 py-2 text-gray-600">Cancel</button>

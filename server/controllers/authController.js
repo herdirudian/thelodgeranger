@@ -45,7 +45,10 @@ exports.me = async (req, res) => {
                 email: true,
                 role: true,
                 department: true,
-                leaveQuota: true
+                leaveQuota: true,
+                pdo: true,
+                whatsappNumber: true,
+                whatsappVerifiedAt: true
             }
         });
         if (!user) return res.status(404).json({ message: 'User not found' });
@@ -147,6 +150,9 @@ exports.signin = async (req, res) => {
       return res.status(401).json({ token: null, message: 'Invalid Password' });
     }
 
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ message: 'JWT_SECRET not configured' });
+    }
     const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
       expiresIn: 86400, // 24 hours
     });
@@ -160,6 +166,9 @@ exports.signin = async (req, res) => {
       role: user.role,
       department: user.department,
       leaveQuota: user.leaveQuota,
+      pdo: user.pdo,
+      whatsappNumber: user.whatsappNumber,
+      whatsappVerifiedAt: user.whatsappVerifiedAt,
       accessToken: token,
     });
   } catch (error) {

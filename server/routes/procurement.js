@@ -12,6 +12,8 @@ router.post('/', verifyToken, procurementController.createProcurement);
 router.get('/me', verifyToken, procurementController.getMyProcurements);
 router.get('/pending', verifyToken, procurementController.getPendingProcurements);
 router.get('/history', verifyToken, procurementController.getApprovalHistory);
+router.get('/export', verifyToken, procurementController.exportProcurements);
 router.put('/:id/approval', verifyToken, procurementController.approveProcurement);
+router.delete('/:id', verifyToken, procurementController.deleteProcurement);
 
 module.exports = router;

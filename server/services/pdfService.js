@@ -2,8 +2,23 @@ const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const { format } = require('date-fns');
 const fs = require('fs');
 const path = require('path');
+const {
+  formatWibPrintStamp,
+  formatWibLongDate,
+  formatWibTimeHms,
+  formatWibTime
+} = require('../utils/wibDate');
 
-exports.generateRequestPDF = async (request) => {
+// Helper to sanitize text for PDF (WinAnsi encoding)
+const cleanText = (text) => {
+    if (text == null) return '';
+    return String(text)
+        .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '') // Remove zero-width spaces/joiners
+        .replace(/[^\x20-\x7E\xA0-\xFF\n\r]/g, '') // Keep only printable ASCII and basic Latin-1 (WinAnsi approx)
+        .trim();
+};
+
+exports.generateRequestPDF = async (request, attendanceInfo = null) => {
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([595.28, 841.89]); // A4 Size
   const { width, height } = page.getSize();
@@ -39,27 +54,17 @@ exports.generateRequestPDF = async (request) => {
               width: scaledDims.width,
               height: scaledDims.height,
           });
-          
-          // Text removed as requested
-      } else {
-          // Fallback if logo fails
-           // Text removed here too for consistency if requested to be removed
       }
   } catch (e) {
       console.error("Logo embedding failed:", e);
-      // Fallback
-      // Text removed here too
   }
 
   y -= 20; // Ensure enough spacing below header elements
-
-
 
   // Title Right/Center aligned effectively
   const titleX = margin + 120;
   let titleY = height - margin - 10;
   
-  // "CRM Workflow" removed
   titleY -= 15;
   page.drawText('Detail Cuti / Izin / Sakit', { x: titleX, y: titleY, size: 16, font: boldFont, color: black });
   titleY -= 15;
@@ -74,7 +79,8 @@ exports.generateRequestPDF = async (request) => {
       'SICK': 'Sakit',
       'OVERTIME': 'Lembur',
       'CHANGE_SHIFT': 'Tukar Shift',
-      'RESIGNATION': 'Resign'
+      'RESIGNATION': 'Resign',
+      'LEAVE_WORKPLACE': 'Izin Meninggalkan Tempat Kerja'
   };
   
   const statusMap = {
@@ -94,7 +100,7 @@ exports.generateRequestPDF = async (request) => {
   const summaryText = `Detail Request — ID: ${request.id}; Jenis: ${reqType}; Status: ${reqStatus}; Mulai: ${startDate}; Selesai: ${endDate}`;
   
   // Wrap text if too long (simple wrap)
-  page.drawText(summaryText, { x: margin, y, size: 10, font: boldFont, color: black, maxWidth: width - (margin * 2) });
+  page.drawText(cleanText(summaryText), { x: margin, y, size: 10, font: boldFont, color: black, maxWidth: width - (margin * 2) });
   y -= 20;
 
   // --- Helper: Draw Table ---
@@ -116,18 +122,13 @@ exports.generateRequestPDF = async (request) => {
       // Header Text & Vertical Lines
       let currentX = margin;
       headers.forEach((header, i) => {
-          page.drawText(header, {
+          page.drawText(cleanText(header), {
               x: currentX + 5,
               y: y - headerHeight + 8,
               size: 9,
               font: boldFont,
               color: black
           });
-          
-          // Draw vertical line after this column (except last)
-          if (i < headers.length - 1) {
-             // Handled by cell borders effectively if we draw cell by cell, but let's draw full table borders
-          }
           currentX += colWidths[i];
       });
       
@@ -147,7 +148,7 @@ exports.generateRequestPDF = async (request) => {
 
           let rowX = margin;
           row.forEach((text, i) => {
-              page.drawText(String(text || ''), {
+              page.drawText(cleanText(text || ''), {
                   x: rowX + 5,
                   y: y - rowHeight + 6,
                   size: 9,
@@ -195,6 +196,39 @@ exports.generateRequestPDF = async (request) => {
   const table2Data = [];
   if (request.startTime) table2Data.push(['Jam Mulai', request.startTime]);
   if (request.endTime) table2Data.push(['Jam Selesai', request.endTime]);
+
+  if (request.type === 'OVERTIME') {
+      if (attendanceInfo) {
+           const checkInStr = attendanceInfo.checkIn ? formatWibTime(attendanceInfo.checkIn) : '-';
+           const checkOutStr = attendanceInfo.checkOut ? formatWibTime(attendanceInfo.checkOut) : '-';
+           table2Data.push(['Jam Check-In (Log)', checkInStr]);
+           table2Data.push(['Jam Check-Out (Log)', checkOutStr]);
+      } else {
+           table2Data.push(['Jam Check-In (Log)', '-']);
+           table2Data.push(['Jam Check-Out (Log)', '-']);
+      }
+      
+      if (request.quantity) {
+          table2Data.push(['Total Jam Lembur', `${request.quantity} Jam`]);
+      }
+
+      if (request.startTime && request.endTime) {
+          const [h1, m1] = request.startTime.split(':').map(Number);
+          const [h2, m2] = request.endTime.split(':').map(Number);
+          let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+          if (diff < 0) diff += 1440; 
+          const hours = Math.floor(diff / 60);
+          const mins = diff % 60;
+          // Only show calculation if quantity is not present, or maybe show as "Rentang Waktu"
+          if (!request.quantity) {
+              table2Data.push(['Total Durasi Lembur', `${hours} Jam ${mins > 0 ? mins + ' Menit' : ''}`]);
+          } else {
+             // Optional: Show calculated duration as reference? Maybe not needed if user inputs it.
+             // But let's keep it simple. If quantity is there, it's the official request.
+          }
+      }
+  }
+
   table2Data.push(['Alasan', request.reason]);
   if (request.replacementName) table2Data.push(['Pengganti', request.replacementName]);
   if (request.newEmployeeName) table2Data.push(['Karyawan Baru', request.newEmployeeName]);
@@ -215,15 +249,21 @@ exports.generateRequestPDF = async (request) => {
       'Pengajuan dibuat'
   ]);
 
-  // 2. Approvals (Simulated History based on current status)
-  // Note: In a real system, we should query a RequestHistory table. 
-  // Here we infer from flags.
-  
+  // 2. Approvals
   if (request.hodApproved) {
       historyData.push([
          format(new Date(request.updatedAt), 'yyyy-MM-dd HH:mm'), // Approx date
          'Approve',
-         'Head of Dept', // We don't have the HOD name stored on request, just the flag
+         'Head of Dept',
+         '-'
+      ]);
+  }
+
+  if (request.spvApproved) {
+      historyData.push([
+         format(new Date(request.updatedAt), 'yyyy-MM-dd HH:mm'),
+         'Approve',
+         'Supervisor Operational',
          '-'
       ]);
   }
@@ -250,7 +290,7 @@ exports.generateRequestPDF = async (request) => {
       historyData.push([
          format(new Date(request.updatedAt), 'yyyy-MM-dd HH:mm'),
          'Reject',
-         'Reviewer', // Could be HOD, HR, or GM
+         'Reviewer',
          request.rejectionReason || 'Tidak sesuai'
       ]);
   }
@@ -284,9 +324,8 @@ exports.generateRequestPDF = async (request) => {
        page.drawRectangle({ x: width - margin - 105, y: sigY - 25, width: 70, height: 20, borderColor: rgb(0, 0.5, 0), borderWidth: 1 });
   }
 
-  // GM (Only if needed or strictly for certain types, but let's add if GM approved)
+  // GM
   if (request.gmApproved || request.status === 'PENDING_GM') {
-      // Center GM signature
       const gmX = width / 2 - 75;
       const gmY = sigY - 80;
       page.drawText('General Manager', { x: width / 2 - 40, y: gmY + 40, size: 11, font: boldFont });
@@ -303,162 +342,395 @@ exports.generateRequestPDF = async (request) => {
 };
 
 exports.generateMonthlySchedulePDF = async (schedule, staffList) => {
-    const pdfDoc = await PDFDocument.create();
-    // Landscape A4
-    const page = pdfDoc.addPage([841.89, 595.28]); 
-    const { width, height } = page.getSize();
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  
-    const margin = 30;
-    let y = height - margin;
-  
-    // Colors
-    const black = rgb(0, 0, 0);
-    const gray = rgb(0.5, 0.5, 0.5);
-  
-    // --- Header ---
-    try {
-        const logoPath = path.join(__dirname, '../assets/logo.png');
-        if (fs.existsSync(logoPath)) {
-            const logoImageBytes = fs.readFileSync(logoPath);
-            const logoImage = await pdfDoc.embedPng(logoImageBytes);
-            const targetHeight = 40; 
-            const scaleFactor = targetHeight / logoImage.height;
-            const scaledDims = logoImage.scale(scaleFactor);
-  
-            page.drawImage(logoImage, {
-                x: margin,
-                y: height - margin - targetHeight, 
-                width: scaledDims.width,
-                height: scaledDims.height,
-            });
-        }
-    } catch (e) {
-        console.error("Logo embedding failed:", e);
-    }
-
-    y -= 50;
-    
-    // Title
-    const monthName = format(new Date(schedule.year, schedule.month - 1), 'MMMM yyyy');
-    page.drawText(`Jadwal Kerja Departemen: ${schedule.department}`, { x: margin, y, size: 14, font: boldFont });
-    y -= 15;
-    page.drawText(`Periode: ${monthName}`, { x: margin, y, size: 12, font: font });
-    y -= 15;
-    page.drawText(`Status: ${schedule.status}`, { x: margin, y, size: 10, font: font, color: gray });
-    
-    y -= 20;
-
-    // --- Grid Table ---
-    // Columns: Name, 1..31
-    const daysInMonth = new Date(schedule.year, schedule.month, 0).getDate();
-    const colWidthName = 120;
-    const colWidthDay = (width - (margin * 2) - colWidthName) / daysInMonth;
-    
-    const rowHeight = 15;
-    const headerHeight = 20;
-
-    // Header
-    page.drawRectangle({
-        x: margin,
-        y: y - headerHeight,
-        width: width - (margin * 2),
-        height: headerHeight,
-        color: rgb(0.9, 0.9, 0.9),
-        borderColor: black,
-        borderWidth: 0.5
+    console.log("Generating Schedule PDF...", { 
+        id: schedule?.id, 
+        month: schedule?.month, 
+        year: schedule?.year,
+        dataLength: schedule?.data?.length,
+        staffCount: staffList?.length
     });
 
-    page.drawText("Nama Staff", { x: margin + 5, y: y - headerHeight + 6, size: 8, font: boldFont });
-    
-    for (let i = 1; i <= daysInMonth; i++) {
-        const xPos = margin + colWidthName + ((i - 1) * colWidthDay);
-        page.drawText(String(i), { x: xPos + 2, y: y - headerHeight + 6, size: 7, font: boldFont });
-        // Vertical line
-        page.drawLine({
-             start: { x: xPos, y },
-             end: { x: xPos, y: y - headerHeight },
-             thickness: 0.5,
-             color: gray
-        });
-    }
-
-    y -= headerHeight;
-
-    // Data
-    const scheduleData = typeof schedule.data === 'string' ? JSON.parse(schedule.data) : schedule.data;
-    // scheduleData: [{ userId, shifts: { "1": "M" } }]
-
-    for (const staff of staffList) {
-        // Find shifts for this staff
-        const staffShifts = scheduleData.find(s => parseInt(s.userId) === staff.id)?.shifts || {};
-
-        // Row Border
-        page.drawRectangle({
-            x: margin,
-            y: y - rowHeight,
-            width: width - (margin * 2),
-            height: rowHeight,
-            borderColor: gray,
-            borderWidth: 0.5
-        });
-
-        // Name
-        page.drawText(staff.name, { x: margin + 5, y: y - rowHeight + 4, size: 8, font: font });
-
-        // Shifts
-        for (let i = 1; i <= daysInMonth; i++) {
-            const shift = staffShifts[String(i)] || '';
-            const xPos = margin + colWidthName + ((i - 1) * colWidthDay);
-            
-            if (shift) {
-                page.drawText(shift, { x: xPos + 2, y: y - rowHeight + 4, size: 7, font: font });
+    try {
+        const pdfDoc = await PDFDocument.create();
+        // Landscape A4
+        let currentPage = pdfDoc.addPage([841.89, 595.28]); 
+        const { width, height } = currentPage.getSize();
+        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+        const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      
+        const margin = 30;
+        let y = height - margin;
+      
+        // Colors
+        const black = rgb(0, 0, 0);
+        const gray = rgb(0.5, 0.5, 0.5);
+        const paletteColors = [
+            rgb(0.9, 0.97, 0.9),
+            rgb(0.9, 0.95, 1),
+            rgb(1, 0.95, 0.9),
+            rgb(0.95, 0.9, 1),
+            rgb(0.9, 0.98, 0.96),
+            rgb(1, 0.93, 0.95),
+            rgb(1, 0.97, 0.9),
+            rgb(0.95, 1, 0.9),
+            rgb(0.93, 0.95, 1),
+            rgb(0.9, 1, 1),
+        ];
+        const locationColorMap = {};
+        const getLocationColor = (name) => {
+            const key = String(name || '').trim().toLowerCase();
+            if (!key) return null;
+            if (locationColorMap[key]) return locationColorMap[key];
+            const idx = Object.keys(locationColorMap).length % paletteColors.length;
+            const color = paletteColors[idx];
+            locationColorMap[key] = color;
+            return color;
+        };
+      
+        // --- Header ---
+        const drawHeader = async (pageToDraw, currentY) => {
+            try {
+                const logoPath = path.join(__dirname, '../assets/logo.png');
+                if (fs.existsSync(logoPath)) {
+                    const logoImageBytes = fs.readFileSync(logoPath);
+                    const logoImage = await pdfDoc.embedPng(logoImageBytes);
+                    const targetHeight = 40; 
+                    const scaleFactor = targetHeight / logoImage.height;
+                    const scaledDims = logoImage.scale(scaleFactor);
+          
+                    pageToDraw.drawImage(logoImage, {
+                        x: margin,
+                        y: height - margin - targetHeight, 
+                        width: scaledDims.width,
+                        height: scaledDims.height,
+                    });
+                }
+            } catch (e) {
+                console.error("Logo embedding failed:", e);
             }
+        
+            let headerY = height - margin - 50;
             
-            // Vertical Divider
-            page.drawLine({
-                start: { x: xPos, y },
-                end: { x: xPos, y: y - rowHeight },
+            // Title
+            const monthName = format(new Date(schedule.year, schedule.month - 1), 'MMMM yyyy');
+            pageToDraw.drawText(cleanText(`Jadwal Kerja Departemen: ${schedule.department}`), { x: margin, y: headerY, size: 14, font: boldFont });
+            headerY -= 15;
+            pageToDraw.drawText(cleanText(`Periode: ${monthName}`), { x: margin, y: headerY, size: 12, font: font });
+            headerY -= 15;
+            pageToDraw.drawText(cleanText(`Status: ${schedule.status}`), { x: margin, y: headerY, size: 10, font: font, color: gray });
+            
+            return headerY - 20;
+        };
+
+        y = await drawHeader(currentPage, y);
+    
+        // --- Grid Table ---
+        // Calculate Date Range: 21st (Prev) to 20th (Curr)
+        const dates = [];
+        const prevMonthDate = new Date(schedule.year, schedule.month - 2, 21);
+        const currentMonthDate = new Date(schedule.year, schedule.month - 1, 20);
+        
+        let loopDate = new Date(prevMonthDate);
+        while (loopDate <= currentMonthDate) {
+            dates.push(new Date(loopDate));
+            loopDate.setDate(loopDate.getDate() + 1);
+        }
+    
+        const colWidthName = 100;
+        const summaryWidth = 100;
+        const colWidthDay = (width - (margin * 2) - colWidthName - summaryWidth) / dates.length;
+        
+        const rowHeight = 24; // Increased from 15 to fit multiple lines (Shift, Time, Location)
+        const headerHeight = 25;
+
+        const drawTableHeader = (pageToDraw, currentY) => {
+            // Header Background
+            pageToDraw.drawRectangle({
+                x: margin,
+                y: currentY - headerHeight,
+                width: width - (margin * 2),
+                height: headerHeight,
+                color: rgb(0.9, 0.9, 0.9),
+                borderColor: black,
+                borderWidth: 0.5
+            });
+        
+            // Header: Staff Name
+            pageToDraw.drawText("Nama Staff", { x: margin + 5, y: currentY - headerHeight + 8, size: 8, font: boldFont });
+            
+            // Header: Dates
+            dates.forEach((date, i) => {
+                const xPos = margin + colWidthName + (i * colWidthDay);
+                const dayStr = format(date, 'd');
+                const dayName = format(date, 'EEE').toUpperCase();
+                
+                const isRed = date.getDay() === 0 || date.getDay() === 6; 
+                const textColor = isRed ? rgb(1, 0, 0) : black;
+                const bgColor = isRed ? rgb(1, 0.9, 0.9) : null;
+        
+                if (bgColor) {
+                     pageToDraw.drawRectangle({
+                        x: xPos,
+                        y: currentY - headerHeight,
+                        width: colWidthDay,
+                        height: headerHeight,
+                        color: bgColor,
+                     });
+                }
+        
+                pageToDraw.drawText(dayStr, { x: xPos + 2, y: currentY - headerHeight + 12, size: 7, font: boldFont, color: textColor });
+                pageToDraw.drawText(dayName, { x: xPos + 2, y: currentY - headerHeight + 4, size: 5, font: font, color: textColor });
+        
+                pageToDraw.drawLine({
+                     start: { x: xPos, y: currentY },
+                     end: { x: xPos, y: currentY - headerHeight },
+                     thickness: 0.5,
+                     color: gray
+                });
+            });
+        
+            // Header: Summary
+            const summaryStart = width - margin - summaryWidth;
+            const summaryCols = ['M', 'OFF', 'C', 'S', 'I'];
+            const subColWidth = summaryWidth / summaryCols.length;
+        
+            pageToDraw.drawLine({
+                start: { x: summaryStart, y: currentY },
+                end: { x: summaryStart, y: currentY - headerHeight },
                 thickness: 0.5,
                 color: gray
             });
+        
+            summaryCols.forEach((col, i) => {
+                const xPos = summaryStart + (i * subColWidth);
+                pageToDraw.drawText(col, { x: xPos + 5, y: currentY - headerHeight + 8, size: 7, font: boldFont, color: black });
+                if (i > 0) {
+                    pageToDraw.drawLine({
+                        start: { x: xPos, y: currentY },
+                        end: { x: xPos, y: currentY - headerHeight },
+                        thickness: 0.5,
+                        color: gray
+                    });
+                }
+            });
+            
+            return currentY - headerHeight;
+        };
+
+        y = drawTableHeader(currentPage, y);
+    
+        // Data
+        let parsedData = [];
+        try {
+            parsedData = typeof schedule.data === 'string' ? JSON.parse(schedule.data) : (schedule.data || []);
+        } catch (e) {
+            console.error("Failed to parse schedule data", e);
+            parsedData = [];
+        }
+
+        if (!Array.isArray(staffList)) {
+            console.warn("staffList is not an array", staffList);
+            staffList = [];
         }
         
-        y -= rowHeight;
-    }
-
-    y -= 30;
-
-    // --- Signatures ---
-    const sigY = y;
-    const sigWidth = 150;
+        const summaryCols = ['M', 'OFF', 'C', 'S', 'I'];
+        const summaryStart = width - margin - summaryWidth;
+        const subColWidth = summaryWidth / summaryCols.length;
     
-    // HOD
-    page.drawText('Dibuat Oleh (HOD)', { x: margin, y: sigY, size: 10, font: boldFont });
-    page.drawLine({ start: { x: margin, y: sigY - 40 }, end: { x: margin + sigWidth, y: sigY - 40 }, thickness: 1 });
-    if (schedule.hodApproved) {
-        page.drawText('Signed/Approved', { x: margin + 20, y: sigY - 30, size: 9, font: font, color: rgb(0, 0.5, 0) });
-    }
+        for (const staff of staffList) {
+            let staffShifts = {};
+            let staffLocations = {};
+            let staffManualTimes = {};
 
-    // HR
-    const hrX = margin + 250;
-    page.drawText('Diperiksa Oleh (HR)', { x: hrX, y: sigY, size: 10, font: boldFont });
-    page.drawLine({ start: { x: hrX, y: sigY - 40 }, end: { x: hrX + sigWidth, y: sigY - 40 }, thickness: 1 });
-    if (schedule.hrApproved) {
-        page.drawText('Signed/Approved', { x: hrX + 20, y: sigY - 30, size: 9, font: font, color: rgb(0, 0.5, 0) });
-    }
+            if (Array.isArray(parsedData)) {
+                // Legacy / Submitted Format (Array of objects)
+                const staffEntry = parsedData.find(s => parseInt(s.userId) === staff.id) || {};
+                staffShifts = staffEntry.shifts || {};
+                staffLocations = staffEntry.locations || {};
+                staffManualTimes = staffEntry.manualTimes || {};
+            } else if (parsedData && parsedData.scheduleData) {
+                // Draft / New Object Format
+                staffShifts = parsedData.scheduleData[staff.id] || {};
+                staffLocations = parsedData.inchargePerDay?.[staff.id] || {};
+                staffManualTimes = parsedData.manualTimePerDay?.[staff.id] 
+                    || parsedData.manualTimes?.[staff.id] 
+                    || {};
+            }
+    
+            // New Page Check BEFORE drawing the row
+            if (y < margin + 60) {
+                 currentPage = pdfDoc.addPage([841.89, 595.28]);
+                 y = height - margin;
+                 y = await drawHeader(currentPage, y);
+                 y = drawTableHeader(currentPage, y);
+            }
 
-    // GM
-    const gmX = margin + 500;
-    page.drawText('Disetujui Oleh (GM)', { x: gmX, y: sigY, size: 10, font: boldFont });
-    page.drawLine({ start: { x: gmX, y: sigY - 40 }, end: { x: gmX + sigWidth, y: sigY - 40 }, thickness: 1 });
-    if (schedule.gmApproved) {
-        page.drawText('Signed/Approved', { x: gmX + 20, y: sigY - 30, size: 9, font: font, color: rgb(0, 0.5, 0) });
-    }
+            // Row Border
+            currentPage.drawRectangle({
+                x: margin,
+                y: y - rowHeight,
+                width: width - (margin * 2),
+                height: rowHeight,
+                borderColor: gray,
+                borderWidth: 0.5
+            });
+    
+            // Name
+            let staffName = staff.name || 'Unknown';
+            if (staffName.length > 20) staffName = staffName.substring(0, 18) + '...';
+            currentPage.drawText(cleanText(staffName), { x: margin + 5, y: y - rowHeight + 4, size: 8, font: font });
 
-    const pdfBytes = await pdfDoc.save();
-    return pdfBytes;
+            // Calculate Summary
+            const counts = { M: 0, OFF: 0, C: 0, S: 0, I: 0 };
+    
+            // Shifts
+            dates.forEach((date, i) => {
+                 const dateStr = format(date, 'yyyy-MM-dd');
+                 const xPos = margin + colWidthName + (i * colWidthDay);
+                 
+                 const shiftCode = staffShifts[dateStr] || staffShifts[date.getDate().toString()] || '';
+                 const manualTime = staffManualTimes[dateStr] || staffManualTimes[date.getDate().toString()] || '';
+                 const locationName = staffLocations[dateStr] || staffLocations[date.getDate().toString()] || '';
+    
+                 // Count summary
+                 if (['M', 'A', 'N', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'A1', 'A2', 'A3', 'N1', 'N2'].includes(shiftCode)) counts.M++; 
+                 else if (shiftCode === 'OFF') counts.OFF++;
+                 else if (shiftCode === 'C') counts.C++;
+                 else if (shiftCode === 'S') counts.S++;
+                 else if (shiftCode === 'I') counts.I++; 
+    
+                 // Draw Location Background
+                 const locColor = getLocationColor(locationName);
+                 if (locColor) {
+                    currentPage.drawRectangle({
+                        x: xPos,
+                        y: y - rowHeight,
+                        width: colWidthDay,
+                        height: rowHeight,
+                        color: locColor,
+                    });
+                 }
+    
+                 // Draw Shift Code
+                 if (shiftCode) {
+                     const color = shiftCode === 'OFF' ? rgb(1, 0, 0) : black;
+                     const textWidth = font.widthOfTextAtSize(shiftCode, 8); // Size 8
+                     
+                     // Determine vertical position:
+                     // If crowded (Time or Loc exists), move Shift up. Else center it.
+                     const hasOtherData = manualTime || locationName;
+                     const shiftY = hasOtherData ? (y - 10) : (y - 15);
+
+                     currentPage.drawText(cleanText(shiftCode), { 
+                         x: xPos + (colWidthDay - textWidth) / 2, 
+                         y: shiftY, 
+                         size: 8, 
+                         font: boldFont,
+                         color 
+                     });
+    
+                     if (manualTime) {
+                         const timeWidth = font.widthOfTextAtSize(manualTime, 5);
+                         currentPage.drawText(cleanText(manualTime), {
+                             x: xPos + (colWidthDay - timeWidth) / 2,
+                             y: y - 16, // Middle-low
+                             size: 5,
+                             font: font,
+                             color
+                         });
+                     }
+                 }
+                 
+                 if (locationName) {
+                    const locText = String(locationName).length > 9 ? String(locationName).slice(0, 9) + '…' : String(locationName);
+                    currentPage.drawText(cleanText(locText), { x: xPos + 2, y: y - 22, size: 5, font: font, color: black });
+                 }
+    
+                 currentPage.drawLine({
+                    start: { x: xPos, y: y },
+                    end: { x: xPos, y: y - rowHeight },
+                    thickness: 0.5,
+                    color: gray
+               });
+            });
+    
+            // Draw Summary Data
+            currentPage.drawLine({
+                start: { x: summaryStart, y: y },
+                end: { x: summaryStart, y: y - rowHeight },
+                thickness: 0.5,
+                color: gray
+            });
+    
+            summaryCols.forEach((col, i) => {
+                const xPos = summaryStart + (i * subColWidth);
+                const countVal = counts[col] || 0;
+                const textWidth = font.widthOfTextAtSize(String(countVal), 8);
+                
+                currentPage.drawText(String(countVal), {
+                    x: xPos + (subColWidth - textWidth) / 2, 
+                    y: y - rowHeight + 4, 
+                    size: 8, 
+                    font: font, 
+                    color: black 
+                });
+    
+                if (i > 0) {
+                    currentPage.drawLine({
+                        start: { x: xPos, y: y },
+                        end: { x: xPos, y: y - rowHeight },
+                        thickness: 0.5,
+                        color: gray
+                    });
+                }
+            });
+    
+            y -= rowHeight;
+        }
+    
+        // Signatures
+        // Check if there's enough space for signatures, otherwise new page
+        if (y < margin + 80) {
+            currentPage = pdfDoc.addPage([841.89, 595.28]);
+            y = height - margin;
+            y = await drawHeader(currentPage, y);
+        }
+
+        y -= 40;
+        
+        // Created By
+        const creatorName = schedule.createdByUser?.name || "HOD";
+        currentPage.drawText("Dibuat Oleh (HOD)", { x: margin, y, size: 10, font: boldFont });
+        currentPage.drawLine({ start: { x: margin, y: y - 20 }, end: { x: margin + 150, y: y - 20 }, thickness: 1, color: black });
+        if (schedule.hodApproved) {
+            currentPage.drawText("Signed/Approved", { x: margin, y: y - 10, size: 10, font: font, color: rgb(0, 0.5, 0) });
+        }
+        currentPage.drawText(`( ${cleanText(creatorName)} )`, { x: margin, y: y - 35, size: 10, font: font });
+    
+        // HR
+        const hrX = width / 2 - 50;
+        currentPage.drawText("Diperiksa Oleh (HR)", { x: hrX, y, size: 10, font: boldFont });
+        currentPage.drawLine({ start: { x: hrX, y: y - 20 }, end: { x: hrX + 150, y: y - 20 }, thickness: 1, color: black });
+        if (schedule.hrApproved) {
+            currentPage.drawText("Signed/Approved", { x: hrX, y: y - 10, size: 10, font: font, color: rgb(0, 0.5, 0) });
+        }
+        currentPage.drawText("( HR Manager )", { x: hrX, y: y - 35, size: 10, font: font });
+    
+        // GM
+        const gmX = width - margin - 150;
+        currentPage.drawText("Disetujui Oleh (GM)", { x: gmX, y, size: 10, font: boldFont });
+        currentPage.drawLine({ start: { x: gmX, y: y - 20 }, end: { x: gmX + 150, y: y - 20 }, thickness: 1, color: black });
+        if (schedule.gmApproved) {
+            currentPage.drawText("Signed/Approved", { x: gmX, y: y - 10, size: 10, font: font, color: rgb(0, 0.5, 0) });
+        }
+        currentPage.drawText("( General Manager )", { x: gmX, y: y - 35, size: 10, font: font });
+    
+        const pdfBytes = await pdfDoc.save();
+        return pdfBytes;
+    } catch (e) {
+        console.error("Critical Error generating schedule PDF:", e);
+        throw e;
+    }
 };
 
 exports.generateAttendancePDF = async (attendance, user) => {
@@ -506,17 +778,17 @@ exports.generateAttendancePDF = async (attendance, user) => {
     
     page.drawText('Detail Absensi / Attendance', { x: titleX, y: titleY, size: 16, font: boldFont, color: black });
     titleY -= 15;
-    page.drawText(`Dicetak: ${format(new Date(), 'dd/MM/yyyy, HH.mm.ss')}`, { x: titleX, y: titleY, size: 10, font: font, color: gray });
+    page.drawText(`Dicetak: ${formatWibPrintStamp(new Date())}`, { x: titleX, y: titleY, size: 10, font: font, color: gray });
   
     y -= 60;
   
     // --- Content ---
     const drawField = (label, value, yPos) => {
-        page.drawText(label, { x: margin, y: yPos, size: 10, font: boldFont, color: black });
+        page.drawText(cleanText(label), { x: margin, y: yPos, size: 10, font: boldFont, color: black });
         page.drawText(':', { x: margin + 100, y: yPos, size: 10, font: font, color: black });
         // Handle multiline for long values like Location
         if (value && value.length > 60) {
-             const words = value.split(' ');
+             const words = cleanText(value).split(' ');
              let line = '';
              let currentY = yPos;
              words.forEach(word => {
@@ -533,22 +805,20 @@ exports.generateAttendancePDF = async (attendance, user) => {
              }
              return currentY - 20;
         } else {
-             page.drawText(String(value || '-'), { x: margin + 110, y: yPos, size: 10, font: font, color: black });
+             page.drawText(cleanText(value || '-'), { x: margin + 110, y: yPos, size: 10, font: font, color: black });
              return yPos - 20;
         }
     };
   
     y = drawField('Nama', user.name, y);
     y = drawField('Departemen', user.department, y);
-    y = drawField('Tanggal', format(new Date(attendance.timestamp), 'dd MMMM yyyy'), y);
-    y = drawField('Jam', format(new Date(attendance.timestamp), 'HH:mm:ss'), y);
+    y = drawField('Tanggal', formatWibLongDate(attendance.timestamp), y);
+    y = drawField('Jam', formatWibTimeHms(attendance.timestamp), y);
     y = drawField('Tipe', attendance.type, y);
     y = drawField('Status', attendance.status, y);
     y = drawField('Lokasi', attendance.location, y);
     if (attendance.latitude && attendance.longitude) {
         y = drawField('Koordinat', `${attendance.latitude}, ${attendance.longitude}`, y);
-        // Add link
-        // page.drawText('(Klik untuk lihat peta)', { x: margin + 250, y: y + 20, size: 8, font: font, color: blue });
     }
     y = drawField('Catatan', attendance.notes, y);
   
@@ -560,18 +830,23 @@ exports.generateAttendancePDF = async (attendance, user) => {
         y -= 20;
   
         try {
-            // Check if photo exists locally
-            // photoUrl might be /uploads/filename.jpg
-            const photoFileName = attendance.photoUrl.split('/').pop();
+            const rawName = String(attendance.photoUrl).split('/').pop() || '';
+            const photoFileName = path.basename(rawName).replace(/[^a-zA-Z0-9._-]/g, '');
+            if (!photoFileName || photoFileName.includes('..')) {
+                throw new Error('Invalid filename');
+            }
             const photoPath = path.join(__dirname, '../uploads', photoFileName);
             
             if (fs.existsSync(photoPath)) {
                 const imageBytes = fs.readFileSync(photoPath);
+                const lower = photoPath.toLowerCase();
                 let image;
-                if (photoPath.toLowerCase().endsWith('.png')) {
+                if (lower.endsWith('.png')) {
                     image = await pdfDoc.embedPng(imageBytes);
-                } else {
+                } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
                     image = await pdfDoc.embedJpg(imageBytes);
+                } else {
+                    throw new Error('Unsupported image type');
                 }
                 
                 // Scale image to fit max width/height

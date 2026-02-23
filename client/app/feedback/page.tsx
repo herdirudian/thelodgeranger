@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { format } from "date-fns";
+import { formatWibDateTime } from "@/lib/wibHelpers";
 import { 
     Star, 
     User, 
@@ -137,7 +138,7 @@ export default function FeedbackPage() {
                                 feedbacks.map((item) => (
                                     <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="p-4 text-gray-600">
-                                            {format(new Date(item.createdAt), "dd MMM yyyy HH:mm")}
+                                            {formatWibDateTime(item.createdAt)}
                                         </td>
                                         <td className="p-4 font-medium text-gray-800">
                                             {item.staff?.name || "-"}
@@ -197,7 +198,7 @@ export default function FeedbackPage() {
                                     <p className="text-xs text-gray-500 mb-1">Waktu Penilaian</p>
                                     <p className="font-semibold text-gray-800 flex items-center gap-2">
                                         <Calendar className="w-4 h-4 text-[#0F4D39]" />
-                                        {format(new Date(selectedFeedback.createdAt), "dd MMM yyyy HH:mm")}
+                                        {formatWibDateTime(selectedFeedback.createdAt)}
                                     </p>
                                 </div>
                             </div>

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import api from "@/lib/api";
 import { format } from "date-fns";
 import PdfPreviewModal from "@/components/PdfPreviewModal";
+import { formatWibDate, formatWibTime } from "@/lib/wibHelpers";
 import { 
   MapPin, 
   Camera, 
@@ -26,66 +27,191 @@ export default function AttendancePage() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [useManualLocation, setUseManualLocation] = useState(false);
+  const [manualLocation, setManualLocation] = useState("");
   const [status, setStatus] = useState("");
   const [notes, setNotes] = useState("");
-  const [isExternal, setIsExternal] = useState(true); 
+  const [isExternal, setIsExternal] = useState(false); 
   const [photo, setPhoto] = useState<File | null>(null);
+  const [isCheckedIn, setIsCheckedIn] = useState(false);
+  const [externalMode, setExternalMode] = useState<"IN" | "OUT">("IN");
 
-  // Camera Refs and State
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [forceManualPhoto, setForceManualPhoto] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("environment");
+
+  const [historyStartDate, setHistoryStartDate] = useState("");
+  const [historyEndDate, setHistoryEndDate] = useState("");
 
   useEffect(() => {
     fetchHistory();
-  }, []);
+  }, [historyStartDate, historyEndDate]);
+
+  useEffect(() => {
+    if (history.length > 0) {
+      const lastCheckRecord = history.find(
+        (record) => record.type === "CHECK_IN" || record.type === "CHECK_OUT"
+      );
+
+      if (lastCheckRecord) {
+        setIsCheckedIn(lastCheckRecord.type !== "CHECK_OUT");
+      } else {
+        setIsCheckedIn(false);
+      }
+    } else {
+      setIsCheckedIn(false);
+    }
+  }, [history]);
 
   const fetchHistory = async () => {
     try {
-      const res = await api.get("/attendance/me");
+      let url = "/attendance/me";
+      const params = new URLSearchParams();
+      if (historyStartDate) params.append("startDate", historyStartDate);
+      if (historyEndDate) params.append("endDate", historyEndDate);
+      
+      if (params.toString()) {
+          url += `?${params.toString()}`;
+      }
+
+      const res = await api.get(url);
       setHistory(res.data);
     } catch (err) {
       console.error(err);
     }
   };
-
-  const getLocation = () => {
-    if (navigator.geolocation) {
-      setStatus("Locating...");
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-          setStatus("Location found");
-        },
-        (error) => {
-          setStatus("Error getting location: " + error.message);
-        }
-      );
-    } else {
-      setStatus("Geolocation is not supported by this browser.");
+  const logDeviceError = async (type: string, message: string, detail?: any) => {
+    try {
+      await api.post("/bug-reports/device", {
+        type,
+        message,
+        detail,
+      });
+    } catch (error) {
+      console.error("Failed to log device error:", error);
     }
   };
 
-  const startCamera = async () => {
-      setIsCameraOpen(true);
-      setCapturedImage(null);
-      setPhoto(null);
-      try {
-          const stream = await navigator.mediaDevices.getUserMedia({ 
-              video: { facingMode: "environment" } 
-          });
-          if (videoRef.current) {
-              videoRef.current.srcObject = stream;
-          }
-      } catch (err) {
-          console.error("Error accessing camera:", err);
-          alert("Could not access camera. Please allow camera permissions.");
-          setIsCameraOpen(false);
+  const getLocation = () => {
+    if (!navigator.geolocation) {
+      const msg = "Geolocation is not supported by this browser. Please enter your location manually.";
+      setStatus(msg);
+      setUseManualLocation(true);
+      setLocation(null);
+      logDeviceError("GPS_UNSUPPORTED", msg);
+      return;
+    }
+
+    setStatus("Locating...");
+
+    const timeoutMs = 15000;
+    const timeoutId = window.setTimeout(() => {
+      const msg = "Timeout getting location. Please ensure GPS is on and try again, or enter location manually.";
+      setStatus(msg);
+      setUseManualLocation(true);
+      setLocation(null);
+      logDeviceError("GPS_TIMEOUT", msg);
+    }, timeoutMs);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        window.clearTimeout(timeoutId);
+        setLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+        setUseManualLocation(false);
+        setStatus("Location found");
+      },
+      (error) => {
+        window.clearTimeout(timeoutId);
+        let msg = "Error getting location.";
+        if (error.code === error.PERMISSION_DENIED) {
+          msg = "Access to GPS denied. Please allow location permission or enter location manually.";
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          msg = "Location information is unavailable. Try moving to an open area or enter location manually.";
+        } else if (error.code === error.TIMEOUT) {
+          msg = "Timeout getting location. Please ensure GPS is on and try again, or enter location manually.";
+        } else if (error.message) {
+          msg = "Error getting location: " + error.message;
+        }
+        setStatus(msg);
+        setUseManualLocation(true);
+        setLocation(null);
+        logDeviceError("GPS_ERROR", msg, { code: error.code, message: error.message });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: timeoutMs,
+        maximumAge: 0,
       }
+    );
+  };
+
+  const startCamera = async (facing?: "user" | "environment") => {
+    const desiredFacing = facing || cameraFacing;
+    setIsCameraOpen(true);
+    setCapturedImage(null);
+    setPhoto(null);
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        const msg = "Camera is not supported on this device or browser.";
+        alert(msg);
+        logDeviceError("CAMERA_UNSUPPORTED", msg);
+        setForceManualPhoto(true);
+        setIsCameraOpen(false);
+        return;
+      }
+
+      const timeoutMs = 15000;
+
+      const isMobile = window.innerWidth < 768;
+      
+      // FIX: Don't force specific resolution on mobile to avoid sensor cropping (zooming effect)
+      // Use default resolution which typically uses full sensor (4:3)
+      const videoConstraints: MediaTrackConstraints = {
+          facingMode: desiredFacing
+      };
+
+      if (!isMobile) {
+          videoConstraints.width = { ideal: 1920 };
+          videoConstraints.height = { ideal: 1080 };
+      }
+
+      const getUserMediaPromise = navigator.mediaDevices.getUserMedia({
+        video: videoConstraints,
+      });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("CAMERA_TIMEOUT")), timeoutMs)
+      );
+
+      const stream = await Promise.race([getUserMediaPromise, timeoutPromise]);
+
+      if (videoRef.current && stream instanceof MediaStream) {
+        videoRef.current.srcObject = stream;
+        setForceManualPhoto(false);
+        setCameraFacing(desiredFacing);
+      }
+    } catch (err: any) {
+      console.error("Error accessing camera:", err);
+      let msg = "Could not access camera.";
+      if (err?.name === "NotAllowedError" || err?.name === "SecurityError") {
+        msg = "Camera permission denied. Please allow camera access in your browser settings.";
+      } else if (err?.name === "NotFoundError" || err?.name === "OverconstrainedError") {
+        msg = "No suitable camera found on this device.";
+      } else if (err?.message === "CAMERA_TIMEOUT") {
+        msg = "Camera is taking too long to start. Please try again or use photo upload.";
+      }
+      alert(msg);
+      logDeviceError("CAMERA_ERROR", msg, { name: err?.name, message: err?.message });
+      setForceManualPhoto(true);
+      setIsCameraOpen(false);
+    }
   };
 
   const stopCamera = () => {
@@ -108,7 +234,15 @@ export default function AttendancePage() {
           
           const context = canvas.getContext('2d');
           if (context) {
-              context.drawImage(video, 0, 0, canvas.width, canvas.height);
+              if (cameraFacing === "user") {
+                  context.save();
+                  context.translate(canvas.width, 0);
+                  context.scale(-1, 1);
+                  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                  context.restore();
+              } else {
+                  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+              }
               
               const dataUrl = canvas.toDataURL('image/jpeg');
               setCapturedImage(dataUrl);
@@ -128,13 +262,42 @@ export default function AttendancePage() {
   const retakePhoto = () => {
       setCapturedImage(null);
       setPhoto(null);
-      startCamera();
+      if (!forceManualPhoto) {
+        startCamera();
+      }
+  };
+
+  const switchCamera = async () => {
+    const nextFacing = cameraFacing === "environment" ? "user" : "environment";
+    stopCamera();
+    await startCamera(nextFacing);
+  };
+
+  const handleFallbackUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setPhoto(file);
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === "string") {
+        setCapturedImage(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleClockIn = async () => {
+    const wordCount = notes.trim().split(/\s+/).filter(Boolean).length;
+    if (wordCount > 50) {
+        alert(`Activity Notes exceeds the maximum word limit of 50 words. Current: ${wordCount} words.`);
+        return;
+    }
+
     if (isExternal) {
-        if (!location) {
-            alert("Location is required for External Duty");
+        if (!location && !manualLocation) {
+            alert("Location is required for External Duty (GPS or manual).");
             return;
         }
         if (!photo) {
@@ -146,12 +309,20 @@ export default function AttendancePage() {
     setLoading(true);
     try {
       const formData = new FormData();
-      formData.append("type", isExternal ? "EXTERNAL_DUTY" : "CHECK_IN");
+      formData.append("type", isExternal ? (externalMode === "IN" ? "EXTERNAL_IN" : "EXTERNAL_OUT") : "CHECK_IN");
       if (location) {
           formData.append("latitude", location.lat.toString());
           formData.append("longitude", location.lng.toString());
       }
-      formData.append("location", isExternal ? "External Location (GPS)" : "Office");
+      if (isExternal) {
+          if (location) {
+              formData.append("location", `External ${externalMode === "IN" ? "Checkin" : "Checkout"} (GPS)`);
+          } else if (manualLocation) {
+              formData.append("location", manualLocation);
+          }
+      } else {
+          formData.append("location", "Office");
+      }
       if (notes) formData.append("notes", notes);
       if (photo) formData.append("photo", photo);
 
@@ -171,7 +342,71 @@ export default function AttendancePage() {
       setStatus("");
 
     } catch (err: any) {
-      alert(err.response?.data?.message || "Error clocking in");
+      console.error("Clock in error:", err);
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || err.message || "Error clocking in";
+      alert(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClockOut = async () => {
+    const wordCount = notes.trim().split(/\s+/).filter(Boolean).length;
+    if (wordCount > 50) {
+        alert(`Activity Notes exceeds the maximum word limit of 50 words. Current: ${wordCount} words.`);
+        return;
+    }
+
+    if (isExternal) {
+        if (!location && !manualLocation) {
+            alert("Location is required for Checkout (GPS or manual).");
+            return;
+        }
+        if (!photo) {
+            alert("Photo is required for Checkout");
+            return;
+        }
+    }
+
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("type", "CHECK_OUT");
+      if (location) {
+          formData.append("latitude", location.lat.toString());
+          formData.append("longitude", location.lng.toString());
+      }
+      if (isExternal) {
+          if (location) {
+              formData.append("location", "External Checkout (GPS)");
+          } else if (manualLocation) {
+              formData.append("location", manualLocation);
+          }
+      } else {
+          formData.append("location", "Office Checkout");
+      }
+      if (notes) formData.append("notes", notes);
+      if (photo) formData.append("photo", photo);
+
+      await api.post("/attendance", formData, {
+          headers: {
+              'Content-Type': 'multipart/form-data',
+          },
+      });
+      alert("Checked out successfully!");
+      fetchHistory();
+      
+      setPhoto(null);
+      setCapturedImage(null);
+      setNotes("");
+      stopCamera();
+      setLocation(null);
+      setStatus("");
+
+    } catch (err: any) {
+      console.error("Clock out error:", err);
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || err.message || "Error clocking out";
+      alert(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -231,10 +466,26 @@ export default function AttendancePage() {
                 <div className="bg-gradient-to-r from-[#0F4D39] to-[#1a6b52] px-8 py-6 text-white flex items-center justify-between">
                     <div>
                         <h2 className="font-bold text-xl flex items-center gap-2">
-                            External Duty Check-in
+                            {isExternal ? `External Duty ${externalMode === "IN" ? "Check-in" : "Check-out"}` : "Attendance Check-in"}
                         </h2>
                         <p className="text-[#8ecbb7] text-sm mt-1">Submit your location and proof</p>
                     </div>
+                    {isExternal && (
+                        <div className="flex bg-white/10 p-1 rounded-xl backdrop-blur-md border border-white/10">
+                            <button 
+                                onClick={() => setExternalMode("IN")}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${externalMode === "IN" ? "bg-white text-[#0F4D39] shadow-sm" : "text-white/70 hover:text-white"}`}
+                            >
+                                IN
+                            </button>
+                            <button 
+                                onClick={() => setExternalMode("OUT")}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${externalMode === "OUT" ? "bg-white text-[#0F4D39] shadow-sm" : "text-white/70 hover:text-white"}`}
+                            >
+                                OUT
+                            </button>
+                        </div>
+                    )}
                     <span className="bg-white/20 px-4 py-1.5 rounded-full text-xs font-semibold backdrop-blur-md border border-white/10 shadow-sm">
                         GPS Active
                     </span>
@@ -248,7 +499,7 @@ export default function AttendancePage() {
                             1. Location Verification
                         </label>
                         
-                        {!location ? (
+                        {!useManualLocation && !location && (
                             <button 
                                 onClick={getLocation}
                                 className="w-full py-10 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-500 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50/50 transition-all group duration-300"
@@ -260,7 +511,23 @@ export default function AttendancePage() {
                                 <span className="text-sm text-gray-400 mt-1">Tap to verify your current position</span>
                                 {status && <span className="text-sm text-blue-500 mt-3 font-medium animate-pulse">{status}</span>}
                             </button>
-                        ) : (
+                        )}
+
+                        {useManualLocation && (
+                            <div className="space-y-3">
+                                <textarea
+                                    value={manualLocation}
+                                    onChange={(e) => setManualLocation(e.target.value)}
+                                    placeholder="Type your location (e.g., meeting venue, client address, hotel name)..."
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-sm bg-gray-50/50 focus:bg-white"
+                                />
+                                <div className="flex items-start justify-between text-xs text-gray-500">
+                                    <span>{status}</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {!useManualLocation && location && (
                             <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-100 rounded-2xl p-5 flex items-center justify-between shadow-sm">
                                 <div className="flex items-center gap-4">
                                     <div className="bg-white p-3 rounded-full shadow-sm border border-green-100">
@@ -292,9 +559,9 @@ export default function AttendancePage() {
                             2. Photo Proof
                         </label>
 
-                        {!isCameraOpen && !capturedImage && (
+                        {!isCameraOpen && !capturedImage && !forceManualPhoto && (
                             <button 
-                                onClick={startCamera}
+                                onClick={() => startCamera()}
                                 className="w-full py-10 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-500 hover:border-[#0F4D39] hover:text-[#0F4D39] hover:bg-green-50/50 transition-all group duration-300"
                             >
                                 <div className="bg-green-50 p-4 rounded-full mb-4 group-hover:bg-green-100 group-hover:scale-110 transition-all duration-300">
@@ -305,13 +572,36 @@ export default function AttendancePage() {
                             </button>
                         )}
 
+                        {!isCameraOpen && !capturedImage && forceManualPhoto && (
+                            <div className="space-y-3">
+                                <button 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="w-full py-10 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-500 hover:border-[#0F4D39] hover:text-[#0F4D39] hover:bg-green-50/50 transition-all group duration-300"
+                                >
+                                    <div className="bg-green-50 p-4 rounded-full mb-4 group-hover:bg-green-100 group-hover:scale-110 transition-all duration-300">
+                                        <FileText className="w-8 h-8 text-[#0F4D39]" />
+                                    </div>
+                                    <span className="font-semibold text-lg">Upload Photo</span>
+                                    <span className="text-sm text-gray-400 mt-1">Camera unavailable. Upload a photo from your device.</span>
+                                </button>
+                                <input 
+                                    ref={fileInputRef}
+                                    type="file" 
+                                    accept="image/*" 
+                                    className="hidden"
+                                    onChange={handleFallbackUpload}
+                                />
+                            </div>
+                        )}
+
                         {isCameraOpen && (
-                            <div className="relative rounded-2xl overflow-hidden bg-black aspect-video flex items-center justify-center shadow-lg">
+                            <div className="relative rounded-2xl overflow-hidden bg-black aspect-[3/4] md:aspect-video flex items-center justify-center shadow-lg">
                                 <video 
                                     ref={videoRef} 
                                     autoPlay 
                                     playsInline 
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-contain"
+                                    style={{ transform: cameraFacing === "user" ? "scaleX(-1)" : "none" }}
                                 />
                                 <div className="absolute bottom-0 inset-x-0 p-6 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-center gap-8">
                                     <button 
@@ -328,7 +618,12 @@ export default function AttendancePage() {
                                             <div className="w-12 h-12 rounded-full bg-[#0F4D39]"></div>
                                         </div>
                                     </button>
-                                    <div className="w-14"></div> {/* Spacer for balance */}
+                                    <button
+                                        onClick={switchCamera}
+                                        className="bg-white/20 text-white rounded-full p-4 hover:bg-white/30 backdrop-blur-md transition-all"
+                                    >
+                                        <RefreshCw className="w-6 h-6" />
+                                    </button>
                                 </div>
                             </div>
                         )}
@@ -354,7 +649,7 @@ export default function AttendancePage() {
                     <div className="relative pl-4">
                         <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-orange-100 border-2 border-white ring-2 ring-orange-500/20"></div>
                         <label className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-4 block">
-                            3. Activity Notes
+                            3. Activity Notes <span className="text-gray-400 font-normal text-xs normal-case ml-1">(Max 50 words)</span>
                         </label>
                         <div className="relative group">
                             <div className="absolute top-4 left-4 p-1.5 bg-gray-100 rounded-lg group-focus-within:bg-[#0F4D39]/10 transition-colors">
@@ -366,30 +661,59 @@ export default function AttendancePage() {
                                 onChange={(e) => setNotes(e.target.value)}
                                 className="w-full pl-14 pr-4 py-4 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-[#0F4D39]/10 focus:border-[#0F4D39] min-h-[120px] resize-none text-base transition-all placeholder:text-gray-400 bg-gray-50/50 focus:bg-white"
                             />
+                            <div className={`text-right text-xs mt-2 ${notes.trim().split(/\s+/).filter(Boolean).length > 50 ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
+                                {notes.trim().split(/\s+/).filter(Boolean).length} / 50 words
+                            </div>
                         </div>
                     </div>
-
-                    <button 
-                        onClick={handleClockIn}
-                        disabled={loading || !location || !photo}
-                        className={`w-full py-5 rounded-2xl font-bold text-lg text-white transition-all flex items-center justify-center gap-3 shadow-xl ${
-                            loading || !location || !photo
-                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none' 
-                                : 'bg-[#0F4D39] hover:bg-[#0a3628] hover:shadow-2xl hover:shadow-[#0F4D39]/30 hover:-translate-y-1'
-                        }`}
-                    >
-                        {loading ? (
-                            <>
-                                <RefreshCw className="w-6 h-6 animate-spin" />
-                                Processing Request...
-                            </>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {!isCheckedIn ? (
+                            <button 
+                                onClick={handleClockIn}
+                                disabled={loading || (!location && isExternal) || !photo}
+                                className={`col-span-2 w-full py-5 rounded-2xl font-bold text-lg text-white transition-all flex items-center justify-center gap-3 shadow-xl ${
+                                    loading || (!location && isExternal) || !photo
+                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none' 
+                                        : 'bg-[#0F4D39] hover:bg-[#0a3628] hover:shadow-2xl hover:shadow-[#0F4D39]/30 hover:-translate-y-1'
+                                }`}
+                            >
+                                {loading ? (
+                                    <>
+                                        <RefreshCw className="w-6 h-6 animate-spin" />
+                                        Processing Check-in...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send className="w-6 h-6" />
+                                        Submit Check-in
+                                    </>
+                                )}
+                            </button>
                         ) : (
-                            <>
-                                <Send className="w-6 h-6" />
-                                Submit Attendance
-                            </>
+                            <button
+                                onClick={handleClockOut}
+                                disabled={loading || (!location && isExternal) || !photo}
+                                className={`col-span-2 w-full py-5 rounded-2xl font-bold text-lg text-white transition-all flex items-center justify-center gap-3 shadow-xl ${
+                                    loading || (!location && isExternal) || !photo
+                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none' 
+                                        : 'bg-red-600 hover:bg-red-700 hover:shadow-2xl hover:shadow-red-600/30 hover:-translate-y-1'
+                                }`}
+                            >
+                                {loading ? (
+                                    <>
+                                        <RefreshCw className="w-6 h-6 animate-spin" />
+                                        Processing Check-out...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Clock className="w-6 h-6" />
+                                        Submit Check-out
+                                    </>
+                                )}
+                            </button>
                         )}
-                    </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -397,14 +721,35 @@ export default function AttendancePage() {
         {/* Right Column: History */}
         <div className="space-y-6">
             <div className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden flex flex-col h-[calc(100vh-140px)] sticky top-8">
-                <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50 backdrop-blur-sm flex items-center justify-between z-10">
-                    <h2 className="font-bold text-gray-800 flex items-center gap-2.5 text-lg">
-                        <History className="w-5 h-5 text-gray-500" />
-                        Recent History
-                    </h2>
-                    <span className="text-xs font-medium px-2.5 py-1 bg-gray-200/60 rounded-full text-gray-600">
-                        {history.length} Records
-                    </span>
+                <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50 backdrop-blur-sm flex flex-col gap-3 z-10">
+                    <div className="flex items-center justify-between">
+                        <h2 className="font-bold text-gray-800 flex items-center gap-2.5 text-lg">
+                            <History className="w-5 h-5 text-gray-500" />
+                            Recent History
+                        </h2>
+                        <span className="text-xs font-medium px-2.5 py-1 bg-gray-200/60 rounded-full text-gray-600">
+                            {history.length} Records
+                        </span>
+                    </div>
+                    
+                    {/* Date Filter */}
+                    <div className="flex items-center gap-2">
+                        <input 
+                            type="date" 
+                            className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] transition-all bg-white"
+                            value={historyStartDate}
+                            onChange={(e) => setHistoryStartDate(e.target.value)}
+                            placeholder="Start Date"
+                        />
+                        <span className="text-gray-400 font-medium">-</span>
+                        <input 
+                            type="date" 
+                            className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] transition-all bg-white"
+                            value={historyEndDate}
+                            onChange={(e) => setHistoryEndDate(e.target.value)}
+                            placeholder="End Date"
+                        />
+                    </div>
                 </div>
                 
                 <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
@@ -415,23 +760,25 @@ export default function AttendancePage() {
                                     <div className="flex items-start justify-between mb-3">
                                         <div className="flex gap-3">
                                             <div className={`p-2 rounded-xl h-fit ${
-                                                record.type === 'CHECK_IN' ? 'bg-green-100 text-green-700' : 
-                                                record.type === 'EXTERNAL_DUTY' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                                                record.type === 'CHECK_IN' || record.type === 'EXTERNAL_IN' ? 'bg-green-100 text-green-700' : 
+                                                record.type === 'CHECK_OUT' || record.type === 'EXTERNAL_OUT' ? 'bg-red-100 text-red-700' :
+                                                record.type === 'EXTERNAL' || record.type === 'EXTERNAL_DUTY' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
                                             }`}>
-                                                {record.type === 'CHECK_IN' ? <Clock className="w-5 h-5" /> : <MapPin className="w-5 h-5" />}
+                                                {record.type.includes('EXTERNAL') ? <MapPin className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
                                             </div>
                                             <div>
-                                                <p className="font-bold text-gray-900">{format(new Date(record.timestamp), 'MMM dd, yyyy')}</p>
+                                                <p className="font-bold text-gray-900">{formatWibDate(record.timestamp)}</p>
                                                 <p className="text-sm text-gray-500 font-medium flex items-center gap-1.5 mt-0.5">
                                                     <Clock className="w-3.5 h-3.5" />
-                                                    {format(new Date(record.timestamp), 'HH:mm')}
+                                                    {formatWibTime(record.timestamp)}
                                                 </p>
                                             </div>
                                         </div>
                                         <div className="flex flex-col items-end gap-1">
                                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
-                                                record.type === 'CHECK_IN' ? 'bg-green-50 text-green-700 border-green-200' : 
-                                                record.type === 'EXTERNAL_DUTY' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-gray-50 text-gray-600 border-gray-200'
+                                                record.type === 'CHECK_IN' || record.type === 'EXTERNAL_IN' ? 'bg-green-50 text-green-700 border-green-200' : 
+                                                record.type === 'CHECK_OUT' || record.type === 'EXTERNAL_OUT' ? 'bg-red-50 text-red-700 border-red-200' :
+                                                record.type === 'EXTERNAL' || record.type === 'EXTERNAL_DUTY' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-gray-50 text-gray-600 border-gray-200'
                                             }`}>
                                                 {record.type.replace('_', ' ')}
                                             </span>

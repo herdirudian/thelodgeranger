@@ -15,6 +15,12 @@ enum Role {
   SUPERVISOR
   FINANCE
   STORE
+  ADMIN
+  MERCHANDISE_STAFF
+  MERCHANDISE_HOD
+  MERCHANDISE_SPV
+  PHOTOGRAPHER_STAFF
+  PHOTOGRAPHER_HOD
 }
 
 enum ProcurementStatus {
@@ -22,35 +28,65 @@ enum ProcurementStatus {
   PENDING_SUPERVISOR
   PENDING_FINANCE
   PENDING_GM
+  PENDING_MERCHANDISE_HOD
+  PENDING_MERCHANDISE_SPV
+  PENDING_PHOTOGRAPHER_HOD
   APPROVED
   REJECTED
   COMPLETED
+  PURCHASED
 }
 
 enum AttendanceStatus {
   PENDING
+  PENDING_HOD
+  PENDING_HR
+  PENDING_GM
+  PENDING_MERCHANDISE_HOD
+  PENDING_MERCHANDISE_SPV
+  PENDING_PHOTOGRAPHER_HOD
   APPROVED
   REJECTED
 }
 
 enum RequestType {
-  LEAVE           // Cuti Tahunan
-  UNPAID_LEAVE    // Cuti Tanpa Gaji / Diluar Tanggungan
-  ADD_MANPOWER    // Izin Tambah Man Power
-  SHIFT_EXCHANGE  // Form Tukar Jadwal
-  SICK            // Sakit
-  PERMISSION      // Izin
-  OFF             // Off
-  OVERTIME        // Lembur
-  EXTERNAL_DUTY   // Dinas Luar
+  LEAVE
+  UNPAID_LEAVE
+  ADD_MANPOWER
+  SHIFT_EXCHANGE
+  SICK
+  PERMISSION
+  OFF
+  OVERTIME
+  EXTERNAL_DUTY
+  PDO
+  LEAVE_WORKPLACE
 }
 
 enum RequestStatus {
+  DRAFT
+  PENDING
   PENDING_HOD
+  PENDING_SUPERVISOR
   PENDING_HR
   PENDING_GM
+  PENDING_MERCHANDISE_HOD
+  PENDING_MERCHANDISE_SPV
+  PENDING_PHOTOGRAPHER_HOD
   APPROVED
   REJECTED
+}
+
+enum ApprovalModule {
+  REQUEST
+  PROCUREMENT
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SKIPPED
 }
 
 model User {
@@ -61,6 +97,13 @@ model User {
   role      Role     @default(STAFF)
   department String?
   leaveQuota Int      @default(12)
+  pdo       Int      @default(0)
+  contractStartDate DateTime?
+  contractEndDate DateTime?
+  resetToken String?
+  resetTokenExpiry DateTime?
+  whatsappNumber String?
+  whatsappVerifiedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -71,16 +114,226 @@ model User {
   feedbacks       CustomerFeedback[]
   announcements   Announcement[]
   notifications   Notification[]
-
+  bugReports      BugReport[]
+  
   createdMonthlySchedules MonthlySchedule[] @relation("CreatedSchedules")
+  onboardingTasks OnboardingTask[]
+  learningProgress UserLearningProgress[]
+  approvalAssignments ApprovalAssignment[]
+  transactionApprovals TransactionApproval[]
+  review360FormsCreated Review360Form[] @relation("Review360CreatedBy")
+  review360AssignmentsToDo Review360Assignment[] @relation("Review360Reviewer")
+  review360AssignmentsAboutMe Review360Assignment[] @relation("Review360Target")
+
+  assessmentsGiven AssessmentSubmission[] @relation("AssessmentAssessor")
+  assessmentsReceived AssessmentSubmission[] @relation("AssessmentTarget")
+  manualProcurements ManualProcurement[]
+  verificationCodes VerificationCode[]
+}
+
+model VerificationCode {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   String
+  phone     String
+  code      String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  consumedAt DateTime?
+  attempts  Int      @default(0)
+
+  @@index([userId, channel])
+  @@index([phone, channel])
+}
+
+enum ModuleType {
+  PRODUCT_KNOWLEDGE
+  SOP
+  SELF_ASSESSMENT
+  ASSESSMENT_360
+}
+
+enum LearningStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model LearningModule {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?  @db.Text
+  type        ModuleType
+  category    String   // e.g., 'Wahana', 'F&B', 'FO', 'General'
+  content     String?  @db.LongText // Rich text content
+  metadata    Json?    // { price: 10000, target: "Family", etc }
+  videoUrl    String?
+  images      Json?    // Array of image URLs
+  fileUrl     String?  // PDF link if any
+  
+  version     String   @default("1.0")
+  isMandatory Boolean  @default(false)
+  targetRoles Json?    // Array of strings ['STAFF', 'HR'] or null for all
+  
+  quizzes     Quiz[]
+  progress    UserLearningProgress[]
+  assessmentSubmissions AssessmentSubmission[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ManualProcurement {
+  id            Int      @id @default(autoincrement())
+  department    String
+  date          DateTime
+  requestNumber String   // "No"
+  description   String?  // "Keterangan"
+  totalAmount   Float    // "Total Estimasi"
+
+  status        ProcurementStatus @default(PENDING_FINANCE)
+  financeApproved Boolean @default(false)
+  financeApproverId Int?
+  financeApprovedAt DateTime?
+  gmApproved      Boolean @default(false)
+  gmApproverId    Int?
+  gmApprovedAt    DateTime?
+  
+  purchased       Boolean @default(false)
+  purchasedAt     DateTime?
+  purchasedById   Int?
+  
+  rejectedByRole  Role?
+  rejectionReason String?
+  
+  items         ManualProcurementItem[]
+  
+  createdById   Int
+  createdBy     User     @relation(fields: [createdById], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ManualProcurementItem {
+  id                  Int               @id @default(autoincrement())
+  manualProcurementId Int
+  manualProcurement   ManualProcurement @relation(fields: [manualProcurementId], references: [id], onDelete: Cascade)
+  
+  itemName String
+  quantity Int
+  unit     String
+  price    Float
+  total    Float
+}
+
+model Quiz {
+  id          Int      @id @default(autoincrement())
+  moduleId    Int
+  module      LearningModule @relation(fields: [moduleId], references: [id])
+  questions   Json     // [{ question: "...", options: ["A","B"], answer: 0 }]
+  minScore    Int      @default(70)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model UserLearningProgress {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  moduleId    Int
+  module      LearningModule @relation(fields: [moduleId], references: [id])
+  
+  status      LearningStatus @default(NOT_STARTED)
+  acknowledged Boolean @default(false)
+  acknowledgedAt DateTime?
+  
+  quizScore   Int?
+  isPassed    Boolean  @default(false)
+  answers     Json?    // User's answers
+  
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  
+  @@unique([userId, moduleId])
+}
+
+model AssessmentSubmission {
+  id            Int      @id @default(autoincrement())
+  moduleId      Int
+  module        LearningModule @relation(fields: [moduleId], references: [id])
+  
+  assessorId    Int
+  assessor      User     @relation("AssessmentAssessor", fields: [assessorId], references: [id])
+  
+  targetUserId  Int
+  targetUser    User     @relation("AssessmentTarget", fields: [targetUserId], references: [id])
+  
+  answers       Json
+  score         Float?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([moduleId, assessorId, targetUserId])
+}
+
+model Review360Form {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?  @db.Text
+  questions   Json
+  createdById Int
+  createdBy   User     @relation("Review360CreatedBy", fields: [createdById], references: [id])
+  isPublished Boolean  @default(true)
+
+  assignments Review360Assignment[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Review360Assignment {
+  id            Int      @id @default(autoincrement())
+  formId        Int
+  form          Review360Form @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  targetUserId  Int
+  targetUser    User     @relation("Review360Target", fields: [targetUserId], references: [id])
+
+  reviewerUserId Int
+  reviewerUser   User     @relation("Review360Reviewer", fields: [reviewerUserId], references: [id])
+
+  answers       Json?
+  submittedAt   DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([formId, targetUserId, reviewerUserId])
+}
+
+model OnboardingTask {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  task        String
+  category    String   // 'Administrasi', 'Fasilitas', 'Training', 'Departemen'
+  isCompleted Boolean  @default(false)
+  completedAt DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model MonthlySchedule {
   id          Int       @id @default(autoincrement())
   department  String
-  month       Int       // 1-12
+  month       Int       
   year        Int
-  data        Json      // Stores the grid data
+  data        Json      
   status      RequestStatus @default(PENDING_HR)
   
   createdByUserId Int
@@ -101,9 +354,9 @@ model Procurement {
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
   
-  title       String?  // Optional title/reference
-  reason      String   // General reason for the whole request
-  totalPrice  Float    // Sum of all items
+  title       String?  
+  reason      String   @db.Text
+  totalPrice  Float    
   requiredDate DateTime
   attachmentUrl String?
 
@@ -111,7 +364,6 @@ model Procurement {
 
   status      ProcurementStatus @default(PENDING_HOD)
 
-  // Approval Tracking
   hodApproved      Boolean @default(false)
   hodDate          DateTime?
   hodNote          String?
@@ -143,7 +395,7 @@ model ProcurementItem {
   itemName    String
   description String?
   imageUrl    String?
-  category    String   // ATK, Operasional, Maintenance, Event, Lainnya
+  category    String   
   quantity    Int
   unitPrice   Float
   totalPrice  Float
@@ -153,14 +405,23 @@ model Attendance {
   id        Int      @id @default(autoincrement())
   userId    Int
   user      User     @relation(fields: [userId], references: [id])
-  type      String   // CHECK_IN, CHECK_OUT, EXTERNAL
+  type      String   
   timestamp DateTime @default(now())
   latitude  Float?
   longitude Float?
-  location  String?  // Text address
+  location  String?  
   photoUrl  String?
-  status    AttendanceStatus @default(APPROVED) // Normal check-in is auto-approved, External might be pending
-  notes     String?
+  status    AttendanceStatus @default(APPROVED) 
+  notes     String? @db.Text
+
+  hodApproved Boolean @default(false)
+  hrApproved  Boolean @default(false)
+  gmApproved  Boolean @default(false)
+  rejectionReason String?
+
+  @@index([userId])
+  @@index([timestamp])
+  @@index([status])
 }
 
 model Request {
@@ -173,21 +434,22 @@ model Request {
   reason      String
   status      RequestStatus @default(PENDING_HOD)
   
-  // Additional Fields for various forms
   returnDate      DateTime?
+  replacementDate DateTime?
   replacementName String?
-  quantity        Int?
+  quantity        Float?
   startTime       String?
   endTime         String?
   newEmployeeName String?
   targetDepartment String?
 
-  // Approval tracking
   hodApproved Boolean       @default(false)
+   spvApproved Boolean       @default(false)
   hrApproved  Boolean       @default(false)
   gmApproved  Boolean       @default(false)
   
   hodNote     String?
+  spvNote     String?
   hrNote      String?
   gmNote      String?
 
@@ -195,6 +457,10 @@ model Request {
   
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
 }
 
 model Schedule {
@@ -204,7 +470,11 @@ model Schedule {
   date      DateTime
   shiftStart DateTime
   shiftEnd   DateTime
+  shiftName  String?
   description String?
+  
+  @@index([userId])
+  @@index([date])
 }
 
 model CustomerFeedback {
@@ -226,6 +496,26 @@ model CustomerFeedback {
   createdAt         DateTime @default(now())
 }
 
+enum BugReportStatus {
+  OPEN
+  IN_REVIEW
+  IN_PROGRESS
+  DONE
+}
+
+model BugReport {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String   @db.Text
+  type        String
+  status      BugReportStatus @default(OPEN)
+  priority    String   @default("MEDIUM")
+  imageUrl    String?
+  createdById Int
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+}
+
 model Announcement {
   id          Int      @id @default(autoincrement())
   title       String
@@ -234,8 +524,8 @@ model Announcement {
   imageUrl    String?
   pdfUrl      String?
   
-  targetType  String   @default("ALL") // ALL, ROLE, USER
-  targetIds   String?  // JSON string of roles or user IDs
+  targetType  String   @default("ALL") 
+  targetIds   String?  
   
   authorId    Int
   author      User     @relation(fields: [authorId], references: [id])
@@ -261,4 +551,55 @@ model InventoryItem {
   minStockLevel Int
   unit          String
   lastUpdated   DateTime @updatedAt
+}
+
+model ApprovalConfig {
+  id          Int             @id @default(autoincrement())
+  module      ApprovalModule
+  department  String?
+  enabled     Boolean         @default(true)
+  steps       ApprovalStep[]
+  assignments ApprovalAssignment[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model ApprovalStep {
+  id               Int            @id @default(autoincrement())
+  approvalConfigId Int
+  approvalConfig   ApprovalConfig @relation(fields: [approvalConfigId], references: [id], onDelete: Cascade)
+  order            Int
+  role             Role
+  approverDepartment String?
+  minApprovals     Int?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model ApprovalAssignment {
+  id               Int            @id @default(autoincrement())
+  approvalConfigId Int
+  approvalConfig   ApprovalConfig @relation(fields: [approvalConfigId], references: [id], onDelete: Cascade)
+  userId           Int
+  user             User           @relation(fields: [userId], references: [id])
+  department       String?
+  role             Role?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model TransactionApproval {
+  id         Int            @id @default(autoincrement())
+  module     ApprovalModule
+  moduleId   Int
+  stepOrder  Int
+  role       Role
+  approverDepartment String?
+  userId     Int?
+  user       User?          @relation(fields: [userId], references: [id])
+  status     ApprovalStatus @default(PENDING)
+  note       String?
+  approvedAt DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
 }

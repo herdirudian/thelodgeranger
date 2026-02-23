@@ -3,13 +3,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bell, Check, X } from 'lucide-react';
 import api from '@/lib/api';
-import { format } from 'date-fns';
+import { useRouter } from 'next/navigation';
+import { formatWibTime, formatWibMonthDay } from '@/lib/wibHelpers';
 
 interface Notification {
     id: number;
     message: string;
     read: boolean;
     createdAt: string;
+    isEphemeral?: boolean;
+    link?: string;
 }
 
 export default function NotificationBell() {
@@ -17,12 +20,13 @@ export default function NotificationBell() {
     const [isOpen, setIsOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const router = useRouter();
 
     const fetchNotifications = async () => {
         try {
             const res = await api.get('/notifications');
             setNotifications(res.data);
-            setUnreadCount(res.data.filter((n: Notification) => !n.read).length);
+            setUnreadCount(res.data.filter((n: Notification) => !n.read && !n.isEphemeral).length);
         } catch (error) {
             console.error("Failed to fetch notifications", error);
         }
@@ -81,7 +85,7 @@ export default function NotificationBell() {
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50">
+                <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50">
                     <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                         <h3 className="text-sm font-semibold text-gray-700">Notifications</h3>
                         {unreadCount > 0 && (
@@ -103,7 +107,13 @@ export default function NotificationBell() {
                                 {notifications.map(notification => (
                                     <div 
                                         key={notification.id} 
-                                        className={`p-4 hover:bg-gray-50 transition-colors ${!notification.read ? 'bg-blue-50/50' : ''}`}
+                                        onClick={() => {
+                                            if (notification.link) {
+                                                setIsOpen(false);
+                                                router.push(notification.link);
+                                            }
+                                        }}
+                                        className={`p-4 hover:bg-gray-50 transition-colors ${!notification.read ? 'bg-blue-50/50' : ''} ${notification.link ? 'cursor-pointer' : ''}`}
                                     >
                                         <div className="flex gap-3">
                                             <div className="flex-1">
@@ -111,10 +121,10 @@ export default function NotificationBell() {
                                                     {notification.message}
                                                 </p>
                                                 <p className="text-xs text-gray-400 mt-1">
-                                                    {format(new Date(notification.createdAt), 'MMM d, HH:mm')}
+                                                    {formatWibMonthDay(notification.createdAt)} {formatWibTime(notification.createdAt)}
                                                 </p>
                                             </div>
-                                            {!notification.read && (
+                                            {!notification.read && !notification.isEphemeral && (
                                                 <button 
                                                     onClick={() => markAsRead(notification.id)}
                                                     className="text-gray-400 hover:text-[#0F4D39] self-start"

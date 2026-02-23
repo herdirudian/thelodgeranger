@@ -3,6 +3,7 @@ const prisma = new PrismaClient();
 const fs = require('fs');
 const path = require('path');
 const emailService = require('../services/emailService');
+const { formatWibLongDateId } = require('../utils/wibDate');
 
 exports.createAnnouncement = async (req, res) => {
   try {
@@ -100,7 +101,7 @@ exports.createAnnouncement = async (req, res) => {
                             <p>Halo <strong>${recipient.name}</strong>,</p>
                             <p>Ada pengumuman baru untuk Anda:</p>
                             <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; border-left: 4px solid #ea580c; margin: 20px 0;">
-                                <p style="margin: 0 0 10px 0;"><strong>Tanggal:</strong> ${new Date(date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                <p style="margin: 0 0 10px 0;"><strong>Tanggal:</strong> ${formatWibLongDateId(date)}</p>
                                 <p style="margin: 0 0 10px 0;"><strong>Oleh:</strong> ${user.name} (${user.role})</p>
                                 <div style="margin-top: 15px; white-space: pre-wrap;">${description.replace(/\n/g, '<br/>')}</div>
                             </div>

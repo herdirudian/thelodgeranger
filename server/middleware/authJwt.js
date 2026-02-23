@@ -25,7 +25,7 @@ const verifyToken = (req, res, next) => {
 };
 
 const isAdmin = (req, res, next) => {
-  if (req.role === 'GM' || req.role === 'HR') {
+  if (req.role === 'GM' || req.role === 'HR' || req.role === 'ADMIN') {
     next();
     return;
   }
@@ -33,7 +33,11 @@ const isAdmin = (req, res, next) => {
 };
 
 const isHOD = (req, res, next) => {
-  if (req.role === 'GM' || req.role === 'HR' || req.role === 'HOD') {
+  const allowedRoles = [
+    'GM', 'HR', 'HOD', 'ADMIN', 'SUPERVISOR',
+    'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV'
+  ];
+  if (allowedRoles.includes(req.role)) {
     next();
     return;
   }

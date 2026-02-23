@@ -17,6 +17,9 @@ import {
     Edit2
 } from "lucide-react";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const SERVER_URL = API_URL.replace(/\/api$/, '');
+
 interface Announcement {
     id: number;
     title: string;
@@ -287,8 +290,8 @@ export default function AnnouncementSection() {
                         {targetType === 'ROLE' && (
                             <div className="p-3 bg-white rounded-lg border border-gray-200">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Pilih Role:</label>
-                                <div className="flex gap-4">
-                                    {['HOD', 'STAFF', 'HR', 'GM'].map(role => (
+                                <div className="flex flex-wrap gap-4">
+                                    {['HOD', 'STAFF', 'HR', 'GM', 'MERCHANDISE_STAFF', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV', 'PHOTOGRAPHER_STAFF', 'PHOTOGRAPHER_HOD'].map(role => (
                                         <label key={role} className="flex items-center gap-2 cursor-pointer">
                                             <input 
                                                 type="checkbox" 
@@ -445,14 +448,14 @@ export default function AnnouncementSection() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                                 {announcement.imageUrl && (
                                     <a 
-                                        href={`http://localhost:5000${announcement.imageUrl}`} 
+                                        href={`${SERVER_URL}${announcement.imageUrl}`} 
                                         target="_blank" 
                                         rel="noreferrer"
                                         className="block group relative rounded-xl overflow-hidden border border-gray-200 hover:shadow-lg transition-all duration-200"
                                     >
                                         <div className="h-48 w-full bg-gray-100 relative">
                                             <img 
-                                                src={`http://localhost:5000${announcement.imageUrl}`} 
+                                                src={`${SERVER_URL}${announcement.imageUrl}`} 
                                                 alt={announcement.title}
                                                 className="w-full h-full object-cover"
                                             />
@@ -468,7 +471,7 @@ export default function AnnouncementSection() {
 
                                 {announcement.pdfUrl && (
                                     <a 
-                                        href={`http://localhost:5000${announcement.pdfUrl}`} 
+                                        href={`${SERVER_URL}${announcement.pdfUrl}`} 
                                         target="_blank" 
                                         rel="noreferrer"
                                         className="block group relative rounded-xl overflow-hidden border border-gray-200 hover:shadow-lg transition-all duration-200"
@@ -476,7 +479,7 @@ export default function AnnouncementSection() {
                                         <div className="h-48 bg-gray-50 relative border-b border-gray-100 group-hover:bg-gray-100 transition-colors">
                                             <div className="absolute inset-0 overflow-hidden opacity-50 pointer-events-none">
                                                 <object
-                                                    data={`http://localhost:5000${announcement.pdfUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                                                    data={`${SERVER_URL}${announcement.pdfUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
                                                     type="application/pdf"
                                                     className="w-full h-[150%] -mt-10" // Trick to show top part without toolbar
                                                 >

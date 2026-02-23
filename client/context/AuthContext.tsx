@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import api from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
@@ -8,9 +8,12 @@ interface User {
   id: number;
   name: string;
   email: string;
-  role: 'STAFF' | 'HOD' | 'HR' | 'GM' | 'FINANCE' | 'STORE' | 'SUPERVISOR';
+  role: 'STAFF' | 'HOD' | 'HR' | 'GM' | 'FINANCE' | 'STORE' | 'SUPERVISOR' | 'ADMIN' | 'MERCHANDISE_STAFF' | 'MERCHANDISE_HOD' | 'MERCHANDISE_SPV' | 'PHOTOGRAPHER_STAFF' | 'PHOTOGRAPHER_HOD';
   department?: string;
   leaveQuota?: number;
+  pdo?: number;
+  whatsappNumber?: string | null;
+  whatsappVerifiedAt?: string | null;
 }
 
 interface AuthContextType {
@@ -28,7 +31,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
       try {
           const token = localStorage.getItem('token');
           if (!token) return;
@@ -42,7 +45,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.error("Failed to refresh user data", err);
           // If token is invalid, maybe logout? For now just log error.
       }
-  };
+  }, []);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -57,21 +60,58 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setLoading(false);
     };
     initAuth();
-  }, []);
+  }, [refreshUser]);
 
-  const login = (token: string, userData: User) => {
+  const login = useCallback((token: string, userData: User) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
     router.push('/dashboard');
-  };
+  }, [router]);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
     router.push('/login');
-  };
+  }, [router]);
+
+  // Auto Logout Logic
+  useEffect(() => {
+    if (!user) return;
+
+    // 30 minutes in milliseconds
+    const INACTIVITY_LIMIT = 30 * 60 * 1000; 
+    let lastActivity = Date.now();
+
+    const updateActivity = () => {
+      lastActivity = Date.now();
+    };
+
+    const checkActivity = () => {
+      if (Date.now() - lastActivity > INACTIVITY_LIMIT) {
+        alert("Sesi Anda telah berakhir karena tidak aktif selama 30 menit. Silakan login kembali.");
+        logout();
+      }
+    };
+
+    const intervalId = setInterval(checkActivity, 60000); // Check every minute
+
+    window.addEventListener('mousemove', updateActivity);
+    window.addEventListener('keydown', updateActivity);
+    window.addEventListener('click', updateActivity);
+    window.addEventListener('scroll', updateActivity);
+    window.addEventListener('touchstart', updateActivity);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('mousemove', updateActivity);
+      window.removeEventListener('keydown', updateActivity);
+      window.removeEventListener('click', updateActivity);
+      window.removeEventListener('scroll', updateActivity);
+      window.removeEventListener('touchstart', updateActivity);
+    };
+  }, [user, logout]);
 
   return (
     <AuthContext.Provider value={{ user, login, logout, refreshUser, loading }}>

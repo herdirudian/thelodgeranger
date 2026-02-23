@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { Home, Calendar, Clock, FileText, User, LogOut, MessageSquare, ShoppingBag } from 'lucide-react';
+import { Home, Calendar, Clock, FileText, User, LogOut, MessageSquare, ShoppingBag, ClipboardList, BookOpen, ClipboardCheck, Users, Archive, BarChart2 } from 'lucide-react';
 import clsx from 'clsx';
 import { usePathname } from 'next/navigation';
 
@@ -20,18 +20,29 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
     { name: 'Procurement', href: '/procurement', icon: ShoppingBag },
   ];
 
-  if (user.role === 'HR' || user.role === 'GM' || user.role === 'HOD') {
-      // Add more specific links if needed, e.g., "Team" or "Approvals"
-      // But they are likely sub-pages or sections in dashboard/requests
+  if (user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN' || user.role === 'SUPERVISOR' || user.role === 'HOD' || user.role === 'PHOTOGRAPHER_HOD' || user.role === 'MERCHANDISE_HOD' || user.role === 'MERCHANDISE_SPV') {
+      links.push({ name: 'Analytics', href: '/analytics', icon: BarChart2 });
   }
+
+  if (user.role === 'HR') {
+      links.push({ name: 'Onboarding', href: '/onboarding', icon: ClipboardList });
+  }
+
+  if (user.role === 'STORE' || user.role === 'ADMIN' || user.role === 'GM' || user.role === 'FINANCE') {
+      links.push({ name: 'Manual Input', href: '/manual-procurement', icon: Archive });
+  }
+
+  links.push({ name: 'The Lodge Learning', href: '/elearning', icon: BookOpen });
+  links.push({ name: 'Self Assessment', href: '/self-assessment', icon: ClipboardCheck });
+  links.push({ name: 'Penilaian 360', href: '/review-360', icon: Users });
   
-  if (user.role === 'HR' || user.role === 'GM') {
+  if (user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN') {
       links.push({ name: 'Feedback', href: '/feedback', icon: MessageSquare });
       links.push({ name: 'Admin', href: '/admin', icon: User });
   }
 
   return (
-    <div className="h-full w-64 bg-[#0F4D39] text-white flex flex-col">
+    <div className="h-screen w-64 bg-[#0F4D39] text-white flex flex-col">
       <div className="p-6 text-2xl font-bold border-b border-green-800 flex flex-col items-center">
         <div className="bg-white w-24 h-24 rounded-full mb-3 shadow-lg flex items-center justify-center overflow-hidden">
             <img src="/logo.png" alt="The Lodge" className="h-14 w-auto object-contain" />
@@ -39,7 +50,7 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
         <span className="text-lg">The Lodge Ranger</span>
       </div>
       
-      <div className="flex-1 p-4 space-y-2">
+      <div className="flex-1 p-4 space-y-2 overflow-y-auto">
         {links.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href;
