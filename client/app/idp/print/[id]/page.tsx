@@ -171,7 +171,7 @@ export default function IDPPrintPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const id = Number(params?.id);
-  const useDraft = searchParams.get('useDraft') === '1';
+  const useDraft = searchParams?.get('useDraft') === '1';
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
