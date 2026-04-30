@@ -58,20 +58,7 @@ const DEFAULT_CATEGORIES = [
 let hasSeeded = false;
 
 async function ensureCategories() {
-  if (hasSeeded) return;
-
-  const keyMapping = {
-    'best_rookie': 'BEST_ROOKIE_OF_THE_YEAR',
-    'best_dept': 'BEST_DEPARTMENT_OF_THE_YEAR',
-    'fun_galak': 'SI_PALING_GALAK',
-    'fun_gosip': 'SI_PALING_GOSIP',
-    'SI_PALING_GOSIP_INFO_A1': 'SI_PALING_GOSIP',
-    'fun_heureuy': 'SI_PALING_HEUREUY',
-    'fun_someah': 'SI_PALING_SOMEAH',
-    'fun_eksis': 'SI_PALING_EKSIS'
-  };
-
-  // 1. Create/Update current categories
+  // Always run upsert to ensure data integrity, especially after key changes
   for (const c of DEFAULT_CATEGORIES) {
     await prisma.votingCategory.upsert({
       where: { key: c.key },
@@ -93,12 +80,24 @@ async function ensureCategories() {
     });
   }
 
-  // 2. Migrate data from old keys to new keys if they exist
+  const keyMapping = {
+    'best_rookie': 'BEST_ROOKIE_OF_THE_YEAR',
+    'best_dept': 'BEST_DEPARTMENT_OF_THE_YEAR',
+    'fun_galak': 'SI_PALING_GALAK',
+    'fun_gosip': 'SI_PALING_GOSIP',
+    'SI_PALING_GOSIP_INFO_A1': 'SI_PALING_GOSIP',
+    'fun_heureuy': 'SI_PALING_HEUREUY',
+    'fun_someah': 'SI_PALING_SOMEAH',
+    'fun_eksis': 'SI_PALING_EKSIS'
+  };
+
   const allCategories = await prisma.votingCategory.findMany();
   const currentKeys = DEFAULT_CATEGORIES.map(c => c.key);
 
   for (const oldKey in keyMapping) {
     const newKey = keyMapping[oldKey];
+    if (oldKey === newKey) continue;
+
     const oldCat = allCategories.find(c => c.key === oldKey);
     const newCat = allCategories.find(c => c.key === newKey);
 
@@ -135,19 +134,17 @@ async function ensureCategories() {
         }
       }
 
-      // Delete old category
+      // Delete old category and its votes
       await prisma.vote.deleteMany({ where: { categoryId: oldCat.id } });
       await prisma.votingCategory.delete({ where: { id: oldCat.id } });
     }
   }
 
-  // 3. Deactivate any other categories that are not in current list
+  // Ensure all other categories are inactive
   await prisma.votingCategory.updateMany({
     where: { key: { notIn: currentKeys } },
     data: { isActive: false }
   });
-
-  hasSeeded = true;
 }
 
 function coerceInt(v) {
@@ -167,6 +164,10 @@ exports.getBallot = async (req, res) => {
       orderBy: [{ group: 'asc' }, { id: 'asc' }]
     });
 
+    if (categories.length === 0) {
+      console.error('No active voting categories found even after ensureCategories()');
+    }
+
     const users = await prisma.user.findMany({
       select: { id: true, name: true, department: true, role: true },
       orderBy: { name: 'asc' }
@@ -179,7 +180,8 @@ exports.getBallot = async (req, res) => {
       select: { categoryId: true, candidateUserId: true, candidateDepartment: true }
     });
 
-    const isFinalized = req.user?.votingFinalized || false;
+    const userDb = await prisma.user.findUnique({ where: { id: req.userId }, select: { votingFinalized: true } });
+    const isFinalized = userDb?.votingFinalized || false;
 
     const catIdToKey = new Map(categories.map(c => [c.id, c.key]));
     const myVotes = {};
@@ -301,6 +303,10 @@ exports.getResults = async (req, res) => {
       where: { isActive: true },
       orderBy: [{ group: 'asc' }, { id: 'asc' }]
     });
+
+    if (categories.length === 0) {
+      console.error('No active voting categories found in getResults');
+    }
 
     const userMap = new Map();
     const results = [];
