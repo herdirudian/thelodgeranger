@@ -3,14 +3,41 @@ const prisma = new PrismaClient();
 const pdfService = require('../services/pdfService');
 const { sendEmail } = require('../services/emailService');
 
+function wibDateKey(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(d);
+}
+
 exports.createSchedule = async (req, res) => {
   try {
     const { userId, date, shiftStart, shiftEnd, description } = req.body;
 
+    const dateOnly =
+      typeof date === 'string' && date.includes('T')
+        ? new Date(date)
+        : new Date(`${date}T00:00:00+07:00`);
+    if (isNaN(dateOnly.getTime())) {
+      return res.status(400).json({ message: 'Invalid date' });
+    }
+    const dateEnd = new Date(dateOnly);
+    dateEnd.setUTCDate(dateEnd.getUTCDate() + 1);
+
+    await prisma.schedule.deleteMany({
+      where: {
+        userId,
+        date: { gte: dateOnly, lt: dateEnd }
+      }
+    });
+
     const schedule = await prisma.schedule.create({
       data: {
         userId,
-        date: new Date(date),
+        date: dateOnly,
         shiftStart: new Date(shiftStart),
         shiftEnd: new Date(shiftEnd),
         description
@@ -25,12 +52,41 @@ exports.createSchedule = async (req, res) => {
 
 exports.getMySchedule = async (req, res) => {
   try {
+    const { startDate, endDate } = req.query;
+    let start = new Date();
+    start.setHours(0, 0, 0, 0);
+    let end = new Date(start);
+    end.setDate(end.getDate() + 60);
+    end.setHours(23, 59, 59, 999);
+
+    if (startDate) {
+      const s = new Date(`${startDate}T00:00:00+07:00`);
+      if (!isNaN(s.getTime())) start = s;
+    }
+    if (endDate) {
+      const e = new Date(`${endDate}T23:59:59+07:00`);
+      if (!isNaN(e.getTime())) end = e;
+    }
+
     const schedules = await prisma.schedule.findMany({
-      where: { userId: req.userId },
-      orderBy: { date: 'asc' },
-      take: 30
+      where: { 
+        userId: req.userId,
+        date: { gte: start, lte: end }
+      },
+      orderBy: [{ date: 'asc' }, { shiftStart: 'asc' }, { id: 'asc' }],
+      take: 120
     });
-    res.status(200).json(schedules);
+
+    const byDay = new Map();
+    for (const s of schedules) {
+      const key = wibDateKey(s.date);
+      const existing = byDay.get(key);
+      if (!existing || (s.id || 0) > (existing.id || 0)) {
+        byDay.set(key, s);
+      }
+    }
+    const deduped = Array.from(byDay.values()).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    res.status(200).json(deduped);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching schedule', error: error.message });
   }
@@ -543,7 +599,7 @@ exports.syncApprovedRequestsToMonthly = async (req, res) => {
             'PERMISSION': 'I',
             'OFF': 'OFF',
             'UNPAID_LEAVE': 'C',
-            'PDO': 'OFF',
+            'PDO': 'PDO',
             'EXTERNAL_DUTY': 'D'
         };
 
@@ -675,6 +731,64 @@ exports.syncApprovedRequestsToMonthly = async (req, res) => {
                 }
 
                 continue;
+            }
+            
+            // Mark Replacement Staff as Extra Manpower ('E') on same dates for absence-type requests
+            if (request.replacementName && ['LEAVE','SICK','PERMISSION','OFF','UNPAID_LEAVE','PDO','EXTERNAL_DUTY'].includes(request.type)) {
+                let replacementUser = null;
+                if (String(request.replacementName).includes('|')) {
+                    const parts = String(request.replacementName).split('|');
+                    const idStr = parts[1] && parts[1].trim();
+                    const parsedId = idStr ? parseInt(idStr, 10) : null;
+                    if (parsedId && !Number.isNaN(parsedId)) {
+                        replacementUser = await prisma.user.findUnique({ where: { id: parsedId } });
+                    }
+                }
+                if (!replacementUser) {
+                    replacementUser = await prisma.user.findFirst({
+                        where: {
+                            OR: [
+                                { name: request.replacementName },
+                                { name: { contains: request.replacementName } }
+                            ]
+                        }
+                    });
+                }
+                if (replacementUser) {
+                    const replId = parseInt(replacementUser.id);
+                    if (Array.isArray(scheduleData)) {
+                        let staffEntry = scheduleData.find(s => parseInt(s.userId) === replId);
+                        if (!staffEntry) {
+                            staffEntry = { userId: replId, shifts: {} };
+                            scheduleData.push(staffEntry);
+                        }
+                        if (!staffEntry.shifts) staffEntry.shifts = {};
+                        let current = new Date(request.startDate);
+                        const end = new Date(request.endDate || request.startDate);
+                        while (current <= end) {
+                            if (current >= rangeStart && current <= rangeEnd) {
+                                const dateStr = current.toISOString().split('T')[0];
+                                staffEntry.shifts[dateStr] = 'E';
+                                updateCount++;
+                            }
+                            current.setUTCDate(current.getUTCDate() + 1);
+                        }
+                    } else if (scheduleData && scheduleData.scheduleData) {
+                        if (!scheduleData.scheduleData[replId]) {
+                            scheduleData.scheduleData[replId] = {};
+                        }
+                        let current = new Date(request.startDate);
+                        const end = new Date(request.endDate || request.startDate);
+                        while (current <= end) {
+                            if (current >= rangeStart && current <= rangeEnd) {
+                                const dateStr = current.toISOString().split('T')[0];
+                                scheduleData.scheduleData[replId][dateStr] = 'E';
+                                updateCount++;
+                            }
+                            current.setUTCDate(current.getUTCDate() + 1);
+                        }
+                    }
+                }
             }
             
             const shiftCode = shiftCodeMap[request.type];
@@ -815,6 +929,162 @@ exports.hrAdjustMonthlySchedule = async (req, res) => {
     }
 };
 
+exports.syncAllActiveMonthly = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user || !['HR', 'GM', 'ADMIN'].includes(user.role)) {
+            return res.status(403).json({ message: 'Unauthorized' });
+        }
+
+        const { department: filterDept } = req.body || {};
+        const now = new Date();
+        const candidates = await prisma.monthlySchedule.findMany({
+            where: {
+                status: 'APPROVED',
+                ...(filterDept ? { department: filterDept } : {})
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        let processed = 0;
+        const errors = [];
+        for (const schedule of candidates) {
+            try {
+                const { month, year, department } = schedule;
+                const rangeStart = new Date(year, month - 2, 21);
+                rangeStart.setUTCHours(0, 0, 0, 0);
+                const rangeEnd = new Date(year, month - 1, 20);
+                rangeEnd.setUTCHours(23, 59, 59, 999);
+                if (now < rangeStart || now > rangeEnd) continue;
+
+                let scheduleData = schedule.data;
+                if (typeof scheduleData === 'string') {
+                    try { scheduleData = JSON.parse(scheduleData); } catch { scheduleData = {}; }
+                }
+                if (!scheduleData) scheduleData = {};
+
+                const approvedRequests = await prisma.request.findMany({
+                    where: {
+                        status: 'APPROVED',
+                        user: { department },
+                        OR: [
+                            { startDate: { gte: rangeStart, lte: rangeEnd } },
+                            { endDate: { gte: rangeStart, lte: rangeEnd } },
+                            { AND: [{ startDate: { lte: rangeStart } }, { endDate: { gte: rangeEnd } }] }
+                        ]
+                    }
+                });
+                if (approvedRequests.length === 0) continue;
+
+                const shiftCodeMap = { LEAVE: 'C', SICK: 'S', PERMISSION: 'I', OFF: 'OFF', UNPAID_LEAVE: 'C', PDO: 'PDO', EXTERNAL_DUTY: 'D' };
+                let updateCount = 0;
+
+                for (const request of approvedRequests) {
+                    const userIdReq = request.userId;
+                    const shiftCode = shiftCodeMap[request.type];
+                    if (shiftCode) {
+                        if (Array.isArray(scheduleData)) {
+                            let entry = scheduleData.find(s => parseInt(s.userId) === parseInt(userIdReq));
+                            if (!entry) { entry = { userId: parseInt(userIdReq), shifts: {} }; scheduleData.push(entry); }
+                            if (!entry.shifts) entry.shifts = {};
+                            let current = new Date(request.startDate);
+                            const end = new Date(request.endDate || request.startDate);
+                            while (current <= end) {
+                                if (current >= rangeStart && current <= rangeEnd) {
+                                    const dateStr = current.toISOString().split('T')[0];
+                                    entry.shifts[dateStr] = shiftCode;
+                                    updateCount++;
+                                }
+                                current.setUTCDate(current.getUTCDate() + 1);
+                            }
+                        } else if (scheduleData && scheduleData.scheduleData) {
+                            if (!scheduleData.scheduleData[userIdReq]) scheduleData.scheduleData[userIdReq] = {};
+                            let current = new Date(request.startDate);
+                            const end = new Date(request.endDate || request.startDate);
+                            while (current <= end) {
+                                if (current >= rangeStart && current <= rangeEnd) {
+                                    const dateStr = current.toISOString().split('T')[0];
+                                    scheduleData.scheduleData[userIdReq][dateStr] = shiftCode;
+                                    updateCount++;
+                                }
+                                current.setUTCDate(current.getUTCDate() + 1);
+                            }
+                        }
+                    }
+
+                    if (request.replacementName) {
+                        let replUser = null;
+                        if (String(request.replacementName).includes('|')) {
+                            const parts = String(request.replacementName).split('|');
+                            const idStr = parts[1] && parts[1].trim();
+                            const parsedId = idStr ? parseInt(idStr, 10) : null;
+                            if (parsedId && !Number.isNaN(parsedId)) {
+                                replUser = await prisma.user.findUnique({ where: { id: parsedId } });
+                            }
+                        }
+                    if (!replUser) {
+                        replUser = await prisma.user.findFirst({
+                            where: {
+                                OR: [
+                                    { name: request.replacementName },
+                                    { name: { contains: request.replacementName } }
+                                ]
+                            }
+                        });
+                    }
+                        if (replUser) {
+                            const replId = replUser.id;
+                            if (Array.isArray(scheduleData)) {
+                                let entry = scheduleData.find(s => parseInt(s.userId) === parseInt(replId));
+                                if (!entry) { entry = { userId: parseInt(replId), shifts: {} }; scheduleData.push(entry); }
+                                if (!entry.shifts) entry.shifts = {};
+                                let current = new Date(request.startDate);
+                                const end = new Date(request.endDate || request.startDate);
+                                while (current <= end) {
+                                    if (current >= rangeStart && current <= rangeEnd) {
+                                        const dateStr = current.toISOString().split('T')[0];
+                                        entry.shifts[dateStr] = 'E';
+                                        updateCount++;
+                                    }
+                                    current.setUTCDate(current.getUTCDate() + 1);
+                                }
+                            } else if (scheduleData && scheduleData.scheduleData) {
+                                if (!scheduleData.scheduleData[replId]) scheduleData.scheduleData[replId] = {};
+                                let current = new Date(request.startDate);
+                                const end = new Date(request.endDate || request.startDate);
+                                while (current <= end) {
+                                    if (current >= rangeStart && current <= rangeEnd) {
+                                        const dateStr = current.toISOString().split('T')[0];
+                                        scheduleData.scheduleData[replId][dateStr] = 'E';
+                                        updateCount++;
+                                    }
+                                    current.setUTCDate(current.getUTCDate() + 1);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                await prisma.monthlySchedule.update({
+                    where: { id: schedule.id },
+                    data: { data: scheduleData }
+                });
+                const updated = await prisma.monthlySchedule.findUnique({ where: { id: schedule.id } });
+                await generateShiftsFromMonthly(updated);
+                processed++;
+            } catch (e) {
+                errors.push({ id: schedule.id, message: e.message });
+            }
+        }
+
+        const msg = `Sync All completed. Processed ${processed} active schedules.${errors.length ? ` Errors: ${errors.length}` : ''}`;
+        res.json({ message: msg, errors });
+    } catch (error) {
+        console.error('Error in syncAllActiveMonthly:', error);
+        res.status(500).json({ message: 'Error syncing all monthly schedules', error: error.message });
+    }
+};
 exports.getMonthlySchedulePDF = async (req, res) => {
     try {
         const id = parseInt(req.params.id);
@@ -918,7 +1188,8 @@ async function generateShiftsFromMonthly(monthlySchedule) {
                 'S': 'Sakit',
                 'I': 'Izin',
                 'E': 'Extra Manpower',
-                'D': 'Dinas Luar'
+                'D': 'Dinas Luar',
+                'PDO': 'Pending Day Off'
             };
 
             const isWorkingShift = shiftDefinitions[shiftCode];

@@ -108,7 +108,7 @@ export default function AnalyticsPage() {
 
     useEffect(() => {
         if (!authLoading && user) {
-            if (user.role !== 'HR' && user.role !== 'GM' && user.role !== 'ADMIN' && user.role !== 'SUPERVISOR' && user.role !== 'MERCHANDISE_SPV' && user.role !== 'HOD' && user.role !== 'PHOTOGRAPHER_HOD' && user.role !== 'MERCHANDISE_HOD') {
+            if (user.role !== 'HR' && user.role !== 'GM' && user.role !== 'ADMIN' && user.role !== 'SUPERVISOR' && user.role !== 'MERCHANDISE_SPV' && user.role !== 'HOD' && user.role !== 'PHOTOGRAPHER_HOD' && user.role !== 'MERCHANDISE_HOD' && user.role !== 'STAFF') {
                 router.push('/dashboard');
                 return;
             }

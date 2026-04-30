@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sendEmail } = require('../services/emailService');
+const { sendWhatsAppMessage } = require('../services/watzapService');
 const pdfService = require('../services/pdfService');
 const { formatWibDate } = require('../utils/wibDate');
 const { createNotification } = require('./notificationController');
@@ -87,6 +88,10 @@ exports.createRequest = async (req, res) => {
         for (const approver of nextApprovers) {
             sendEmail(approver.email, emailSubject, emailBody).catch(console.error);
             createNotification(approver.id, `New Request: ${type} from ${requester.name} (${requester.department || '-'})`);
+            if (approver.whatsappNumber && approver.whatsappVerifiedAt) {
+                const text = `Pengajuan ${type} dari ${requester.name} menunggu persetujuan Anda.`;
+                sendWhatsAppMessage({ to: approver.whatsappNumber, message: text }).catch(() => {});
+            }
         }
     } else {
         if (initialStatus === 'PENDING_HR') {
@@ -100,18 +105,30 @@ exports.createRequest = async (req, res) => {
             for (const spv of supervisors) {
                 sendEmail(spv.email, emailSubject, emailBody).catch(console.error);
                 createNotification(spv.id, `New Request: ${type} from ${requester.name} (${requester.department || '-'})`);
+                if (spv.whatsappNumber && spv.whatsappVerifiedAt) {
+                    const text = `Pengajuan ${type} dari ${requester.name} menunggu persetujuan Anda.`;
+                    sendWhatsAppMessage({ to: spv.whatsappNumber, message: text }).catch(() => {});
+                }
             }
         } else if (initialStatus === 'PENDING_MERCHANDISE_HOD') {
             const hods = await prisma.user.findMany({ where: { role: 'MERCHANDISE_HOD' } });
             for (const hod of hods) {
                 sendEmail(hod.email, emailSubject, emailBody).catch(console.error);
                 createNotification(hod.id, `New Request: ${type} from ${requester.name} (Merchandise Staff)`);
+                if (hod.whatsappNumber && hod.whatsappVerifiedAt) {
+                    const text = `Pengajuan ${type} dari ${requester.name} menunggu persetujuan Anda.`;
+                    sendWhatsAppMessage({ to: hod.whatsappNumber, message: text }).catch(() => {});
+                }
             }
         } else if (initialStatus === 'PENDING_PHOTOGRAPHER_HOD') {
             const hods = await prisma.user.findMany({ where: { role: 'PHOTOGRAPHER_HOD' } });
             for (const hod of hods) {
                 sendEmail(hod.email, emailSubject, emailBody).catch(console.error);
                 createNotification(hod.id, `New Request: ${type} from ${requester.name} (Photographer Staff)`);
+                if (hod.whatsappNumber && hod.whatsappVerifiedAt) {
+                    const text = `Pengajuan ${type} dari ${requester.name} menunggu persetujuan Anda.`;
+                    sendWhatsAppMessage({ to: hod.whatsappNumber, message: text }).catch(() => {});
+                }
             }
         } else if (requester.department) {
             const hods = await prisma.user.findMany({
@@ -122,9 +139,22 @@ exports.createRequest = async (req, res) => {
                 if (hod.id !== requester.id) {
                     sendEmail(hod.email, emailSubject, emailBody).catch(console.error);
                     createNotification(hod.id, `New Request: ${type} from ${requester.name} (${requester.department})`);
+                    if (hod.whatsappNumber && hod.whatsappVerifiedAt) {
+                        const text = `Pengajuan ${type} dari ${requester.name} menunggu persetujuan Anda.`;
+                        sendWhatsAppMessage({ to: hod.whatsappNumber, message: text }).catch(() => {});
+                    }
                 }
             }
         }
+    }
+
+    // Auto-mark schedule as PDO for visibility while pending
+    try {
+        if (type === 'PDO') {
+            await updateScheduleFromRequest(request);
+        }
+    } catch (e) {
+        console.error('Failed to update schedule for pending PDO:', e.message);
     }
 
     res.status(201).json(request);
@@ -150,32 +180,60 @@ exports.getPendingRequests = async (req, res) => {
   try {
     const userId = req.userId;
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    const { department, search } = req.query;
+    const { department, search, category } = req.query;
     
     // 1. Find Flexible Approvals (TransactionApproval)
-    const txOrConditions = [
-        { userId: user.id },
-        { role: user.role }
-    ];
+    let myPendingTx = [];
+    if (user.role === 'ADMIN') {
+        // Admin: collect ALL pending steps across modules
+        const allPending = await prisma.transactionApproval.findMany({
+            where: { module: 'REQUEST', status: 'PENDING' },
+            select: { moduleId: true, stepOrder: true, role: true }
+        });
+        if (allPending.length > 0) {
+            // Determine lowest pending step per module
+            const byModule = new Map();
+            for (const s of allPending) {
+                const prev = byModule.get(s.moduleId);
+                if (!prev || s.stepOrder < prev.stepOrder) {
+                    byModule.set(s.moduleId, s);
+                }
+            }
+            // Optional category filter for flexible approvals
+            const normalizeRole = (r) => (r === 'FINANCE' ? 'HR' : (r === 'MERCHANDISE_SPV' ? 'SUPERVISOR' : (r === 'MERCHANDISE_HOD' || r === 'PHOTOGRAPHER_HOD' ? 'HOD' : r)));
+            const filtered = [];
+            for (const value of byModule.values()) {
+                if (!category || normalizeRole(value.role) === category) {
+                    filtered.push({ moduleId: value.moduleId, stepOrder: value.stepOrder });
+                }
+            }
+            myPendingTx = filtered;
+        }
+    } else {
+        const txOrConditions = [
+            { userId: user.id },
+            { role: user.role }
+        ];
 
-    if (user.department) {
-        // Allow specific HOD/SPV roles to approve generic HOD/SPV steps for their department
-        if (user.role.includes('_HOD')) {
-            txOrConditions.push({ role: 'HOD', approverDepartment: user.department });
+        if (user.department) {
+            // Allow specific HOD/SPV roles to approve generic HOD/SPV steps for their department
+            if (user.role.includes('_HOD')) {
+                txOrConditions.push({ role: 'HOD', approverDepartment: user.department });
+            }
+            if (user.role.includes('_SPV')) {
+                txOrConditions.push({ role: 'SUPERVISOR', approverDepartment: user.department });
+            }
         }
-        if (user.role.includes('_SPV')) {
-            txOrConditions.push({ role: 'SUPERVISOR', approverDepartment: user.department });
-        }
+
+        myPendingTx = await prisma.transactionApproval.findMany({
+            where: {
+                module: 'REQUEST',
+                status: 'PENDING',
+                OR: txOrConditions
+            },
+            select: { moduleId: true, stepOrder: true }
+        });
     }
-
-    const myPendingTx = await prisma.transactionApproval.findMany({
-        where: {
-            module: 'REQUEST',
-            status: 'PENDING',
-            OR: txOrConditions
-        },
-        select: { moduleId: true, stepOrder: true }
-    });
     
     let flexibleIds = [];
 
@@ -189,7 +247,7 @@ exports.getPendingRequests = async (req, res) => {
                 moduleId: { in: potentialModuleIds },
                 status: 'PENDING'
             },
-            select: { moduleId: true, stepOrder: true }
+            select: { moduleId: true, stepOrder: true, role: true }
         });
 
         // Filter - only include if the user's step is the LOWEST pending step order
@@ -201,11 +259,24 @@ exports.getPendingRequests = async (req, res) => {
 
             const minStepOrder = Math.min(...stepsForModule.map(s => s.stepOrder));
             
-            // Check if user has a pending step at this minimum order
-            const myStepsForModule = myPendingTx.filter(s => s.moduleId === moduleId);
-            const hasMyStepAtMin = myStepsForModule.some(s => s.stepOrder === minStepOrder);
+            // For ADMIN, include all modules; otherwise ensure user has step at min order
+            let include = false;
+            if (user.role === 'ADMIN') {
+                include = true;
+            } else {
+                const myStepsForModule = myPendingTx.filter(s => s.moduleId === moduleId);
+                include = myStepsForModule.some(s => s.stepOrder === minStepOrder);
+            }
 
-            if (hasMyStepAtMin) {
+            if (include) {
+                // Optional category filter: match min step role mapped to category
+                if (category) {
+                    const minStep = stepsForModule.find(s => s.stepOrder === minStepOrder);
+                    const normalizeRole = (r) => (r === 'FINANCE' ? 'HR' : (r === 'MERCHANDISE_SPV' ? 'SUPERVISOR' : (r === 'MERCHANDISE_HOD' || r === 'PHOTOGRAPHER_HOD' ? 'HOD' : r)));
+                    if (minStep && normalizeRole(minStep.role) !== category) {
+                        continue;
+                    }
+                }
                 validModuleIds.add(moduleId);
             }
         }
@@ -229,8 +300,20 @@ exports.getPendingRequests = async (req, res) => {
         };
     } else if (user.role === 'HR') {
         legacyWhere = { status: 'PENDING_HR' };
-    } else if (user.role === 'GM' || user.role === 'ADMIN') {
+    } else if (user.role === 'GM') {
         legacyWhere = { status: 'PENDING_GM' };
+    } else if (user.role === 'ADMIN') {
+        const mapCategoryToStatuses = (c) => {
+            if (!c) return ['PENDING_HOD','PENDING_SUPERVISOR','PENDING_HR','PENDING_GM','PENDING_MERCHANDISE_HOD','PENDING_MERCHANDISE_SPV','PENDING_PHOTOGRAPHER_HOD'];
+            switch (c) {
+                case 'HOD': return ['PENDING_HOD','PENDING_MERCHANDISE_HOD','PENDING_PHOTOGRAPHER_HOD'];
+                case 'SUPERVISOR': return ['PENDING_SUPERVISOR','PENDING_MERCHANDISE_SPV'];
+                case 'HR': return ['PENDING_HR'];
+                case 'GM': return ['PENDING_GM'];
+                default: return ['PENDING_HOD','PENDING_SUPERVISOR','PENDING_HR','PENDING_GM','PENDING_MERCHANDISE_HOD','PENDING_MERCHANDISE_SPV','PENDING_PHOTOGRAPHER_HOD'];
+            }
+        };
+        legacyWhere = { status: { in: mapCategoryToStatuses(category) } };
     } else if (user.role === 'MERCHANDISE_HOD') {
         legacyWhere = { status: 'PENDING_MERCHANDISE_HOD' };
     } else if (user.role === 'MERCHANDISE_SPV') {
@@ -252,8 +335,6 @@ exports.getPendingRequests = async (req, res) => {
         // No approvals found for this user
         return res.status(200).json([]);
     }
-
-    const isGenericDeptRole = ['HOD', 'SUPERVISOR'].includes(user.role);
 
     const requests = await prisma.request.findMany({
         where: {
@@ -714,7 +795,7 @@ async function updateScheduleFromRequest(request) {
                 'PERMISSION': 'I',
                 'OFF': 'OFF',
                 'UNPAID_LEAVE': 'C',
-                'PDO': 'OFF',
+                'PDO': 'PDO',
                 'EXTERNAL_DUTY': 'D' // D is not in summary but will show in grid
             };
             const shiftCode = shiftCodeMap[type] || null;
@@ -767,7 +848,7 @@ async function updateScheduleFromRequest(request) {
                     'PERMISSION': 'Izin',
                     'OFF': 'OFF',
                     'UNPAID_LEAVE': 'Cuti',
-                    'PDO': 'OFF',
+                    'PDO': 'PDO',
                     'EXTERNAL_DUTY': 'Dinas Luar'
                 };
                 
@@ -837,6 +918,98 @@ async function updateScheduleFromRequest(request) {
             }
         }
         
+        // If this request has a Replacement Staff, mark their schedule as Extra Manpower on the same dates
+        if (request.replacementName && ['LEAVE','SICK','PERMISSION','OFF','UNPAID_LEAVE','PDO','EXTERNAL_DUTY'].includes(type)) {
+            let replacementUser = null;
+            // Try parse "Name|ID" format first
+            if (String(request.replacementName).includes('|')) {
+                const parts = String(request.replacementName).split('|');
+                const idStr = parts[1] && parts[1].trim();
+                const parsedId = idStr ? parseInt(idStr, 10) : null;
+                if (parsedId && !Number.isNaN(parsedId)) {
+                    replacementUser = await prisma.user.findUnique({ where: { id: parsedId } });
+                }
+            }
+            if (!replacementUser) {
+                replacementUser = await prisma.user.findFirst({
+                    where: {
+                        OR: [
+                            { name: request.replacementName },
+                            { name: { contains: request.replacementName } }
+                        ]
+                    }
+                });
+            }
+            if (replacementUser) {
+                let tempDate = new Date(currentDate);
+                while (tempDate <= end) {
+                    const dateOnly = new Date(tempDate);
+                    dateOnly.setUTCHours(0, 0, 0, 0);
+                    const nextDay = new Date(dateOnly);
+                    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+
+                    const existingRepl = await prisma.schedule.findFirst({
+                        where: { userId: replacementUser.id, date: { gte: dateOnly, lt: nextDay } }
+                    });
+
+                    const replDesc = `Extra Manpower (Replacement for ${user.name})`;
+
+                    if (existingRepl) {
+                        await prisma.schedule.update({
+                            where: { id: existingRepl.id },
+                            data: {
+                                description: replDesc,
+                                shiftName: 'Extra Manpower'
+                            }
+                        });
+                    } else {
+                        await prisma.schedule.create({
+                            data: {
+                                userId: replacementUser.id,
+                                date: dateOnly,
+                                shiftStart: dateOnly,
+                                shiftEnd: dateOnly,
+                                description: replDesc,
+                                shiftName: 'Extra Manpower'
+                            }
+                        });
+                    }
+
+                    // Update MonthlySchedule data (set code 'E')
+                    const ms = await prisma.monthlySchedule.findFirst({
+                        where: {
+                            department: replacementUser.department || user.department,
+                            month: dateOnly.getUTCMonth() + 1,
+                            year: dateOnly.getUTCFullYear()
+                        }
+                    });
+                    if (ms) {
+                        let sData = typeof ms.data === 'string' ? JSON.parse(ms.data) : ms.data;
+                        const dateStr = dateOnly.toISOString().split('T')[0];
+                        const replId = parseInt(replacementUser.id);
+                        if (Array.isArray(sData)) {
+                            let entry = sData.find(s => parseInt(s.userId) === replId);
+                            if (!entry) {
+                                entry = { userId: replId, shifts: {} };
+                                sData.push(entry);
+                            }
+                            if (!entry.shifts) entry.shifts = {};
+                            entry.shifts[dateStr] = 'E';
+                        } else if (sData && sData.scheduleData) {
+                            if (!sData.scheduleData[replId]) sData.scheduleData[replId] = {};
+                            sData.scheduleData[replId][dateStr] = 'E';
+                        }
+                        await prisma.monthlySchedule.update({
+                            where: { id: ms.id },
+                            data: { data: sData }
+                        });
+                    }
+
+                    tempDate.setUTCDate(tempDate.getUTCDate() + 1);
+                }
+            }
+        }
+
         // Handle SHIFT_EXCHANGE (Tukar Jadwal)
         if (type === 'SHIFT_EXCHANGE' && request.replacementDate) {
             const dateA = new Date(startDate);
@@ -1313,6 +1486,10 @@ async function handleLegacyRequestApproval({ res, user, request, action, reason 
                 `<p>A request from <b>${request.user.name}</b> (${request.type}) has been approved by HOD and is pending your approval.</p>`
             ).catch(console.error);
             createNotification(spv.id, `Request from ${request.user.name} (${request.type}) approved by HOD, pending Supervisor approval.`);
+            if (spv.whatsappNumber && spv.whatsappVerifiedAt) {
+                const text = `Pengajuan ${request.type} dari ${request.user.name} menunggu persetujuan Supervisor.`;
+                sendWhatsAppMessage({ to: spv.whatsappNumber, message: text }).catch(() => {});
+            }
         }
     } else if (updated.status === 'PENDING_MERCHANDISE_HOD') {
         const hods = await prisma.user.findMany({ where: { role: 'MERCHANDISE_HOD', department: request.user.department } });
@@ -1323,6 +1500,10 @@ async function handleLegacyRequestApproval({ res, user, request, action, reason 
                 `<p>A request from <b>${request.user.name}</b> (${request.type}) is pending your approval.</p>`
             ).catch(console.error);
             createNotification(hod.id, `Request from ${request.user.name} (${request.type}) pending your approval.`);
+            if (hod.whatsappNumber && hod.whatsappVerifiedAt) {
+                const text = `Pengajuan ${request.type} dari ${request.user.name} menunggu persetujuan Merchandise HOD.`;
+                sendWhatsAppMessage({ to: hod.whatsappNumber, message: text }).catch(() => {});
+            }
         }
     } else if (updated.status === 'PENDING_MERCHANDISE_SPV') {
         const spvs = await prisma.user.findMany({ where: { role: 'MERCHANDISE_SPV', department: request.user.department } });
@@ -1333,6 +1514,10 @@ async function handleLegacyRequestApproval({ res, user, request, action, reason 
                 `<p>A request from <b>${request.user.name}</b> (${request.type}) has been approved by Merchandise HOD and is pending your approval.</p>`
             ).catch(console.error);
             createNotification(spv.id, `Request from ${request.user.name} (${request.type}) approved by Merchandise HOD, pending your approval.`);
+            if (spv.whatsappNumber && spv.whatsappVerifiedAt) {
+                const text = `Pengajuan ${request.type} dari ${request.user.name} menunggu persetujuan Merchandise SPV.`;
+                sendWhatsAppMessage({ to: spv.whatsappNumber, message: text }).catch(() => {});
+            }
         }
     } else if (updated.status === 'PENDING_HR') {
         const hrs = await prisma.user.findMany({ where: { role: 'HR' } });
@@ -1343,6 +1528,10 @@ async function handleLegacyRequestApproval({ res, user, request, action, reason 
                 `<p>A request from <b>${request.user.name}</b> (${request.type}) has been approved by Supervisor Operational and is pending your approval.</p>`
             ).catch(console.error);
             createNotification(hr.id, `Request from ${request.user.name} (${request.type}) approved by Supervisor Operational, pending HR approval.`);
+            if (hr.whatsappNumber && hr.whatsappVerifiedAt) {
+                const text = `Pengajuan ${request.type} dari ${request.user.name} menunggu persetujuan HR.`;
+                sendWhatsAppMessage({ to: hr.whatsappNumber, message: text }).catch(() => {});
+            }
         }
     } else if (updated.status === 'PENDING_GM') {
         const gms = await prisma.user.findMany({ where: { role: 'GM' } });
@@ -1353,6 +1542,10 @@ async function handleLegacyRequestApproval({ res, user, request, action, reason 
                 `<p>A request from <b>${request.user.name}</b> (${request.type}) has been approved by HR and is pending your approval.</p>`
             ).catch(console.error);
             createNotification(gm.id, `Request from ${request.user.name} (${request.type}) approved by HR, pending GM approval.`);
+            if (gm.whatsappNumber && gm.whatsappVerifiedAt) {
+                const text = `Pengajuan ${request.type} dari ${request.user.name} menunggu persetujuan GM.`;
+                sendWhatsAppMessage({ to: gm.whatsappNumber, message: text }).catch(() => {});
+            }
         }
     } else if (updated.status === 'APPROVED') {
         const otMode = (process.env.OVERTIME_QUANTITY_MODE || 'manual').toLowerCase();
@@ -1401,6 +1594,131 @@ async function handleLegacyRequestApproval({ res, user, request, action, reason 
     return res.status(200).json(updated);
 }
 
+function buildWibCreatedAtFilter(startDate, endDate) {
+    const hasStart = typeof startDate === 'string' && startDate.trim().length > 0;
+    const hasEnd = typeof endDate === 'string' && endDate.trim().length > 0;
+    if (!hasStart && !hasEnd) return null;
+
+    let start = null;
+    let end = null;
+
+    if (hasStart) {
+        const s = new Date(`${startDate}T00:00:00+07:00`);
+        if (!isNaN(s.getTime())) start = s;
+    }
+    if (hasEnd) {
+        const e = new Date(`${endDate}T23:59:59.999+07:00`);
+        if (!isNaN(e.getTime())) end = e;
+    }
+
+    if (!start && !end) return null;
+    if (start && end) return { gte: start, lte: end };
+    if (start) return { gte: start };
+    return { lte: end };
+}
+
+exports.getSecurityLeaveWorkplaceApproved = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, department: true } });
+        if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+        const privileged = user.role === 'ADMIN' || user.role === 'HR' || user.role === 'GM';
+        const isSecurity = String(user.department || '').toLowerCase() === 'security';
+        if (!privileged && !isSecurity) return res.status(403).json({ message: 'Forbidden' });
+
+        const { startDate, endDate, includeConfirmed } = req.query;
+        const createdAt = buildWibCreatedAtFilter(startDate, endDate);
+        const where = {
+            type: 'LEAVE_WORKPLACE',
+            status: 'APPROVED',
+        };
+        if (createdAt) where.startDate = createdAt;
+        if (String(includeConfirmed || '').toLowerCase() !== 'true') {
+            where.securityReturnStatus = null;
+        }
+
+        const rows = await prisma.request.findMany({
+            where,
+            orderBy: [{ startDate: 'desc' }, { startTime: 'asc' }],
+            include: {
+                user: { select: { id: true, name: true, department: true, role: true } },
+                securityReturnBy: { select: { id: true, name: true } },
+            },
+        });
+
+        return res.json(rows);
+    } catch (error) {
+        console.error('getSecurityLeaveWorkplaceApproved error:', error);
+        const msg = String(error?.message || '');
+        if (msg.includes('Unknown column') || msg.includes('does not exist') || msg.includes('Invalid `prisma.request.findMany()` invocation')) {
+            return res.status(500).json({
+                message: 'Server error (DB belum update untuk Security Dashboard)',
+                error: msg
+            });
+        }
+        return res.status(500).json({ message: 'Server error', error: msg });
+    }
+};
+
+exports.confirmSecurityReturn = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, department: true } });
+        if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+        const privileged = user.role === 'ADMIN' || user.role === 'HR' || user.role === 'GM';
+        const isSecurity = String(user.department || '').toLowerCase() === 'security';
+        if (!privileged && !isSecurity) return res.status(403).json({ message: 'Forbidden' });
+
+        const id = parseInt(req.params.id);
+        if (!id) return res.status(400).json({ message: 'Invalid request id' });
+
+        const { status, note } = req.body;
+        if (status !== 'RETURNED' && status !== 'NOT_RETURNED') {
+            return res.status(400).json({ message: 'Invalid status' });
+        }
+
+        const request = await prisma.request.findUnique({
+            where: { id },
+            include: { user: { select: { id: true, name: true } } },
+        });
+        if (!request) return res.status(404).json({ message: 'Request not found' });
+        if (request.type !== 'LEAVE_WORKPLACE') return res.status(400).json({ message: 'Request type not supported' });
+        if (request.status !== 'APPROVED') return res.status(400).json({ message: 'Request is not fully approved yet' });
+
+        const updated = await prisma.request.update({
+            where: { id },
+            data: {
+                securityReturnStatus: status,
+                securityReturnNote: typeof note === 'string' ? note : null,
+                securityReturnAt: new Date(),
+                securityReturnById: user.id,
+            },
+            include: {
+                user: { select: { id: true, name: true, department: true, role: true } },
+                securityReturnBy: { select: { id: true, name: true } },
+            },
+        });
+
+        try {
+            createNotification(updated.userId, `Konfirmasi Security untuk izin meninggalkan tempat kerja: ${status === 'RETURNED' ? 'Sudah kembali' : 'Tidak kembali'}.`);
+        } catch {}
+
+        return res.json(updated);
+    } catch (error) {
+        console.error('confirmSecurityReturn error:', error);
+        const msg = String(error?.message || '');
+        if (msg.includes('Unknown column') || msg.includes('does not exist') || msg.includes('Invalid `prisma.request.update()` invocation')) {
+            return res.status(500).json({
+                message: 'Server error (DB belum update untuk Security Dashboard)',
+                error: msg
+            });
+        }
+        return res.status(500).json({ message: 'Server error', error: msg });
+    }
+};
+
 async function handleConfigRequestApproval({ res, user, request, action, reason, txApprovals }) {
     const id = request.id;
     const department = request.user.department || null;
@@ -1415,12 +1733,35 @@ async function handleConfigRequestApproval({ res, user, request, action, reason,
     // 2. User is explicitly assigned to this role in the active config
     // 3. User has a specialized role that maps to the active step's role (e.g., MERCHANDISE_SPV -> SUPERVISOR)
     let isAllowed = false;
+
+    const spvGroup = ['SUPERVISOR', 'MERCHANDISE_SPV'];
+    const hodGroup = ['HOD', 'MERCHANDISE_HOD', 'PHOTOGRAPHER_HOD'];
+    const normalizeRole = (r) => {
+        if (r === 'MERCHANDISE_SPV') return 'SUPERVISOR';
+        if (r === 'MERCHANDISE_HOD' || r === 'PHOTOGRAPHER_HOD') return 'HOD';
+        return r;
+    };
+
     if (['HR', 'FINANCE'].includes(activeStep.role)) {
         if (['HR', 'FINANCE'].includes(user.role)) {
             isAllowed = true;
         }
+    } else if (normalizeRole(activeStep.role) === 'SUPERVISOR') {
+        if (spvGroup.includes(user.role) || normalizeRole(user.role) === 'SUPERVISOR') {
+            // Allow if same department as requester or explicit approverDepartment matches, 
+            // or approverDepartment not set (legacy steps)
+            if (!activeStep.approverDepartment || activeStep.approverDepartment === user.department || request.user.department === user.department) {
+                isAllowed = true;
+            }
+        }
+    } else if (normalizeRole(activeStep.role) === 'HOD') {
+        if (hodGroup.includes(user.role) || normalizeRole(user.role) === 'HOD') {
+            if (!activeStep.approverDepartment || activeStep.approverDepartment === user.department || request.user.department === user.department) {
+                isAllowed = true;
+            }
+        }
     } else {
-        isAllowed = user.role === activeStep.role;
+        isAllowed = normalizeRole(user.role) === normalizeRole(activeStep.role);
     }
 
     if (!isAllowed) {
@@ -1440,7 +1781,10 @@ async function handleConfigRequestApproval({ res, user, request, action, reason,
         if (approvalConfig) {
             const assignment = approvalConfig.assignments.find(a => 
                 a.userId === user.id && 
-                a.role === activeStep.role
+                (
+                    a.role === activeStep.role || 
+                    (a.role === null && normalizeRole(user.role) === normalizeRole(activeStep.role))
+                )
             );
             if (assignment) {
                 isAllowed = true;
@@ -1561,6 +1905,10 @@ async function handleConfigRequestApproval({ res, user, request, action, reason,
                 `<p>A request from <b>${request.user.name}</b> (${request.type}) is pending your approval.</p>`
             ).catch(console.error);
             createNotification(approver.id, `Request from ${request.user.name} (${request.type}) is pending your approval.`);
+            if (approver.whatsappNumber && approver.whatsappVerifiedAt) {
+                const text = `Pengajuan ${request.type} dari ${request.user.name} menunggu persetujuan Anda.`;
+                sendWhatsAppMessage({ to: approver.whatsappNumber, message: text }).catch(() => {});
+            }
         }
     } else if (updated.status === 'APPROVED') {
         const otMode = (process.env.OVERTIME_QUANTITY_MODE || 'manual').toLowerCase();

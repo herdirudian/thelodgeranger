@@ -71,6 +71,9 @@ function isMidnightRange(startValue: any, endValue: any) {
 export default function SchedulePage() {
   const [schedules, setSchedules] = useState<any[]>([]);
   const [role, setRole] = useState("");
+  const now = new Date();
+  const [viewMonth, setViewMonth] = useState<number>(now.getMonth());
+  const [viewYear, setViewYear] = useState<number>(now.getFullYear());
 
   const fetchMe = async () => {
       try {
@@ -81,9 +84,12 @@ export default function SchedulePage() {
       }
   };
 
-  const fetchSchedule = async () => {
+  const fetchSchedule = async (start?: string, end?: string) => {
     try {
-      const res = await api.get("/schedule/me");
+      const params: any = {};
+      if (start) params.startDate = start;
+      if (end) params.endDate = end;
+      const res = await api.get("/schedule/me", { params });
       setSchedules(res.data);
     } catch (err) {
       console.error(err);
@@ -91,22 +97,60 @@ export default function SchedulePage() {
   };
 
   useEffect(() => {
-    fetchSchedule();
+    const start = new Date(viewYear, viewMonth, 1);
+    const end = new Date(viewYear, viewMonth + 1, 0);
+    const s = format(start, 'yyyy-MM-dd');
+    const e = format(end, 'yyyy-MM-dd');
+    fetchSchedule(s, e);
     fetchMe();
-  }, []);
+  }, [viewMonth, viewYear]);
+
+  const prevMonth = () => {
+    setViewMonth(m => {
+      const nm = m - 1;
+      if (nm < 0) {
+        setViewYear(y => y - 1);
+        return 0;
+      }
+      return nm;
+    });
+  };
+  const nextMonth = () => {
+    setViewMonth(m => {
+      const nm = m + 1;
+      if (nm > 11) {
+        setViewYear(y => y + 1);
+        return 11;
+      }
+      return nm;
+    });
+  };
+  const toCurrentMonth = () => {
+    const d = new Date();
+    setViewMonth(d.getMonth());
+    setViewYear(d.getFullYear());
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <h1 className="text-3xl font-bold text-gray-800">My Schedule</h1>
-          {['HOD', 'HR', 'GM', 'SUPERVISOR', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV'].includes(role) && (
-              <Link 
-                  href="/schedule/manage"
-                  className="bg-[#0F4D39] text-white px-4 py-2 rounded hover:bg-[#0a3628]"
-              >
-                  Manage Department Schedule
-              </Link>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={prevMonth} className="px-3 py-1 border rounded text-sm bg-white hover:bg-gray-50">Prev</button>
+            <span className="text-sm font-semibold">{format(new Date(viewYear, viewMonth, 1), 'MMMM yyyy')}</span>
+            <button onClick={nextMonth} className="px-3 py-1 border rounded text-sm bg-white hover:bg-gray-50">Next</button>
+            <button onClick={toCurrentMonth} className="px-3 py-1 border rounded text-sm bg-white hover:bg-gray-50">Today</button>
+          </div>
+        </div>
+        {['HOD', 'HR', 'GM', 'SUPERVISOR', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV'].includes(role) && (
+          <Link
+            href="/schedule/manage"
+            className="w-full md:w-auto text-center bg-[#0F4D39] text-white px-4 py-2 rounded hover:bg-[#0a3628]"
+          >
+            Manage Department Schedule
+          </Link>
+        )}
       </div>
 
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -118,6 +162,11 @@ export default function SchedulePage() {
             const shiftStart = new Date(schedule.shiftStart);
             const shiftEnd = new Date(schedule.shiftEnd);
             const hasShiftTime = !isMidnightRange(schedule.shiftStart, schedule.shiftEnd);
+            const normalizedShiftName = schedule.shiftName ? String(schedule.shiftName).trim() : '';
+            const normalizedDescription = schedule.description ? String(schedule.description).trim() : '';
+            const shouldShowDescription =
+              normalizedDescription &&
+              (!normalizedShiftName || normalizedDescription !== `Shift ${normalizedShiftName}`);
 
             return (
               <div
@@ -166,7 +215,7 @@ export default function SchedulePage() {
                             Shift {schedule.shiftName}
                         </p>
                     )}
-                    {schedule.description && (
+                    {shouldShowDescription && (
                       <p className="text-sm text-gray-700 mt-2">
                         {schedule.description}
                       </p>

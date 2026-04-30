@@ -7,13 +7,14 @@ import { Loader2, Printer } from "lucide-react";
 
 export default function PrintProcurementPage() {
     const params = useParams();
+    const printId = typeof params?.id === 'string' ? params.id : '';
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const res = await api.get(`/manual-procurement/${params.id}`);
+                const res = await api.get(`/manual-procurement/${printId}`);
                 setData(res.data);
             } catch (error) {
                 console.error("Error fetching data:", error);
@@ -23,10 +24,10 @@ export default function PrintProcurementPage() {
             }
         };
 
-        if (params.id) {
+        if (printId) {
             fetchData();
         }
-    }, [params.id]);
+    }, [printId]);
 
     if (loading) {
         return <div className="flex justify-center items-center min-h-screen"><Loader2 className="animate-spin" /></div>;

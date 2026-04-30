@@ -39,6 +39,7 @@ export default function RequestsPage() {
   // Filters State
   const [pendingDeptFilter, setPendingDeptFilter] = useState("");
   const [pendingSearch, setPendingSearch] = useState("");
+  const [pendingCategory, setPendingCategory] = useState<string>("");
   const [historyDeptFilter, setHistoryDeptFilter] = useState("");
   const [historySearch, setHistorySearch] = useState("");
   
@@ -174,11 +175,12 @@ export default function RequestsPage() {
     }
   };
 
-  const fetchPendingRequests = async (dept?: string, search?: string) => {
+  const fetchPendingRequests = async (dept?: string, search?: string, category?: string) => {
     try {
       const params: any = {};
       if (dept) params.department = dept;
       if (search) params.search = search;
+      if (category) params.category = category;
       const res = await api.get("/requests/pending", { params });
       setPendingRequests(res.data);
     } catch (err) {
@@ -225,7 +227,7 @@ export default function RequestsPage() {
   useEffect(() => {
     if (user && (user.role === 'HOD' || user.role === 'HR' || user.role === 'GM' || user.role === 'SUPERVISOR' || user.role === 'ADMIN' ||
         user.role === 'MERCHANDISE_HOD' || user.role === 'MERCHANDISE_SPV' || user.role === 'PHOTOGRAPHER_HOD')) {
-        fetchPendingRequests(pendingDeptFilter || undefined, pendingSearch || undefined);
+        fetchPendingRequests(pendingDeptFilter || undefined, pendingSearch || undefined, pendingCategory || undefined);
         fetchPendingAttendance();
         fetchHistoryRequests(
             historyStartDate || undefined, 
@@ -235,7 +237,7 @@ export default function RequestsPage() {
         );
         fetchHistoryAttendance(extHistoryStartDate || undefined, extHistoryEndDate || undefined, extHistoryType || undefined);
     }
-  }, [user, pendingDeptFilter, pendingSearch, historyDeptFilter, historySearch, historyStartDate, historyEndDate, extHistoryStartDate, extHistoryEndDate, extHistoryType]);
+  }, [user, pendingDeptFilter, pendingSearch, pendingCategory, historyDeptFilter, historySearch, historyStartDate, historyEndDate, extHistoryStartDate, extHistoryEndDate, extHistoryType]);
 
   const handleApplyHistoryFilter = () => {
     fetchHistoryRequests(
@@ -247,12 +249,13 @@ export default function RequestsPage() {
   };
 
   const handleApplyPendingFilter = () => {
-    fetchPendingRequests(pendingDeptFilter || undefined, pendingSearch || undefined);
+    fetchPendingRequests(pendingDeptFilter || undefined, pendingSearch || undefined, pendingCategory || undefined);
   };
 
   const handleResetPendingFilter = () => {
     setPendingDeptFilter("");
     setPendingSearch("");
+    setPendingCategory("");
     fetchPendingRequests();
   };
 
@@ -318,7 +321,10 @@ export default function RequestsPage() {
                  return;
               }
               payload.returnDate = returnDate;
-              payload.replacementName = replacementName;
+              {
+                const match = colleagues.find(c => c.name === replacementName);
+                payload.replacementName = match ? `${match.name}|${match.id}` : replacementName;
+              }
               payload.quantity = quantity;
           } else if (type === 'PDO') {
               const requestedQty = parseInt(quantity);
@@ -328,14 +334,23 @@ export default function RequestsPage() {
                  return;
               }
               payload.returnDate = returnDate;
-              payload.replacementName = replacementName;
+              {
+                const match = colleagues.find(c => c.name === replacementName);
+                payload.replacementName = match ? `${match.name}|${match.id}` : replacementName;
+              }
               payload.quantity = quantity;
           } else if (type === 'UNPAID_LEAVE') {
               payload.returnDate = returnDate;
-              payload.replacementName = replacementName;
+              {
+                const match = colleagues.find(c => c.name === replacementName);
+                payload.replacementName = match ? `${match.name}|${match.id}` : replacementName;
+              }
               payload.quantity = quantity;
           } else if (type === 'SICK' || type === 'PERMISSION' || type === 'OFF') {
-              payload.replacementName = replacementName;
+              {
+                const match = colleagues.find(c => c.name === replacementName);
+                payload.replacementName = match ? `${match.name}|${match.id}` : replacementName;
+              }
           }
       }
 
@@ -524,6 +539,17 @@ export default function RequestsPage() {
           fetchPendingRequests(); // In case it was pending
       } catch (err: any) {
           alert("Error deleting request: " + (err.response?.data?.message || err.message));
+      }
+  };
+ 
+  const handleDeleteAttendance = async (id: number) => {
+      if (!confirm("Yakin ingin menghapus External Duty ini? Tindakan tidak bisa dibatalkan.")) return;
+      try {
+          await api.delete(`/attendance/${id}`);
+          alert("External Duty berhasil dihapus");
+          fetchPendingAttendance();
+      } catch (err: any) {
+          alert("Error deleting attendance: " + (err.response?.data?.message || err.message));
       }
   };
 
@@ -1139,6 +1165,25 @@ export default function RequestsPage() {
                                     <option value="Admin">Admin</option>
                                 </select>
                             </div>
+                            {user?.role === 'ADMIN' && (
+                                <div className="w-full md:w-64">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Pending Category</label>
+                                    <select
+                                        value={pendingCategory}
+                                        onChange={(e) => setPendingCategory(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0F4D39] focus:border-transparent"
+                                    >
+                                        <option value="">All</option>
+                                        <option value="HOD">HOD</option>
+                                        <option value="SUPERVISOR">Supervisor</option>
+                                        <option value="HR">HR/Finance</option>
+                                        <option value="GM">GM</option>
+                                        <option value="MERCHANDISE_HOD">Merchandise HOD</option>
+                                        <option value="MERCHANDISE_SPV">Merchandise SPV</option>
+                                        <option value="PHOTOGRAPHER_HOD">Photographer HOD</option>
+                                    </select>
+                                </div>
+                            )}
                             <div className="flex gap-2">
                                 <button
                                     type="button"
@@ -1317,6 +1362,14 @@ export default function RequestsPage() {
                                                         >
                                                             <X className="w-4 h-4" /> Reject
                                                         </button>
+                                                        {user?.role === 'ADMIN' && (
+                                                            <button
+                                                                onClick={() => handleDeleteRequest(req.id)}
+                                                                className="flex-1 flex items-center justify-center gap-1 bg-red-50 text-red-600 py-2 rounded-lg text-sm"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" /> Delete
+                                                            </button>
+                                                        )}
                                                     </>
                                                 ) : (
                                                     <>
@@ -1420,6 +1473,15 @@ export default function RequestsPage() {
                                                                 <X className="w-3 h-3" />
                                                                 Reject
                                                             </button>
+                                                        {user?.role === 'ADMIN' && (
+                                                            <button
+                                                                onClick={() => handleDeleteRequest(req.id)}
+                                                                className="text-gray-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                                                                title="Force Delete"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
                                                         </>
                                                     ) : (
                                                         <>
@@ -1626,6 +1688,14 @@ export default function RequestsPage() {
                                                             >
                                                                 <X className="w-4 h-4" /> Reject
                                                             </button>
+                                                        {user?.role === 'ADMIN' && (
+                                                            <button
+                                                                onClick={() => handleDeleteAttendance(att.id)}
+                                                                className="flex-1 flex items-center justify-center gap-1 bg-red-50 text-red-600 py-2 rounded-lg text-sm"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" /> Delete
+                                                            </button>
+                                                        )}
                                                         </>
                                                     ) : (
                                                         <>
@@ -1750,6 +1820,15 @@ export default function RequestsPage() {
                                                                     <X className="w-3 h-3" />
                                                                     Reject
                                                                 </button>
+                                                        {user?.role === 'ADMIN' && (
+                                                            <button
+                                                                onClick={() => handleDeleteAttendance(att.id)}
+                                                                className="text-gray-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                                                                title="Delete External Duty"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
                                                             </>
                                                         ) : (
                                                             <>

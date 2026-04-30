@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, CheckCircle, Circle } from 'lucide-react';
 
 export default function OnboardingDetail() {
-    const { id } = useParams();
+    const params = useParams();
+    const id = typeof params?.id === 'string' ? params.id : '';
     const router = useRouter();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);

@@ -579,6 +579,23 @@ export default function ManageSchedulePage() {
       }
   };
 
+  const handleSyncAllActive = async () => {
+      if (!confirm("Sync semua monthly schedule aktif di periode berjalan?")) return;
+      try {
+          const res = await api.post(`/schedule/monthly/sync-all`, { department });
+          const { message, errors } = res.data || {};
+          let detail = message || "Sync All completed";
+          if (Array.isArray(errors) && errors.length > 0) {
+              const list = errors.slice(0, 5).map((e: any) => `ID ${e.id}: ${e.message}`).join('\n');
+              detail += `\nDetail (top 5):\n${list}`;
+              console.warn('Sync All errors:', errors);
+          }
+          alert(detail);
+          fetchMonthlySchedules();
+      } catch (err: any) {
+          alert(err.response?.data?.message || "Error syncing all monthly schedules");
+      }
+  };
   const handleReviseSchedule = async (id: number) => {
       if (!confirm("Apakah Anda yakin ingin mengembalikan status jadwal ini menjadi DRAFT agar HOD bisa merevisi? Data yang ada TIDAK akan dihapus.")) return;
       try {
@@ -677,6 +694,14 @@ export default function ManageSchedulePage() {
             >
                 Approvals / History
             </button>
+            {(role === 'HR' || role === 'GM' || role === 'ADMIN') && (
+              <button 
+                 onClick={handleSyncAllActive}
+                 className="px-4 py-2 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+              >
+                 Sync All Active
+              </button>
+            )}
         </div>
       </div>
 
@@ -841,6 +866,7 @@ export default function ManageSchedulePage() {
                                                 <option value="A3">A3</option>
                                                 <option value="N1">N1</option>
                                                 <option value="N2">N2</option>
+                                                <option value="PDO">PDO</option>
                                                 <option value="OFF">OFF</option>
                                                 <option value="C">C</option>
                                                 <option value="S">S</option>
@@ -863,7 +889,7 @@ export default function ManageSchedulePage() {
                               <td className="border p-1 text-center font-bold text-xs bg-green-50 text-green-800">
                                   {scheduleDates.reduce((count, date) => {
                                       const val = scheduleData[staff.id]?.[format(date, 'yyyy-MM-dd')];
-                                      return (val && (val.startsWith('M') || val.startsWith('A') || val.startsWith('N'))) ? count + 1 : count;
+                                      return (val && (val.startsWith('M') || val.startsWith('A') || val.startsWith('N') || val === 'E' || val === 'PDO')) ? count + 1 : count;
                                   }, 0)}
                               </td>
                               <td className="border p-1 text-center font-bold text-xs bg-gray-50 text-gray-800">
@@ -974,6 +1000,10 @@ export default function ManageSchedulePage() {
                       <div className="flex items-center space-x-2 text-xs">
                           <span className="font-bold bg-red-50 text-red-700 border border-red-100 px-2 py-1 rounded w-10 text-center">OFF</span>
                           <span className="text-gray-600">Libur</span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-xs">
+                          <span className="font-bold bg-amber-50 text-amber-700 border border-amber-100 px-2 py-1 rounded w-10 text-center">PDO</span>
+                          <span className="text-gray-600">Pending Day Off (Dianggap hadir)</span>
                       </div>
                       <div className="flex items-center space-x-2 text-xs">
                           <span className="font-bold bg-blue-50 text-blue-700 border border-blue-100 px-2 py-1 rounded w-10 text-center">C</span>

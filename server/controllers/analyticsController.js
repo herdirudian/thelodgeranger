@@ -39,6 +39,16 @@ const getDateFilter = (req) => {
     return { start, end };
 };
 
+const wibDateKey = (value) => {
+    const date = value instanceof Date ? value : new Date(value);
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(date);
+};
+
 // Helper: Get Department Filter
 const getDeptFilter = (req) => {
     const dept = req.query.department;
@@ -48,9 +58,9 @@ const getDeptFilter = (req) => {
     return {};
 };
 
-// Helper: Role-aware Department Filter
-// HOD roles only see their own department. SUPERVISOR sees all (like HR).
-// Default: restrict to user's own department if not admin-like.
+// Helper: Role-aware Department/User Filter
+// HOD roles only see their own department. SUPERVISOR/ADMIN/GM see all (optionally filtered).
+// STAFF sees only their own records.
 const getRoleAwareDeptFilter = async (req) => {
     const role = req.role;
     const deptParam = req.query.department;
@@ -62,6 +72,10 @@ const getRoleAwareDeptFilter = async (req) => {
             return { user: { department: deptParam } };
         }
         return {};
+    }
+    
+    if (role === 'STAFF') {
+        return { user: { id: req.userId } };
     }
     
     if (hodRoles.includes(role)) {
@@ -134,23 +148,36 @@ exports.getDepartmentAttendance = async (req, res) => {
         queryEnd = new Date(currentWib.getTime() - (7 * 3600000));
     }
 
-    // Filter by role-aware department
+    // Filter by role-aware department or self-only for staff
     const deptAware = await getRoleAwareDeptFilter(req);
-    const deptFilter = deptAware.user ? { department: deptAware.user.department } : {};
+    const isSelfOnly = deptAware.user && Object.prototype.hasOwnProperty.call(deptAware.user, 'id');
+    let deptFilter = {};
+    if (isSelfOnly) {
+        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { department: true } });
+        deptFilter = me?.department ? { department: me.department } : {};
+    } else {
+        deptFilter = deptAware.user ? { department: deptAware.user.department } : {};
+    }
 
     // 1. Get total users per department (snapshot)
-    const usersByDept = await prisma.user.groupBy({
-      by: ['department'],
-      _count: {
-        id: true
-      },
-      where: {
-        NOT: {
-            role: 'GM'
-        },
-        ...deptFilter
-      }
-    });
+    let usersByDept = [];
+    if (isSelfOnly) {
+        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { department: true } });
+        usersByDept = [{ department: me?.department || 'Unassigned', _count: { id: 1 } }];
+    } else {
+        usersByDept = await prisma.user.groupBy({
+          by: ['department'],
+          _count: {
+            id: true
+          },
+          where: {
+            NOT: {
+                role: 'GM'
+            },
+            ...deptFilter
+          }
+        });
+    }
 
     // Get attendance in range
     const attendances = await prisma.attendance.findMany({
@@ -159,8 +186,8 @@ exports.getDepartmentAttendance = async (req, res) => {
                 gte: queryStart,
                 lte: queryEnd
             },
-            type: { in: ['CHECK_IN', 'EXTERNAL', 'EXTERNAL_DUTY'] },
-            ...(Object.keys(deptFilter).length > 0 ? { user: deptAware.user } : {})
+            type: { in: ['CHECK_IN', 'EXTERNAL', 'EXTERNAL_DUTY', 'EXTERNAL_IN'] },
+            ...(isSelfOnly ? { userId: req.userId } : (Object.keys(deptFilter).length > 0 ? { user: deptAware.user } : {}))
         },
         include: { user: true }
     });
@@ -215,7 +242,9 @@ exports.getLateEmployees = async (req, res) => {
                     gte: start,
                     lte: end
                 },
-                ...(deptFilter.user ? { user: deptFilter.user } : {})
+                ...(deptFilter.user && Object.prototype.hasOwnProperty.call(deptFilter.user, 'id') 
+                    ? { userId: req.userId } 
+                    : (deptFilter.user ? { user: deptFilter.user } : {}))
             },
             select: {
                 userId: true,
@@ -231,8 +260,10 @@ exports.getLateEmployees = async (req, res) => {
                     gte: start,
                     lte: end
                 },
-                type: { in: ['CHECK_IN', 'EXTERNAL', 'EXTERNAL_DUTY'] },
-                ...(deptFilter.user ? { user: deptFilter.user } : {})
+                type: { in: ['CHECK_IN', 'EXTERNAL', 'EXTERNAL_DUTY', 'EXTERNAL_IN'] },
+                ...(deptFilter.user && Object.prototype.hasOwnProperty.call(deptFilter.user, 'id') 
+                    ? { userId: req.userId } 
+                    : (deptFilter.user ? { user: deptFilter.user } : {}))
             },
             select: {
                 userId: true,
@@ -326,7 +357,9 @@ exports.getRequestTrends = async (req, res) => {
                 type: {
                     in: ['SICK', 'PERMISSION', 'LEAVE']
                 },
-                ...(deptFilter.user ? { user: deptFilter.user } : {})
+                ...(deptFilter.user && Object.prototype.hasOwnProperty.call(deptFilter.user, 'id') 
+                    ? { userId: req.userId } 
+                    : (deptFilter.user ? { user: deptFilter.user } : {}))
             },
             select: {
                 type: true,
@@ -342,7 +375,9 @@ exports.getRequestTrends = async (req, res) => {
                     lte: queryEnd
                 },
                 type: { in: ['EXTERNAL', 'EXTERNAL_IN', 'EXTERNAL_OUT'] },
-                ...(deptFilter.user ? { user: deptFilter.user } : {})
+                ...(deptFilter.user && Object.prototype.hasOwnProperty.call(deptFilter.user, 'id') 
+                    ? { userId: req.userId } 
+                    : (deptFilter.user ? { user: deptFilter.user } : {}))
             },
             select: {
                 type: true,
@@ -397,7 +432,9 @@ exports.getRecapStats = async (req, res) => {
                 type: 'OVERTIME',
                 status: 'APPROVED',
                 startDate: { gte: start, lte: end },
-                ...(deptFilter.user ? { user: deptFilter.user } : {})
+                ...(deptFilter.user && Object.prototype.hasOwnProperty.call(deptFilter.user, 'id') 
+                    ? { userId: req.userId } 
+                    : (deptFilter.user ? { user: deptFilter.user } : {}))
             },
             select: {
                 quantity: true,
@@ -425,7 +462,9 @@ exports.getRecapStats = async (req, res) => {
             where: {
                 timestamp: { gte: start, lte: end },
                 type: 'CHECK_IN',
-                ...(deptFilter.user ? { user: deptFilter.user } : {})
+                ...(deptFilter.user && Object.prototype.hasOwnProperty.call(deptFilter.user, 'id') 
+                    ? { userId: req.userId } 
+                    : (deptFilter.user ? { user: deptFilter.user } : {}))
             }
         });
 
@@ -436,7 +475,9 @@ exports.getRecapStats = async (req, res) => {
             where: {
                 startDate: { gte: start, lte: end },
                 status: 'APPROVED',
-                ...(deptFilter.user ? { user: deptFilter.user } : {})
+                ...(deptFilter.user && Object.prototype.hasOwnProperty.call(deptFilter.user, 'id') 
+                    ? { userId: req.userId } 
+                    : (deptFilter.user ? { user: deptFilter.user } : {}))
             }
         });
 
@@ -476,7 +517,9 @@ exports.getEmployeeRecap = async (req, res) => {
         // 1. Get all users (filtered by department)
         const users = await prisma.user.findMany({
             where: {
-                ...(deptFilter.user ? deptFilter.user : {}),
+                ...(deptFilter.user && Object.prototype.hasOwnProperty.call(deptFilter.user, 'id') 
+                    ? { id: req.userId } 
+                    : (deptFilter.user ? deptFilter.user : {})),
                 NOT: { role: 'GM' } // Exclude GM? Maybe keep for now if they are employees
             },
             select: {
@@ -536,16 +579,12 @@ exports.getEmployeeRecap = async (req, res) => {
             otMap[r.userId] = (otMap[r.userId] || 0) + qty;
         });
 
-        // 4. Calculate Scheduled Days (Working Days)
-        // Count schedules that are NOT OFF and NOT Absences (Cuti, Sakit, etc.)
-        const scheduledCounts = await prisma.schedule.groupBy({
-            by: ['userId'],
-            _count: { id: true },
+        const scheduledRows = await prisma.schedule.findMany({
             where: {
                 userId: { in: userIds },
                 date: { gte: start, lte: end },
                 shiftName: {
-                    notIn: ['OFF', 'Off Day', 'LIBUR', 'C', 'S', 'I', 'D'], // Exclude OFF and common codes
+                    notIn: ['OFF', 'Off Day', 'LIBUR', 'C', 'S', 'I', 'D'],
                 },
                 AND: [
                     { shiftName: { not: { contains: 'Cuti' } } },
@@ -557,11 +596,19 @@ exports.getEmployeeRecap = async (req, res) => {
                     { shiftName: { not: { contains: 'Dinas Luar' } } },
                     { shiftName: { not: { contains: 'Exchange' } } }
                 ]
-            }
+            },
+            select: { userId: true, date: true }
         });
 
+        const schedSet = new Set();
+        for (const r of scheduledRows) {
+            schedSet.add(`${r.userId}|${wibDateKey(r.date)}`);
+        }
         const schedMap = {};
-        scheduledCounts.forEach(s => schedMap[s.userId] = s._count.id);
+        for (const key of schedSet) {
+            const userId = parseInt(String(key).split('|')[0], 10);
+            schedMap[userId] = (schedMap[userId] || 0) + 1;
+        }
 
         // 5. Aggregate Requests by Type (SICK, PERMISSION, LEAVE, EXTERNAL_DUTY)
         const requestCounts = await prisma.request.groupBy({
@@ -623,7 +670,9 @@ exports.getApprovedRequestHistory = async (req, res) => {
             where: {
                 status: 'APPROVED',
                 startDate: { gte: start, lte: end },
-                ...(deptFilter.user ? { user: deptFilter.user } : {}),
+                ...(deptFilter.user && Object.prototype.hasOwnProperty.call(deptFilter.user, 'id') 
+                    ? { userId: req.userId } 
+                    : (deptFilter.user ? { user: deptFilter.user } : {})),
                 // Additional safety: ensure they are not types we might want to exclude
                 type: { in: ['SICK', 'PERMISSION', 'LEAVE', 'EXTERNAL_DUTY', 'OVERTIME'] }
             },
@@ -754,10 +803,7 @@ exports.exportRecap = async (req, res) => {
             otMap[r.userId] = (otMap[r.userId] || 0) + qty;
         });
 
-        // 4. Calculate Scheduled Days
-        const scheduledCounts = await prisma.schedule.groupBy({
-            by: ['userId'],
-            _count: { id: true },
+        const scheduledRows = await prisma.schedule.findMany({
             where: {
                 userId: { in: userIds },
                 date: { gte: start, lte: end },
@@ -774,11 +820,19 @@ exports.exportRecap = async (req, res) => {
                     { shiftName: { not: { contains: 'Dinas Luar' } } },
                     { shiftName: { not: { contains: 'Exchange' } } }
                 ]
-            }
+            },
+            select: { userId: true, date: true }
         });
 
+        const schedSet = new Set();
+        for (const r of scheduledRows) {
+            schedSet.add(`${r.userId}|${wibDateKey(r.date)}`);
+        }
         const schedMap = {};
-        scheduledCounts.forEach(s => schedMap[s.userId] = s._count.id);
+        for (const key of schedSet) {
+            const userId = parseInt(String(key).split('|')[0], 10);
+            schedMap[userId] = (schedMap[userId] || 0) + 1;
+        }
 
         // 5. Aggregate Requests
         const requestCounts = await prisma.request.groupBy({

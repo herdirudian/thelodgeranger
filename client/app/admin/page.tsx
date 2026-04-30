@@ -5,7 +5,7 @@ import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { format, differenceInDays } from "date-fns";
 import { formatWibDate, formatWibMonthDay, formatWibTime } from "@/lib/wibHelpers";
-import { User, Calendar, Trash2, Edit2, Plus, Download, Bug, Settings2, Info, MessageSquare } from "lucide-react";
+import { User, Calendar, Trash2, Edit2, Plus, Download, Bug, Settings2, Info, MessageSquare, Award, Upload } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 export default function AdminPage() {
@@ -33,6 +33,12 @@ export default function AdminPage() {
   const [waUsers, setWaUsers] = useState<any[]>([]);
   const [waSearch, setWaSearch] = useState('');
   const [waDept, setWaDept] = useState('');
+  const [votingResults, setVotingResults] = useState<any[]>([]);
+  const [votingLoading, setVotingLoading] = useState(false);
+  const [rookiePhotos, setRookiePhotos] = useState<any[]>([]);
+  const [rookieCandidateUserId, setRookieCandidateUserId] = useState<string>('');
+  const [rookieUploading, setRookieUploading] = useState(false);
+  const [rookieSearch, setRookieSearch] = useState('');
   const waFiltered = waUsers.filter(u => {
     const q = waSearch.trim().toLowerCase();
     if (!q) return true;
@@ -97,6 +103,82 @@ export default function AdminPage() {
       setWaUsers(res.data);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchVotingResults = async () => {
+    try {
+      setVotingLoading(true);
+      const res = await api.get("/voting/results");
+      setVotingResults(res.data?.results || []);
+    } catch (err) {
+      console.error(err);
+      setVotingResults([]);
+    } finally {
+      setVotingLoading(false);
+    }
+  };
+
+  const fetchRookiePhotos = async () => {
+    try {
+      const res = await api.get("/voting/admin/rookie-photos");
+      setRookiePhotos(res.data || []);
+    } catch (err) {
+      console.error(err);
+      setRookiePhotos([]);
+    }
+  };
+
+  const publicBaseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+  const toPublicUrl = (url?: string) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return `${publicBaseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
+  const handleRookiePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!rookieCandidateUserId) {
+      alert("Pilih karyawan dulu.");
+      return;
+    }
+
+    setRookieUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploadRes = await api.post("/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      const url = uploadRes.data?.url;
+      if (!url) {
+        alert("Upload gagal (url kosong).");
+        return;
+      }
+      await api.post("/voting/admin/rookie-photo", {
+        candidateUserId: parseInt(rookieCandidateUserId, 10),
+        photoUrl: url
+      });
+      alert("Foto Best Rookie tersimpan.");
+      await fetchRookiePhotos();
+      await fetchVotingResults();
+    } catch (err: any) {
+      alert("Gagal upload/simpan foto: " + (err.response?.data?.message || err.message));
+    } finally {
+      setRookieUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDeleteRookiePhoto = async (candidateUserId: number) => {
+    if (!confirm("Hapus foto Best Rookie untuk karyawan ini?")) return;
+    try {
+      await api.delete(`/voting/admin/rookie-photo/${candidateUserId}`);
+      await fetchRookiePhotos();
+      await fetchVotingResults();
+    } catch (err: any) {
+      alert("Gagal hapus foto: " + (err.response?.data?.message || err.message));
     }
   };
   const exportWhatsAppCSV = () => {
@@ -207,6 +289,10 @@ export default function AdminPage() {
         fetchApprovalConfigs();
       } else if (activeTab === 'whatsapp') {
         fetchWhatsAppStatus();
+      } else if (activeTab === 'voting') {
+        fetchUsers();
+        fetchVotingResults();
+        fetchRookiePhotos();
       }
     }
 
@@ -544,13 +630,13 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 p-4 sm:p-6 md:p-8">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
       </div>
 
       {/* Tabs */}
-      <div className="flex space-x-4 border-b">
+      <div className="flex flex-wrap gap-2 sm:gap-4 border-b">
         <button 
             className={`pb-2 px-4 ${activeTab === 'staff' ? 'border-b-2 border-[#0F4D39] font-bold text-[#0F4D39]' : 'text-gray-700'}`}
             onClick={() => setActiveTab('staff')}
@@ -587,6 +673,13 @@ export default function AdminPage() {
             WhatsApp Status
         </button>
         <button 
+            className={`pb-2 px-4 flex items-center gap-2 ${activeTab === 'voting' ? 'border-b-2 border-[#0F4D39] font-bold text-[#0F4D39]' : 'text-gray-700'}`}
+            onClick={() => setActiveTab('voting')}
+        >
+            <Award size={16} />
+            Voting Results
+        </button>
+        <button 
             className={`pb-2 px-4 ${activeTab === 'bugs' ? 'border-b-2 border-[#0F4D39] font-bold text-[#0F4D39]' : 'text-gray-700'}`}
             onClick={() => setActiveTab('bugs')}
         >
@@ -599,17 +692,17 @@ export default function AdminPage() {
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
                   <h2 className="text-xl font-bold">All Staff</h2>
-                  <div className="flex flex-1 md:flex-none items-center gap-2 justify-end">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto md:justify-end">
                     <input
                       type="text"
                       placeholder="Search name / email / department..."
-                      className="border border-gray-300 rounded px-3 py-1.5 text-sm w-full md:w-64"
+                      className="border border-gray-300 rounded px-3 py-1.5 text-sm w-full sm:w-64"
                       value={staffSearch}
                       onChange={e => setStaffSearch(e.target.value)}
                     />
                     <button 
                       onClick={exportStaffCSV}
-                      className="border border-[#0F4D39] text-[#0F4D39] bg-white px-4 py-2 rounded flex items-center space-x-2"
+                      className="w-full sm:w-auto justify-center border border-[#0F4D39] text-[#0F4D39] bg-white px-4 py-2 rounded flex items-center space-x-2"
                     >
                       <Download size={18} /> <span>Export CSV</span>
                     </button>
@@ -619,7 +712,7 @@ export default function AdminPage() {
                           setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", leaveQuota: 12, pdo: 0, contractStartDate: "", contractEndDate: "" });
                           setShowUserModal(true);
                       }}
-                      className="bg-[#0F4D39] text-white px-4 py-2 rounded flex items-center space-x-2"
+                      className="w-full sm:w-auto justify-center bg-[#0F4D39] text-white px-4 py-2 rounded flex items-center space-x-2"
                     >
                         <Plus size={18} /> <span>Add Staff</span>
                     </button>
@@ -844,17 +937,17 @@ export default function AdminPage() {
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
                   <h2 className="text-xl font-bold">Expiring Contracts</h2>
-                  <div className="flex flex-1 md:flex-none items-center gap-2 justify-end">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto md:justify-end">
                     <input
                       type="text"
                       placeholder="Search name / department..."
-                      className="border border-gray-300 rounded px-3 py-1.5 text-sm w-full md:w-64"
+                      className="border border-gray-300 rounded px-3 py-1.5 text-sm w-full sm:w-64"
                       value={contractSearch}
                       onChange={e => setContractSearch(e.target.value)}
                     />
                     <button 
                       onClick={exportContractsCSV}
-                      className="border border-[#0F4D39] text-[#0F4D39] bg-white px-4 py-2 rounded flex items-center space-x-2"
+                      className="w-full sm:w-auto justify-center border border-[#0F4D39] text-[#0F4D39] bg-white px-4 py-2 rounded flex items-center space-x-2"
                     >
                         <Download size={18} /> <span>Export CSV</span>
                     </button>
@@ -1141,6 +1234,143 @@ export default function AdminPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'voting' && (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Award size={20} className="text-[#0F4D39]" />
+              Voting Results
+            </h2>
+            <button
+              type="button"
+              onClick={() => { fetchVotingResults(); fetchRookiePhotos(); }}
+              className="px-4 py-2 rounded bg-[#0F4D39] text-white"
+            >
+              Refresh
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="border rounded-xl p-4">
+              <div className="font-bold mb-3">Hasil Voting</div>
+              {votingLoading ? (
+                <div className="text-sm text-gray-600">Memuat...</div>
+              ) : (
+                <div className="space-y-4">
+                  {votingResults.map((r: any) => (
+                    <div key={r.key} className="border rounded-lg p-3">
+                      <div className="text-sm font-bold text-gray-900">{r.title}</div>
+                      <div className="text-xs text-gray-500 mt-1">{r.group} • Total votes: {r.totalVotes || 0}</div>
+                      <div className="mt-3 space-y-2">
+                        {(r.items || []).slice(0, 5).map((it: any, idx: number) => (
+                          <div key={`${r.key}:${idx}`} className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              {r.key === 'BEST_ROOKIE_OF_THE_YEAR' && it.photoUrl ? (
+                                <img
+                                  src={toPublicUrl(it.photoUrl)}
+                                  alt={it.name || 'Rookie'}
+                                  className="w-10 h-10 rounded object-cover border"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded bg-gray-100 border" />
+                              )}
+                              <div className="min-w-0">
+                                <div className="text-sm text-gray-900 truncate">
+                                  {r.targetType === 'DEPARTMENT' ? it.candidateDepartment : it.name}
+                                </div>
+                                {r.targetType !== 'DEPARTMENT' && (
+                                  <div className="text-xs text-gray-500 truncate">{it.department || '-'}</div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-sm font-bold text-gray-900">{it.count || 0}</div>
+                          </div>
+                        ))}
+                        {(r.items || []).length === 0 && (
+                          <div className="text-xs text-gray-500">Belum ada vote.</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {votingResults.length === 0 && (
+                    <div className="text-sm text-gray-600">Tidak ada data.</div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="border rounded-xl p-4">
+              <div className="font-bold mb-3">Best Rookie: Foto Kandidat</div>
+              <div className="flex flex-col gap-3">
+                <input
+                  type="text"
+                  placeholder="Cari nama karyawan..."
+                  className="border border-gray-300 rounded px-3 py-2 text-sm"
+                  value={rookieSearch}
+                  onChange={e => setRookieSearch(e.target.value)}
+                />
+                <select
+                  className="border border-gray-300 rounded px-3 py-2 text-sm bg-white"
+                  value={rookieCandidateUserId}
+                  onChange={e => setRookieCandidateUserId(e.target.value)}
+                >
+                  <option value="">Pilih karyawan</option>
+                  {users
+                    .filter(u => {
+                      const q = rookieSearch.trim().toLowerCase();
+                      if (!q) return true;
+                      return (u.name || '').toLowerCase().includes(q) || (u.department || '').toLowerCase().includes(q);
+                    })
+                    .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+                    .map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}{u.department ? ` (${u.department})` : ''}
+                      </option>
+                    ))
+                  }
+                </select>
+                <label className={`flex items-center gap-2 px-4 py-2 rounded border ${rookieUploading ? 'opacity-60' : 'hover:bg-gray-50'} cursor-pointer`}>
+                  <Upload size={16} className="text-[#0F4D39]" />
+                  <span className="text-sm font-semibold">{rookieUploading ? 'Uploading...' : 'Upload Foto (JPG/PNG)'}</span>
+                  <input type="file" className="hidden" onChange={handleRookiePhotoUpload} accept="image/*" disabled={rookieUploading} />
+                </label>
+              </div>
+
+              <div className="mt-5">
+                <div className="text-sm font-bold mb-2">Daftar Foto</div>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {rookiePhotos.map((row: any) => (
+                    <div key={row.candidateUserId} className="flex items-center justify-between gap-3 border rounded-lg p-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={toPublicUrl(row.photoUrl)}
+                          alt={row.candidateUser?.name || 'Photo'}
+                          className="w-10 h-10 rounded object-cover border"
+                        />
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900 truncate">{row.candidateUser?.name || `User ${row.candidateUserId}`}</div>
+                          <div className="text-xs text-gray-500 truncate">{row.candidateUser?.department || '-'}</div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteRookiePhoto(row.candidateUserId)}
+                        className="text-red-600 hover:text-red-800 text-xs font-bold px-2 py-1"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  ))}
+                  {rookiePhotos.length === 0 && (
+                    <div className="text-xs text-gray-500">Belum ada foto yang di-set.</div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

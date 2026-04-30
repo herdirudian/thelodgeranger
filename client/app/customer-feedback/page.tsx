@@ -34,7 +34,7 @@ function StarRating({ value, onChange, label, description }: { value: number, on
 
 function FeedbackForm() {
   const searchParams = useSearchParams();
-  const staffIdParam = searchParams.get('staffId');
+  const staffIdParam = searchParams ? searchParams.get('staffId') : null;
   
   // Staff State
   const [staffId, setStaffId] = useState(staffIdParam || "");

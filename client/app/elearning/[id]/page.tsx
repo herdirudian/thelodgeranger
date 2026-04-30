@@ -12,6 +12,7 @@ export default function ModuleDetail() {
   const { user } = useAuth();
   const params = useParams();
   const router = useRouter();
+  const moduleId = typeof params?.id === 'string' ? params.id : '';
   const [module, setModule] = useState<any>(null);
   const [progress, setProgress] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -38,16 +39,16 @@ export default function ModuleDetail() {
   } as any);
 
   useEffect(() => {
-    if (params?.id) {
+    if (moduleId) {
       fetchDetail();
     }
-  }, [params?.id]);
+  }, [moduleId]);
 
   const fetchDetail = async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.get(`/learning/modules/${params.id}`);
+      const res = await api.get(`/learning/modules/${moduleId}`);
       setModule(res.data.module);
       setProgress(res.data.progress);
     } catch (error: any) {
@@ -67,15 +68,15 @@ export default function ModuleDetail() {
 
   // Fetch 360 Data
   useEffect(() => {
-    if (is360 && params?.id) {
+    if (is360 && moduleId) {
         api.get('/users/colleagues').then(res => setTargetUsers(res.data)).catch(console.error);
         fetchSubmissions();
     }
-  }, [is360, params?.id]);
+  }, [is360, moduleId]);
 
   const fetchSubmissions = async () => {
      try {
-        const res = await api.get(`/learning/modules/${params.id}/submissions`);
+        const res = await api.get(`/learning/modules/${moduleId}/submissions`);
         setSubmissions(res.data);
      } catch (e) {
         console.error(e);
@@ -102,7 +103,7 @@ export default function ModuleDetail() {
 
   const handleAcknowledge = async () => {
     try {
-      await api.post(`/learning/modules/${params.id}/acknowledge`, {});
+      await api.post(`/learning/modules/${moduleId}/acknowledge`, {});
       
       router.refresh();
       fetchDetail(); // Refresh to update status
@@ -119,7 +120,7 @@ export default function ModuleDetail() {
           payload.targetUserId = selectedTarget;
       }
 
-      const res = await api.post(`/learning/modules/${params.id}/quiz`, payload);
+      const res = await api.post(`/learning/modules/${moduleId}/quiz`, payload);
       setQuizResult(res.data);
       
       if (is360) {
@@ -148,7 +149,8 @@ export default function ModuleDetail() {
       }
 
     } catch (error) {
-      alert('Gagal mengirim quiz.');
+      const e: any = error;
+      alert('Gagal mengirim quiz: ' + (e.response?.data?.message || e.message || 'Unknown error'));
     }
   };
 

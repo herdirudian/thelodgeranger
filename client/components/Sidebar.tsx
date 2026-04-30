@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { Home, Calendar, Clock, FileText, User, LogOut, MessageSquare, ShoppingBag, ClipboardList, BookOpen, ClipboardCheck, Users, Archive, BarChart2 } from 'lucide-react';
+import { Home, Calendar, Clock, FileText, User, LogOut, MessageSquare, ShoppingBag, ClipboardList, BookOpen, ClipboardCheck, Users, Archive, BarChart2, Target, Shield, Award } from 'lucide-react';
 import clsx from 'clsx';
 import { usePathname } from 'next/navigation';
 
@@ -20,9 +20,17 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
     { name: 'Procurement', href: '/procurement', icon: ShoppingBag },
   ];
 
-  if (user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN' || user.role === 'SUPERVISOR' || user.role === 'HOD' || user.role === 'PHOTOGRAPHER_HOD' || user.role === 'MERCHANDISE_HOD' || user.role === 'MERCHANDISE_SPV') {
+  const privileged = user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN';
+  const isSecurity = String(user.department || '').toLowerCase() === 'security';
+  if (privileged || isSecurity) {
+      links.push({ name: 'Security Dashboard', href: '/security-dashboard', icon: Shield });
+  }
+
+  if (user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN' || user.role === 'SUPERVISOR' || user.role === 'HOD' || user.role === 'PHOTOGRAPHER_HOD' || user.role === 'MERCHANDISE_HOD' || user.role === 'MERCHANDISE_SPV' || user.role === 'STAFF') {
       links.push({ name: 'Analytics', href: '/analytics', icon: BarChart2 });
   }
+
+  links.push({ name: 'Voting', href: '/voting', icon: Award });
 
   if (user.role === 'HR') {
       links.push({ name: 'Onboarding', href: '/onboarding', icon: ClipboardList });
@@ -34,11 +42,13 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
 
   links.push({ name: 'The Lodge Learning', href: '/elearning', icon: BookOpen });
   links.push({ name: 'Self Assessment', href: '/self-assessment', icon: ClipboardCheck });
+  links.push({ name: 'IDP', href: '/idp', icon: Target });
   links.push({ name: 'Penilaian 360', href: '/review-360', icon: Users });
   
   if (user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN') {
       links.push({ name: 'Feedback', href: '/feedback', icon: MessageSquare });
       links.push({ name: 'Admin', href: '/admin', icon: User });
+      links.push({ name: 'Survey Access', href: '/admin/public-survey-access', icon: Users });
   }
 
   return (

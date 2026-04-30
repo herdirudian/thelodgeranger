@@ -142,6 +142,10 @@ exports.submitQuiz = async (req, res) => {
         const moduleId = parseInt(req.params.id);
         const { answers, targetUserId } = req.body; // { questionIndex: answer }
 
+        if (!answers || typeof answers !== 'object') {
+            return res.status(400).json({ message: 'Answers is required' });
+        }
+
         const quiz = await prisma.quiz.findFirst({ 
             where: { moduleId },
             include: { module: { select: { type: true } } }
@@ -255,12 +259,21 @@ exports.submitQuiz = async (req, res) => {
 
         } else {
             // Standard Self Assessment / Quiz
-            const progress = await prisma.userLearningProgress.update({
+            await prisma.userLearningProgress.upsert({
                 where: { userId_moduleId: { userId, moduleId } },
-                data: {
+                update: {
                     quizScore: score,
                     isPassed,
                     answers: answers, // Save user answers to DB
+                    status: isPassed ? 'COMPLETED' : 'IN_PROGRESS',
+                    completedAt: isPassed ? new Date() : null
+                },
+                create: {
+                    userId,
+                    moduleId,
+                    quizScore: score,
+                    isPassed,
+                    answers: answers,
                     status: isPassed ? 'COMPLETED' : 'IN_PROGRESS',
                     completedAt: isPassed ? new Date() : null
                 }

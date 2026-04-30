@@ -8,6 +8,8 @@ router.get('/me', [verifyToken], controller.getMyRequests);
 router.get('/pending', [verifyToken], controller.getPendingRequests);
 router.get('/export', [verifyToken], controller.exportRequests);
 router.get('/history', [verifyToken], controller.getApprovalHistory);
+router.get('/security/leave-workplace', [verifyToken], controller.getSecurityLeaveWorkplaceApproved);
+router.post('/:id/security-return', [verifyToken], controller.confirmSecurityReturn);
 router.get('/:id/pdf', [verifyToken], controller.downloadRequestPDF);
 router.put('/:id/approval', [verifyToken], controller.approveRequest);
 router.delete('/:id', [verifyToken], controller.deleteRequest);

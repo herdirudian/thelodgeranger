@@ -12,8 +12,8 @@ export const metadata: Metadata = {
   icons: {
     icon: "/logo.png",
     shortcut: "/logo.png",
-    apple: "/logo.png"
-  }
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -25,9 +25,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <AuthProvider>
-            <ClientLayout>
-                {children}
-            </ClientLayout>
+          <ClientLayout>
+            {children}
+          </ClientLayout>
         </AuthProvider>
       </body>
     </html>

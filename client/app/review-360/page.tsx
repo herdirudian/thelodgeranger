@@ -34,8 +34,8 @@ export default function Review360Page() {
   }, [assignments]);
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-4 sm:p-6 md:p-8">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div className="flex items-start gap-3">
           <div className="p-3 bg-[#0F4D39]/10 text-[#0F4D39] rounded-xl">
             <Users size={22} />
@@ -45,10 +45,10 @@ export default function Review360Page() {
             <p className="text-gray-500">Berikan penilaian untuk rekan kerja</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
            <Link
              href="/elearning?tab=HISTORY"
-             className="bg-white text-[#0F4D39] border border-[#0F4D39] px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+             className="w-full sm:w-auto justify-center bg-white text-[#0F4D39] border border-[#0F4D39] px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
            >
              <History size={18} />
              Riwayat Penilaian
@@ -56,7 +56,7 @@ export default function Review360Page() {
            {(user?.role === 'HR' || user?.role === 'GM') && (
              <Link
                href="/review-360/manage"
-               className="bg-[#0F4D39] text-white px-4 py-2 rounded-lg hover:bg-[#0F4D39]/90 transition-colors flex items-center gap-2"
+               className="w-full sm:w-auto justify-center bg-[#0F4D39] text-white px-4 py-2 rounded-lg hover:bg-[#0F4D39]/90 transition-colors flex items-center gap-2"
              >
                <Plus size={18} />
                Buat Form 360
@@ -89,7 +89,7 @@ export default function Review360Page() {
       ) : (
         <div className="space-y-4">
           {assignments.map(a => (
-            <div key={a.id} className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
+            <div key={a.id} className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-bold text-gray-800">{a.form?.title}</h3>
@@ -113,7 +113,7 @@ export default function Review360Page() {
 
               <Link
                 href={`/review-360/${a.id}`}
-                className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 flex items-center gap-2"
+                className="w-full sm:w-auto justify-center px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 flex items-center gap-2"
               >
                 {a.submittedAt ? 'Lihat' : 'Isi'}
                 <ArrowRight size={18} />

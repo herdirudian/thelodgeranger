@@ -130,8 +130,8 @@ export default function ElearningDashboard() {
   };
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-4 sm:p-6 md:p-8">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">The Lodge Learning</h1>
           <p className="text-gray-500">Belajar, Paham, Siap Melayani</p>
@@ -139,7 +139,7 @@ export default function ElearningDashboard() {
         {(user?.role === 'HR' || user?.role === 'GM') && (
           <Link 
             href="/elearning/manage" 
-            className="bg-[#0F4D39] text-white px-4 py-2 rounded-lg hover:bg-[#0F4D39]/90 transition-colors flex items-center gap-2"
+            className="w-full md:w-auto justify-center bg-[#0F4D39] text-white px-4 py-2 rounded-lg hover:bg-[#0F4D39]/90 transition-colors flex items-center gap-2"
           >
             <BookOpen size={18} />
             Kelola Modul
@@ -148,7 +148,7 @@ export default function ElearningDashboard() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-4 border-b border-gray-200 mb-6">
+      <div className="flex flex-wrap gap-2 sm:gap-4 border-b border-gray-200 mb-6">
         <button
           onClick={() => {
             setLoading(true);
@@ -234,7 +234,7 @@ export default function ElearningDashboard() {
       </div>
 
       {/* Search & Filter */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
           <input
@@ -251,12 +251,12 @@ export default function ElearningDashboard() {
             className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4D39]/20"
           />
         </div>
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <select
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
-            className="pl-10 pr-8 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4D39]/20 appearance-none bg-white"
+            className="w-full sm:w-auto pl-10 pr-8 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F4D39]/20 appearance-none bg-white"
           >
             {categories.map(c => (
               <option key={c} value={c}>{c}</option>

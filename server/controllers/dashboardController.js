@@ -4,7 +4,16 @@ const { startOfMonth, endOfMonth } = require('date-fns');
 
 exports.getDashboardStats = async (req, res) => {
     try {
-        const { role, department, id: userId } = req.user;
+        const role = req.role;
+        const userId = req.userId;
+        let department = req.user && req.user.department ? req.user.department : undefined;
+        if (!department && userId) {
+            const me = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { department: true }
+            });
+            department = me?.department;
+        }
         const now = new Date();
         const startOfCurrentMonth = startOfMonth(now);
         const endOfCurrentMonth = endOfMonth(now);

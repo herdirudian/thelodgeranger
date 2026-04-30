@@ -18,5 +18,6 @@ router.post('/monthly/:id/refresh', [verifyToken, isHOD], controller.refreshSche
 router.post('/monthly/:id/sync-requests', [verifyToken, isHOD], controller.syncApprovedRequestsToMonthly);
 router.post('/monthly/:id/revise', [verifyToken, isHOD], controller.reviseMonthlySchedule);
 router.post('/monthly/:id/hr-adjust', [verifyToken, isAdmin], controller.hrAdjustMonthlySchedule);
+router.post('/monthly/sync-all', [verifyToken, isAdmin], controller.syncAllActiveMonthly);
 
 module.exports = router;

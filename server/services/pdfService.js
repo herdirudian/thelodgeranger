@@ -593,7 +593,16 @@ exports.generateMonthlySchedulePDF = async (schedule, staffList) => {
                  const locationName = staffLocations[dateStr] || staffLocations[date.getDate().toString()] || '';
     
                  // Count summary
-                 if (['M', 'A', 'N', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'A1', 'A2', 'A3', 'N1', 'N2'].includes(shiftCode)) counts.M++; 
+                 if (
+                    shiftCode &&
+                    (shiftCode.startsWith('M') ||
+                      shiftCode.startsWith('A') ||
+                      shiftCode.startsWith('N') ||
+                      shiftCode === 'E' ||
+                      shiftCode === 'PDO')
+                  ) {
+                    counts.M++;
+                  }
                  else if (shiftCode === 'OFF') counts.OFF++;
                  else if (shiftCode === 'C') counts.C++;
                  else if (shiftCode === 'S') counts.S++;

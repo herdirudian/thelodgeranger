@@ -19,14 +19,18 @@ const announcementRoutes = require('./routes/announcement');
 const procurementRoutes = require('./routes/procurement');
 const uploadRoutes = require('./routes/upload');
 const approvalConfigRoutes = require('./routes/approvalConfig');
+const publicSurveyRoutes = require('./routes/publicSurvey');
 const dashboardRoutes = require('./routes/dashboard');
 const notificationRoutes = require('./routes/notification');
 const onboardingRoutes = require('./routes/onboarding');
 const learningRoutes = require('./routes/learning');
 const review360Routes = require('./routes/review360');
 const manualProcurementRoutes = require('./routes/manualProcurement');
+const idpRoutes = require('./routes/idp');
+const votingRoutes = require('./routes/voting');
 const { PrismaClient } = require('@prisma/client');
 const { sendWhatsAppMessage } = require('./services/watzapService');
+const { formatWibTime } = require('./utils/wibDate');
 
 const app = express();
 
@@ -80,15 +84,22 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/procurement', procurementRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/approval-configs', approvalConfigRoutes);
+app.use('/api/public-survey', publicSurveyRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/onboarding', onboardingRoutes);
 app.use('/api/learning', learningRoutes);
 app.use('/api/review360', review360Routes);
 app.use('/api/manual-procurement', manualProcurementRoutes);
+app.use('/api/idp', idpRoutes);
+app.use('/api/voting', votingRoutes);
 
 const prisma = new PrismaClient();
-const reminderState = { sentAttendance: new Map(), sentApproval: new Map() };
+const reminderState = { 
+  sentAttendance: new Map(), 
+  sentApproval: new Map(),
+  sentShift: new Map() // key: TYPE(IN|OUT):userId:YYYY-MM-DDTHH:MM
+};
 function wibNow() { return new Date(Date.now() + 7 * 60 * 60 * 1000); }
 async function runAttendanceReminders() {
   const now = wibNow();
@@ -128,12 +139,82 @@ async function runAttendanceReminders() {
     const key = `${t.id}:${dayStart.toISOString().slice(0, 10)}`;
     const last = reminderState.sentAttendance.get(key);
     const nowMs = Date.now();
-    if (last && nowMs - last < 60 * 60 * 1000) continue;
+    if (last) continue;
     const msg = `Reminder absensi hari ini untuk ${t.name}. Silakan melakukan check-in.`;
     try {
       await sendWhatsAppMessage({ to: t.whatsappNumber, message: msg });
       reminderState.sentAttendance.set(key, nowMs);
     } catch (e) {}
+  }
+}
+async function runShiftReminders() {
+  // Send WA 10 minutes before shiftStart and 10 minutes before shiftEnd
+  const now = new Date();
+  const windowStart = new Date(now.getTime() + 9 * 60 * 1000);
+  const windowEnd = new Date(now.getTime() + 11 * 60 * 1000);
+
+  const schedules = await prisma.schedule.findMany({
+    where: {
+      OR: [
+        { shiftStart: { gte: windowStart, lt: windowEnd } },
+        { shiftEnd: { gte: windowStart, lt: windowEnd } }
+      ]
+    },
+    select: {
+      id: true,
+      userId: true,
+      shiftStart: true,
+      shiftEnd: true,
+      shiftName: true,
+      user: { select: { name: true, whatsappNumber: true, whatsappVerifiedAt: true } }
+    }
+  });
+
+  if (schedules.length === 0) return;
+
+  const isWorking = (s) => {
+    const special = ['OFF', 'Cuti', 'Sakit', 'Izin', 'Dinas Luar', 'Extra Manpower', 'Pending Day Off'];
+    return s.shiftStart && s.shiftEnd && s.shiftStart.getTime() !== s.shiftEnd.getTime() && !special.includes(s.shiftName || '');
+  };
+
+  for (const s of schedules) {
+    if (!isWorking(s)) continue;
+    const user = s.user;
+    if (!user || !user.whatsappVerifiedAt || !user.whatsappNumber) continue;
+
+    const startTarget = new Date(s.shiftStart.getTime() - 10 * 60 * 1000);
+    const endTarget = new Date(s.shiftEnd.getTime() - 10 * 60 * 1000);
+
+    const within = (t) => t.getTime() >= windowStart.getTime() && t.getTime() < windowEnd.getTime();
+    const makeKey = (type, t) => {
+      const pad = (n) => String(n).padStart(2, '0');
+      const k = `${t.getUTCFullYear()}-${pad(t.getUTCMonth()+1)}-${pad(t.getUTCDate())}T${pad(t.getUTCHours())}:${pad(t.getUTCMinutes())}`;
+      return `${type}:${s.userId}:${k}`;
+    };
+
+    // Check-in reminder
+    if (within(startTarget)) {
+      const key = makeKey('IN', startTarget);
+      if (!reminderState.sentShift.get(key)) {
+        const msg = `Pengingat: 10 menit lagi waktu check-in Anda (Shift ${s.shiftName || ''} ${formatWibTime(s.shiftStart)}–${formatWibTime(s.shiftEnd)}).`;
+        try {
+          await sendWhatsAppMessage({ to: user.whatsappNumber, message: msg });
+          reminderState.sentShift.set(key, Date.now());
+        } catch (e) {}
+      }
+    }
+
+    // Check-out reminder
+    if (within(endTarget)) {
+      const key = makeKey('OUT', endTarget);
+      if (!reminderState.sentShift.get(key)) {
+        const msg = `Pengingat: 10 menit lagi waktu check-out Anda (Shift ${s.shiftName || ''} berakhir ${formatWibTime(s.shiftEnd)}).`;
+        try {
+          await sendWhatsAppMessage({ to: user.whatsappNumber, message: msg });
+          reminderState.sentShift.set(key, Date.now());
+        } catch (e) {}
+      }
+    }
   }
 }
 async function runApprovalReminders() {
@@ -152,7 +233,7 @@ async function runApprovalReminders() {
       const key = `HOD:${u.id}:${dayStart.toISOString().slice(0, 10)}`;
       const last = reminderState.sentApproval.get(key);
       const nowMs = Date.now();
-      if (last && nowMs - last < 60 * 60 * 1000) continue;
+      if (last) continue;
       const msg = `Reminder approval ${u.name}: ${total} pending (${rc} request, ${ac} absensi).`;
       try {
         await sendWhatsAppMessage({ to: u.whatsappNumber, message: msg });
@@ -171,7 +252,7 @@ async function runApprovalReminders() {
       const key = `SPV:${u.id}:${dayStart.toISOString().slice(0, 10)}`;
       const last = reminderState.sentApproval.get(key);
       const nowMs = Date.now();
-      if (last && nowMs - last < 60 * 60 * 1000) continue;
+      if (last) continue;
       const msg = `Reminder approval ${u.name}: ${rc} request pending.`;
       try {
         await sendWhatsAppMessage({ to: u.whatsappNumber, message: msg });
@@ -192,7 +273,7 @@ async function runApprovalReminders() {
       const key = `HR:${u.id}:${dayStart.toISOString().slice(0, 10)}`;
       const last = reminderState.sentApproval.get(key);
       const nowMs = Date.now();
-      if (last && nowMs - last < 60 * 60 * 1000) continue;
+      if (last) continue;
       const msg = `Reminder approval ${u.name}: ${total} pending (${rc} request, ${ac} absensi).`;
       try {
         await sendWhatsAppMessage({ to: u.whatsappNumber, message: msg });
@@ -224,10 +305,11 @@ async function runApprovalReminders() {
 }
 function startReminders() {
   if ((process.env.REMINDERS_ENABLED || '1') !== '1') return;
-  const intervalMs = parseInt(process.env.REMINDER_INTERVAL_MS || '900000', 10);
+  const intervalMs = parseInt(process.env.REMINDER_INTERVAL_MS || '60000', 10);
   setInterval(async () => {
     try {
       await runAttendanceReminders();
+      await runShiftReminders();
       await runApprovalReminders();
     } catch (e) {}
   }, intervalMs);

@@ -10,6 +10,7 @@ import {
   Calendar, 
   Users, 
   FileText, 
+  Download,
   Bell, 
   Sun, 
   Moon,
@@ -24,11 +25,15 @@ import {
   MessageSquare,
   Copy,
   ExternalLink,
-  Bug
+  Bug,
+  Eye,
+  Phone,
+  Mail,
+  XCircle
 } from "lucide-react";
 import Link from "next/link";
 import { format, addDays } from "date-fns";
-import { formatWibTime } from "@/lib/wibHelpers";
+import { formatWibTime, formatWibDateTime } from "@/lib/wibHelpers";
 import api from "@/lib/api";
 
 export default function Dashboard() {
@@ -190,6 +195,87 @@ export default function Dashboard() {
     }
   };
 
+  // Guest Comment Report (Internal)
+  const [surveyType, setSurveyType] = useState<string>("HOTEL_GUEST");
+  const [surveyRows, setSurveyRows] = useState<any[]>([]);
+  const [surveyError, setSurveyError] = useState<string>("");
+  const [surveyLoading, setSurveyLoading] = useState<boolean>(false);
+  const [selectedSurvey, setSelectedSurvey] = useState<any | null>(null);
+  const [allowedTypes, setAllowedTypes] = useState<string[]>([]);
+  const [publicSurveyType, setPublicSurveyType] = useState<string>("WISATA");
+  const [surveyStartDate, setSurveyStartDate] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
+  const [surveyEndDate, setSurveyEndDate] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
+
+  const fetchSurveyReport = async () => {
+    setSurveyLoading(true);
+    setSurveyError("");
+    try {
+      const params: any = { type: surveyType };
+      if (surveyStartDate) params.startDate = surveyStartDate;
+      if (surveyEndDate) params.endDate = surveyEndDate;
+      const res = await api.get(`/public-survey/report`, { params });
+      setSurveyRows(res.data || []);
+    } catch (e: any) {
+      if (e?.response?.status === 403) {
+        setSurveyError("Anda tidak memiliki akses melihat report ini.");
+      } else {
+        setSurveyError("Gagal memuat data report.");
+      }
+    } finally {
+      setSurveyLoading(false);
+    }
+  };
+
+  const exportSurveyCsv = async () => {
+    try {
+      const params: any = { type: surveyType };
+      if (surveyStartDate) params.startDate = surveyStartDate;
+      if (surveyEndDate) params.endDate = surveyEndDate;
+      const res = await api.get(`/public-survey/export`, { params, responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `guest_comment_${surveyType}_${surveyStartDate || 'all'}_${surveyEndDate || 'all'}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      alert("Gagal mengunduh CSV.");
+    }
+  };
+
+  const exportSurveyExcel = async () => {
+    try {
+      const params: any = { type: surveyType };
+      if (surveyStartDate) params.startDate = surveyStartDate;
+      if (surveyEndDate) params.endDate = surveyEndDate;
+      const res = await api.get(`/public-survey/export-xlsx`, { params, responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `guest_comment_${surveyType}_${surveyStartDate || 'all'}_${surveyEndDate || 'all'}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      alert("Gagal mengunduh Excel.");
+    }
+  };
+
+  useEffect(() => {
+    if (user) fetchSurveyReport();
+  }, [user, surveyType, surveyStartDate, surveyEndDate]);
+
+  useEffect(() => {
+    const checkAllowed = async () => {
+      try {
+        const res = await api.get('/public-survey/allowed');
+        setAllowedTypes(res.data?.allowedTypes || []);
+      } catch {}
+    };
+    if (user) checkAllowed();
+  }, [user]);
+
   const getScheduleDisplay = (schedule: any) => {
     if (!schedule) return { title: "No Schedule", time: null, statusClass: "text-gray-500", bgClass: "bg-gray-100 text-gray-500" };
 
@@ -228,7 +314,7 @@ export default function Dashboard() {
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-8">
       {/* Welcome Header */}
-      <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
+      <div className="bg-white rounded-2xl p-5 sm:p-6 md:p-8 shadow-sm border border-gray-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-[#0F4D39]/5 to-transparent rounded-bl-full -mr-16 -mt-16 pointer-events-none" />
          
          <div className="relative z-10">
@@ -249,9 +335,9 @@ export default function Dashboard() {
             </p>
          </div>
 
-         <div className="flex flex-wrap gap-3 relative z-10">
-             <Link href="/attendance">
-                <button className={`flex items-center gap-2 px-5 py-3 rounded-xl font-semibold shadow-lg transition-all ${
+         <div className="flex flex-col sm:flex-row flex-wrap gap-3 relative z-10 w-full md:w-auto">
+             <Link href="/attendance" className="w-full sm:w-auto">
+                <button className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-5 py-3 rounded-xl font-semibold shadow-lg transition-all ${
                     isCheckedIn 
                     ? 'bg-red-600 text-white shadow-red-600/20 hover:bg-red-700 hover:-translate-y-0.5'
                     : 'bg-[#0F4D39] text-white shadow-[#0F4D39]/20 hover:bg-[#0a3628] hover:-translate-y-0.5'
@@ -260,8 +346,8 @@ export default function Dashboard() {
                     {isCheckedIn ? "Check Out Now" : "Check In Now"}
                 </button>
              </Link>
-             <Link href="/requests">
-                <button className="flex items-center gap-2 bg-white text-gray-700 border border-gray-200 px-5 py-3 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all">
+             <Link href="/requests" className="w-full sm:w-auto">
+                <button className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white text-gray-700 border border-gray-200 px-4 sm:px-5 py-3 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all">
                     <FileText className="w-5 h-5" />
                     New Request
                 </button>
@@ -355,8 +441,272 @@ export default function Dashboard() {
           </div>
       </div>
 
+      {/* Public Survey Quick Links (Semua user) */}
+      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-100 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+              <div className="bg-white p-3 rounded-full shadow-sm text-[#0F4D39]">
+                  <FileText className="w-6 h-6" />
+              </div>
+              <div>
+                  <h3 className="text-lg font-bold text-gray-800">Link Survey Publik</h3>
+                  <p className="text-sm text-gray-600">Bagikan link survey publik untuk pengunjung.</p>
+              </div>
+          </div>
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full md:w-auto items-stretch sm:items-center">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <label className="text-sm text-gray-700">Jenis</label>
+                  <select
+                      className="border rounded px-3 py-2 text-sm w-full sm:w-auto"
+                      value={publicSurveyType}
+                      onChange={e => setPublicSurveyType(e.target.value)}
+                  >
+                      <option value="WISATA">Wisata</option>
+                      <option value="THE_PINES">The Pines</option>
+                      <option value="THE_CAVE">The Cave</option>
+                      <option value="OMAH_BAMBOO">Omah Bamboo</option>
+                      <option value="HOTEL_GUEST">Penginapan</option>
+                  </select>
+              </div>
+              <button 
+                 onClick={() => {
+                    const path = publicSurveyType === 'WISATA'
+                      ? '/public-survey/wisata'
+                      : publicSurveyType === 'THE_PINES'
+                        ? '/public-survey/pines'
+                        : publicSurveyType === 'THE_CAVE'
+                          ? '/public-survey/cave'
+                          : publicSurveyType === 'OMAH_BAMBOO'
+                            ? '/public-survey/omah-bamboo'
+                            : '/public-survey/hotel-guest';
+                    const url = `${window.location.origin}${path}`;
+                    navigator.clipboard.writeText(url);
+                    alert("Link berhasil disalin!");
+                 }}
+                 className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white text-[#0F4D39] border border-[#0F4D39]/20 px-4 py-2.5 rounded-lg font-semibold hover:bg-emerald-50 transition-all text-sm"
+              >
+                  <Copy className="w-4 h-4" />
+                  Salin Link
+              </button>
+              <a 
+                 href={
+                   publicSurveyType === 'WISATA' ? '/public-survey/wisata' :
+                   publicSurveyType === 'THE_PINES' ? '/public-survey/pines' :
+                   publicSurveyType === 'THE_CAVE' ? '/public-survey/cave' :
+                   publicSurveyType === 'OMAH_BAMBOO' ? '/public-survey/omah-bamboo' :
+                   '/public-survey/hotel-guest'
+                 }
+                 target="_blank"
+                 className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#0F4D39] text-white px-4 py-2.5 rounded-lg font-semibold shadow-md shadow-[#0F4D39]/10 hover:bg-[#0a3628] transition-all text-sm"
+              >
+                  <ExternalLink className="w-4 h-4" />
+                  Buka Form
+              </a>
+          </div>
+      </div>
+
       {/* Onboarding Widget (Only if tasks exist) */}
       <OnboardingWidget />
+
+      {/* Report Submit Guest Comment (Internal) */}
+      {((user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN') || allowedTypes.length > 0) && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="mb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-[#0F4D39] flex items-center gap-2">
+              <FileText className="w-5 h-5 text-[#0F4D39]" />
+              Report Submit Guest Comment
+              </h2>
+            </div>
+            <div className="flex flex-col lg:flex-row lg:items-center gap-3 w-full lg:w-auto">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <label className="text-sm text-gray-700">Jenis Survey</label>
+                <select
+                  className="border rounded px-3 py-2 text-sm w-full sm:w-auto"
+                  value={surveyType}
+                  onChange={e => setSurveyType(e.target.value)}
+                >
+                  {(['HOTEL_GUEST','THE_CAVE','THE_PINES','OMAH_BAMBOO','WISATA'] as const)
+                    .filter(t => (allowedTypes.includes('ALL') || allowedTypes.includes(t) || (user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN')))
+                    .map(t => (
+                      <option key={t} value={t}>
+                        {t === 'HOTEL_GUEST' ? 'Penginapan' : t === 'THE_CAVE' ? 'The Cave' : t === 'THE_PINES' ? 'The Pines' : t === 'OMAH_BAMBOO' ? 'Omah Bamboo' : 'Wisata'}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <label className="text-sm text-gray-700">Dari</label>
+                <input
+                  type="date"
+                  className="border rounded px-3 py-2 text-sm w-full sm:w-auto"
+                  value={surveyStartDate}
+                  onChange={(e) => setSurveyStartDate(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <label className="text-sm text-gray-700">Sampai</label>
+                <input
+                  type="date"
+                  className="border rounded px-3 py-2 text-sm w-full sm:w-auto"
+                  value={surveyEndDate}
+                  onChange={(e) => setSurveyEndDate(e.target.value)}
+                />
+              </div>
+              <button 
+                onClick={exportSurveyCsv}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white text-[#0F4D39] border border-[#0F4D39]/20 px-4 py-2 rounded-lg font-semibold hover:bg-emerald-50 transition-colors shadow-sm"
+              >
+                <Download className="w-4 h-4" />
+                Export CSV
+              </button>
+              <button 
+                onClick={exportSurveyExcel}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#0F4D39] text-white border border-[#0F4D39] px-4 py-2 rounded-lg font-semibold hover:bg-[#0a3628] transition-colors shadow-sm"
+              >
+                <Download className="w-4 h-4" />
+                Export Excel
+              </button>
+            </div>
+          </div>
+          {surveyLoading ? (
+            <div className="p-4 text-sm text-gray-500">Memuat data...</div>
+          ) : surveyError ? (
+            <div className="p-4 rounded-lg bg-red-50 border border-red-100 text-red-700 text-sm">{surveyError}</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="p-4 font-semibold text-gray-600">Tanggal</th>
+                    <th className="p-4 font-semibold text-gray-600">Nama</th>
+                    <th className="p-4 font-semibold text-gray-600">Email</th>
+                    <th className="p-4 font-semibold text-gray-600">WhatsApp</th>
+                    <th className="p-4 font-semibold text-gray-600">Consent</th>
+                    <th className="p-4 font-semibold text-gray-600 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {surveyRows.map((r: any) => (
+                    <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="p-4 text-gray-600">{formatWibDateTime(r.createdAt)}</td>
+                      <td className="p-4 font-medium text-gray-800">{r.name || "-"}</td>
+                      <td className="p-4 text-gray-600">{r.email || "-"}</td>
+                      <td className="p-4 text-gray-600">{r.phone || "-"}</td>
+                      <td className="p-4">
+                        <span className="inline-block px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs">
+                          {r.wantFollowUp ? "FollowUp" : "-"}
+                        </span>{" "}
+                        <span className="inline-block px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs">
+                          {r.privacyConsent ? "Privacy" : "-"}
+                        </span>{" "}
+                        <span className="inline-block px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs">
+                          {r.marketingConsent ? "Marketing" : "-"}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right">
+                        <button 
+                          onClick={() => setSelectedSurvey(r)}
+                          className="text-[#0F4D39] hover:bg-emerald-50 p-2 rounded-lg transition-colors"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {surveyRows.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-gray-500">Belum ada data</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Detail Guest Comment Modal */}
+      {selectedSurvey && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
+              <h2 className="text-xl font-bold text-[#0F4D39]">Detail Guest Comment</h2>
+              <button 
+                onClick={() => setSelectedSurvey(null)}
+                className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              {/* Header Info */}
+              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Waktu</p>
+                  <p className="font-semibold text-gray-800 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-[#0F4D39]" />
+                    {formatWibDateTime(selectedSurvey.createdAt)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Nama</p>
+                  <p className="font-semibold text-gray-800 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-[#0F4D39]" />
+                    {selectedSurvey.name || "-"}
+                  </p>
+                </div>
+              </div>
+              {/* Contact */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
+                <div>
+                  <p className="text-xs text-gray-500">Email</p>
+                  <p className="font-medium flex items-center gap-2">
+                    <Mail className="w-3 h-3 text-gray-400" />
+                    {selectedSurvey.email || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">WhatsApp</p>
+                  <p className="font-medium flex items-center gap-2">
+                    <Phone className="w-3 h-3 text-gray-400" />
+                    {selectedSurvey.phone || "-"}
+                  </p>
+                </div>
+              </div>
+              {/* Consents */}
+              <div className="mt-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  {selectedSurvey.wantFollowUp ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : <XCircle className="w-4 h-4 text-gray-300" />}
+                  <span className={`text-sm ${selectedSurvey.wantFollowUp ? 'text-gray-700' : 'text-gray-400'}`}>Bersedia dihubungi kembali</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedSurvey.privacyConsent ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : <XCircle className="w-4 h-4 text-gray-300" />}
+                  <span className={`text-sm ${selectedSurvey.privacyConsent ? 'text-gray-700' : 'text-gray-400'}`}>Menyetujui Kebijakan Privasi</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedSurvey.marketingConsent ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : <XCircle className="w-4 h-4 text-gray-300" />}
+                  <span className={`text-sm ${selectedSurvey.marketingConsent ? 'text-gray-700' : 'text-gray-400'}`}>Menyetujui Info Promosi (Marketing)</span>
+                </div>
+              </div>
+              {/* Data Payload */}
+              <div className="border-t border-gray-100 pt-6">
+                <h3 className="font-bold text-gray-800 mb-4">Rincian Jawaban</h3>
+                <div className="space-y-2">
+                  {selectedSurvey.data && Object.entries(selectedSurvey.data).map(([k, v]: any, idx: number) => (
+                    <div key={idx} className="bg-gray-50 p-3 rounded-lg flex justify-between items-center">
+                      <span className="text-sm text-gray-600 capitalize">{k}</span>
+                      <span className="font-medium text-gray-800">{typeof v === 'string' ? v : JSON.stringify(v)}</span>
+                    </div>
+                  ))}
+                  {!selectedSurvey.data && (
+                    <div className="text-sm text-gray-500">Tidak ada data</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bug & Feature Request Section (Semua user) */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -382,8 +732,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Analytics Dashboard for HR, GM, Finance, Store, HOD, Supervisor */}
-      {(user.role === 'HR' || user.role === 'GM' || user.role === 'FINANCE' || user.role === 'STORE' || user.role === 'SUPERVISOR' || user.role === 'HOD' || user.role === 'PHOTOGRAPHER_HOD' || user.role === 'MERCHANDISE_HOD' || user.role === 'MERCHANDISE_SPV') && (
+      {/* Analytics Dashboard for HR, GM, Finance, Store, HOD, Supervisor, Staff */}
+      {(user.role === 'HR' || user.role === 'GM' || user.role === 'FINANCE' || user.role === 'STORE' || user.role === 'SUPERVISOR' || user.role === 'HOD' || user.role === 'PHOTOGRAPHER_HOD' || user.role === 'MERCHANDISE_HOD' || user.role === 'MERCHANDISE_SPV' || user.role === 'STAFF') && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <AnalyticsDashboard />
         </div>

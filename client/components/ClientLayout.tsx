@@ -9,13 +9,13 @@ import { Menu, X, LogOut } from "lucide-react";
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
     const { user, logout } = useAuth();
-    const pathname = usePathname();
-    const isPublicPage = pathname === "/login" || pathname === "/customer-feedback";
+    const pathname = usePathname() || "";
+    const isPublicPage = pathname === "/login" || pathname === "/customer-feedback" || pathname.startsWith("/public-survey");
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
 
     return (
-        <div className="flex min-h-screen bg-gray-100">
+        <div className="flex min-h-screen bg-gray-100 overflow-x-hidden">
             {!isPublicPage && (
                 <>
                     {/* Mobile Header */}
@@ -107,13 +107,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             )}
             
             <main className={`
-                flex-1 flex flex-col transition-all duration-300 
+                flex-1 min-w-0 flex flex-col transition-all duration-300 overflow-x-hidden
                 ${!isPublicPage ? 'pt-20 md:pt-0 md:ml-64 bg-gray-50' : 'w-full'}
             `}>
                 {!isPublicPage && (
                     <div className="hidden md:flex sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-200 px-8 py-4 justify-between items-center">
                         <h2 className="text-xl font-bold text-gray-800 capitalize">
-                            {pathname === '/' ? 'Dashboard' : pathname.split('/')[1] || 'Dashboard'}
+                            {(pathname || '/') === '/' ? 'Dashboard' : (pathname || '').split('/')[1] || 'Dashboard'}
                         </h2>
                         <div className="flex items-center gap-6">
                             <NotificationBell />
@@ -176,14 +176,14 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                         </div>
                     </div>
                 )}
-                <div className={`${!isPublicPage ? "p-4 md:p-8" : ""} flex-1`}>
+                <div className={`${!isPublicPage ? "p-4 md:p-8" : ""} flex-1 min-w-0`}>
                     {children}
                 </div>
 
                 {!isPublicPage && (
                     <footer className="py-6 text-center text-sm text-gray-500 border-t border-gray-200 bg-gray-50 mt-auto">
                         <p className="font-semibold text-[#0F4D39]">The Lodge Ranger System</p>
-                        <p>Versi 1.0.1</p>
+                        <p>Versi 1.1.51</p>
                     </footer>
                 )}
             </main>
