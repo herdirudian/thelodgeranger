@@ -292,48 +292,60 @@ export default function VotingPage() {
                     ? (rookieNominees.find(p => String(p.id) === currentVal) || allRookiePhotos.find(p => String(p.candidateUserId) === currentVal))
                     : null;
 
-                  return (
-                    <div key={c.key} className="rounded-xl border border-gray-200 bg-white p-5 flex flex-col">
-                      <div className="flex items-start justify-between gap-3 mb-auto">
-                        <div>
-                          <div className="text-base font-bold text-gray-900">{c.title}</div>
-                          {c.description && <div className="text-sm text-gray-600 mt-1">{c.description}</div>}
+                  if (c.key === 'BEST_ROOKIE_OF_THE_YEAR') {
+                    return (
+                      <div key={c.key} className="col-span-1 md:col-span-2 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                        <div className="flex items-center justify-between mb-6">
+                          <div>
+                            <h3 className="text-xl font-bold text-gray-900">{c.title}</h3>
+                            <p className="text-sm text-gray-600 mt-1">{c.description}</p>
+                          </div>
+                          {savingKey === c.key && <Loader2 className="w-5 h-5 animate-spin text-[#0F4D39]" />}
                         </div>
-                        {savingKey === c.key ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-gray-500 mt-1" />
-                        ) : (
-                          <Save className="w-4 h-4 text-gray-400 mt-1" />
-                        )}
-                      </div>
 
-                      {rookieNominee?.photoUrl && (
-                        <div className="mt-4 flex justify-center">
-                          <img 
-                            src={rookieNominee.photoUrl.startsWith('http') ? rookieNominee.photoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${rookieNominee.photoUrl}`}
-                            alt="Candidate"
-                            className="w-32 h-32 object-cover rounded-xl border-2 border-[#0F4D39]/20 shadow-md"
-                          />
-                        </div>
-                      )}
-
-                      {/* Display a small gallery of nominees for Best Rookie so staff can see photos before voting */}
-                      {c.key === 'BEST_ROOKIE_OF_THE_YEAR' && rookieNominees.length > 0 && !currentVal && (
-                        <div className="mt-4 flex flex-wrap justify-center gap-2">
-                          {rookieNominees.map(nom => (
-                            <div key={nom.id} className="text-center">
-                              <img 
-                                src={nom.photoUrl.startsWith('http') ? nom.photoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${nom.photoUrl}`}
-                                alt={nom.name}
-                                className="w-12 h-12 object-cover rounded-full border border-gray-200 grayscale hover:grayscale-0 cursor-pointer transition-all"
-                                title={nom.name}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                          {rookieNominees.map((nom) => {
+                            const isSelected = currentVal === String(nom.id);
+                            return (
+                              <div 
+                                key={nom.id}
                                 onClick={() => handleSelect(c, String(nom.id))}
-                              />
-                            </div>
-                          ))}
+                                className={`relative flex flex-col items-center p-3 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-lg ${
+                                  isSelected 
+                                    ? 'border-[#0F4D39] bg-[#0F4D39]/5 scale-105' 
+                                    : 'border-transparent bg-gray-50 hover:border-gray-300'
+                                }`}
+                              >
+                                <div className="relative w-full aspect-square mb-3 overflow-hidden rounded-xl">
+                                  <img 
+                                    src={nom.photoUrl.startsWith('http') ? nom.photoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${nom.photoUrl}`}
+                                    alt={nom.name}
+                                    className={`w-full h-full object-cover transition-transform duration-500 ${isSelected ? 'scale-110' : ''}`}
+                                  />
+                                  {isSelected && (
+                                    <div className="absolute inset-0 bg-[#0F4D39]/20 flex items-center justify-center">
+                                      <div className="bg-white rounded-full p-1 shadow-md">
+                                        <CheckCircle2 className="w-6 h-6 text-[#0F4D39]" />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-center">
+                                  <p className={`text-sm font-bold leading-tight ${isSelected ? 'text-[#0F4D39]' : 'text-gray-900'}`}>
+                                    {nom.name}
+                                  </p>
+                                  <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">{nom.department}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      )}
+                      </div>
+                    );
+                  }
 
-                      <div className="mt-4">
+                  return (
+                    <div key={c.key} className="rounded-xl border border-gray-200 bg-white p-5 flex flex-col shadow-sm">
                         {c.targetType === "USER" ? (
                           <select
                             value={currentVal}
