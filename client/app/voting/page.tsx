@@ -36,6 +36,13 @@ export default function VotingPage() {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Admin/HR states for Rookie Photo Management
+  const [rookiePhotos, setRookiePhotos] = useState<any[]>([]);
+  const [selectedRookieId, setSelectedRookieId] = useState<string>("");
+  const [isUploading, setIsUploading] = useState(false);
+
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'HR' || user?.role === 'GM';
+
   const userOptions = useMemo(() => {
     const list = [...users];
     list.sort((a, b) => a.name.localeCompare(b.name));
@@ -44,7 +51,10 @@ export default function VotingPage() {
 
   useEffect(() => {
     fetchBallot();
-  }, []);
+    if (isAdmin) {
+      fetchAdminData();
+    }
+  }, [user]);
 
   const fetchBallot = async () => {
     try {
@@ -59,6 +69,49 @@ export default function VotingPage() {
       setError(e?.response?.data?.message || e.message || "Gagal memuat voting");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAdminData = async () => {
+    try {
+      const pRes = await api.get('/voting/admin/rookie-photos');
+      setRookiePhotos(pRes.data);
+    } catch (error) {
+      console.error('Error fetching admin voting data:', error);
+    }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedRookieId) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('candidateUserId', selectedRookieId);
+
+    setIsUploading(true);
+    try {
+      await api.post('/voting/admin/rookie-photo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert("Foto berhasil diunggah!");
+      fetchAdminData();
+      fetchBallot(); // Refresh ballot to show new photos
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Gagal mengunggah foto");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeletePhoto = async (candidateUserId: number) => {
+    if (!confirm("Hapus foto ini?")) return;
+    try {
+      await api.delete(`/voting/admin/rookie-photo/${candidateUserId}`);
+      fetchAdminData();
+      fetchBallot();
+    } catch (error) {
+      alert("Gagal menghapus foto");
     }
   };
 
@@ -116,6 +169,79 @@ export default function VotingPage() {
         </button>
       </div>
 
+      {isAdmin && (
+        <div className="mb-10 bg-[#0F4D39]/5 border border-[#0F4D39]/20 rounded-xl p-6">
+          <h2 className="text-lg font-bold text-[#0F4D39] mb-4">Management: Foto Kandidat Best Rookie</h2>
+          <div className="flex flex-col md:flex-row items-end gap-4 mb-6">
+            <div className="flex-1 w-full">
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Pilih Karyawan</label>
+              <select
+                value={selectedRookieId}
+                onChange={(e) => setSelectedRookieId(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4D39]/40"
+              >
+                <option value="">-- Pilih --</option>
+                {userOptions.map(u => (
+                  <option key={u.id} value={u.id}>{u.name} ({u.department})</option>
+                ))}
+              </select>
+            </div>
+            <div className="w-full md:w-auto">
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Upload Foto</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+                disabled={!selectedRookieId || isUploading}
+                className="hidden"
+                id="rookie-photo-upload"
+              />
+              <label
+                htmlFor="rookie-photo-upload"
+                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer ${
+                  !selectedRookieId || isUploading
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-[#0F4D39] text-white hover:bg-[#0d3f2f]'
+                }`}
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Mengunggah...
+                  </>
+                ) : (
+                  <>
+                    <Award className="w-4 h-4" />
+                    Pilih & Upload
+                  </>
+                )}
+              </label>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {rookiePhotos.map(p => (
+              <div key={p.candidateUserId} className="relative group rounded-xl overflow-hidden border border-gray-200 bg-white">
+                <img
+                  src={p.photoUrl.startsWith('http') ? p.photoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${p.photoUrl}`}
+                  className="w-full aspect-square object-cover"
+                  alt={p.candidateUser?.name}
+                />
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 text-center">
+                  <p className="text-white text-xs font-bold mb-2">{p.candidateUser?.name}</p>
+                  <button
+                    onClick={() => handleDeletePhoto(p.candidateUserId)}
+                    className="px-2 py-1 bg-red-600 text-white text-[10px] rounded hover:bg-red-700 transition-colors"
+                  >
+                    Hapus
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-14 text-gray-600">
           <Loader2 className="w-5 h-5 animate-spin mr-2" />
@@ -142,9 +268,13 @@ export default function VotingPage() {
                         : ""
                       : vote.candidateDepartment || "";
 
+                  const rookiePhoto = c.key === 'best_rookie' && currentVal 
+                    ? rookiePhotos.find(p => p.candidateUserId === parseInt(currentVal))
+                    : null;
+
                   return (
-                    <div key={c.key} className="rounded-xl border border-gray-200 bg-white p-5">
-                      <div className="flex items-start justify-between gap-3">
+                    <div key={c.key} className="rounded-xl border border-gray-200 bg-white p-5 flex flex-col">
+                      <div className="flex items-start justify-between gap-3 mb-auto">
                         <div>
                           <div className="text-base font-bold text-gray-900">{c.title}</div>
                           {c.description && <div className="text-sm text-gray-600 mt-1">{c.description}</div>}
@@ -155,6 +285,16 @@ export default function VotingPage() {
                           <Save className="w-4 h-4 text-gray-400 mt-1" />
                         )}
                       </div>
+
+                      {rookiePhoto && (
+                        <div className="mt-4 flex justify-center">
+                          <img 
+                            src={rookiePhoto.photoUrl.startsWith('http') ? rookiePhoto.photoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${rookiePhoto.photoUrl}`}
+                            alt="Candidate"
+                            className="w-32 h-32 object-cover rounded-xl border-2 border-[#0F4D39]/20"
+                          />
+                        </div>
+                      )}
 
                       <div className="mt-4">
                         {c.targetType === "USER" ? (
