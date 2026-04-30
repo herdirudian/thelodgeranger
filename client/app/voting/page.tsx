@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { Award, Loader2, Save } from "lucide-react";
+import { Award, CheckCircle2, Loader2, Save } from "lucide-react";
 
 type VotingCategory = {
   id: number;
