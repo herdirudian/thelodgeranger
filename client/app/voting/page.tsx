@@ -55,22 +55,10 @@ export default function VotingPage() {
 
   useEffect(() => {
     fetchBallot();
-    fetchRookiePhotos(); // Fetch for everyone
     if (isAdmin) {
       fetchAdminData();
     }
   }, [user, isAdmin]);
-
-  const fetchRookiePhotos = async () => {
-    try {
-      // Use a public-ish endpoint if available, or just the admin one if allowed for all roles
-      // For now, let's use the one we have and check if backend allows it
-      const res = await api.get('/voting/admin/rookie-photos');
-      setAllRookiePhotos(res.data);
-    } catch (error) {
-      console.error('Error fetching rookie photos:', error);
-    }
-  };
 
   const fetchBallot = async () => {
     try {
@@ -80,6 +68,7 @@ export default function VotingPage() {
       setCategories(res.data.categories || []);
       setUsers(res.data.options?.users || []);
       setRookieNominees(res.data.options?.rookieNominees || []);
+      setAllRookiePhotos(res.data.options?.rookiePhotos || []);
       setDepartments(res.data.options?.departments || []);
       setMyVotes(res.data.myVotes || {});
     } catch (e: any) {
@@ -127,7 +116,6 @@ export default function VotingPage() {
       alert("Foto kandidat berhasil ditambahkan!");
       setSelectedRookieId("");
       fetchAdminData();
-      fetchRookiePhotos(); // Refresh for everyone
       fetchBallot(); // Refresh ballot to show new photos
     } catch (error: any) {
       alert(error.response?.data?.message || "Gagal mengunggah foto");
@@ -141,7 +129,6 @@ export default function VotingPage() {
     try {
       await api.delete(`/voting/admin/rookie-photo/${candidateUserId}`);
       fetchAdminData();
-      fetchRookiePhotos();
       fetchBallot();
     } catch (error) {
       alert("Gagal menghapus foto");

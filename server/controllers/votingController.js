@@ -141,7 +141,11 @@ exports.getBallot = async (req, res) => {
       options: { 
         users, 
         departments,
-        rookieNominees // specifically for BEST_ROOKIE_OF_THE_YEAR
+        rookieNominees, // specifically for BEST_ROOKIE_OF_THE_YEAR
+        rookiePhotos: rookieNominees.map(n => ({
+          candidateUserId: n.id,
+          photoUrl: n.photoUrl
+        }))
       },
       myVotes
     });
