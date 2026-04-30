@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { format, differenceInDays } from "date-fns";
@@ -9,8 +10,25 @@ import { User, Calendar, Trash2, Edit2, Plus, Download, Bug, Settings2, Info, Me
 import { ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 export default function AdminPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading Admin Dashboard...</div>}>
+      <AdminContent />
+    </Suspense>
+  );
+}
+
+function AdminContent() {
   const { user, refreshUser } = useAuth();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState("staff");
+
+  // Effect to handle tab from URL
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && ['staff', 'schedule', 'contracts', 'approval', 'whatsapp', 'voting', 'bugs'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
   
   // Data
   const [users, setUsers] = useState<any[]>([]);

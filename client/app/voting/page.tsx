@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { Award, CheckCircle2, Loader2, Save } from "lucide-react";
+import { Award, BarChart2, CheckCircle2, Loader2, Save } from "lucide-react";
+import Link from "next/link";
 
 type VotingCategory = {
   id: number;
@@ -196,23 +197,32 @@ export default function VotingPage() {
   if (!user) return null;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <div className="flex items-start justify-between gap-4 mb-6">
+    <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Award className="w-6 h-6 text-[#0F4D39]" />
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <Award className="w-8 h-8 text-[#0F4D39]" />
             Voting Awards
           </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Pilih 1 vote untuk tiap kategori.
-          </p>
+          <p className="text-gray-600 mt-2">Pilih 1 vote untuk tiap kategori.</p>
         </div>
-        <button
-          onClick={fetchBallot}
-          className="px-4 py-2 rounded-lg bg-[#0F4D39] text-white text-sm font-semibold hover:bg-[#0d3f2f] transition-colors"
-        >
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          {isAdmin && (
+            <Link 
+              href="/admin?tab=voting" 
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0F4D39]/10 text-[#0F4D39] font-bold hover:bg-[#0F4D39]/20 transition-colors"
+            >
+              <BarChart2 className="w-4 h-4" />
+              Lihat Overview (Admin)
+            </Link>
+          )}
+          <button
+            onClick={fetchBallot}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0F4D39] text-white font-bold hover:bg-[#0d3f2f] transition-colors"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       {isAdmin && (
