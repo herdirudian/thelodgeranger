@@ -35,6 +35,7 @@ export default function VotingPage() {
   const [departments, setDepartments] = useState<string[]>([]);
   const [myVotes, setMyVotes] = useState<Record<string, MyVote>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [isSubmittingAll, setIsSubmittingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Additional state for displaying all rookie nominee photos
@@ -135,26 +136,51 @@ export default function VotingPage() {
     }
   };
 
-  const handleSelect = async (category: VotingCategory, value: string) => {
-    setSavingKey(category.key);
-    setError(null);
+  const handleSelect = (category: VotingCategory, value: string) => {
+    setMyVotes((prev) => ({
+      ...prev,
+      [category.key]:
+        category.targetType === "USER"
+          ? { candidateUserId: parseInt(value, 10) || null, candidateDepartment: null }
+          : { candidateUserId: null, candidateDepartment: value || null },
+    }));
+  };
+
+  const handleSubmitAll = async () => {
+    // Validate: All categories must be filled
+    const missing = categories.filter(c => {
+      const vote = myVotes[c.key];
+      if (!vote) return true;
+      if (c.targetType === 'USER' && !vote.candidateUserId) return true;
+      if (c.targetType === 'DEPARTMENT' && !vote.candidateDepartment) return true;
+      return false;
+    });
+
+    if (missing.length > 0) {
+      alert(`Mohon lengkapi semua kategori sebelum submit. Belum diisi: ${missing.map(m => m.title).join(', ')}`);
+      return;
+    }
+
+    if (!confirm("Kirim hasil voting Anda sekarang? Anda masih bisa mengubahnya nanti jika diperlukan.")) return;
+
+    setIsSubmittingAll(true);
     try {
-      const next: Record<string, MyVote> = { ...myVotes };
-      if (category.targetType === "USER") {
-        const id = parseInt(value, 10);
-        next[category.key] = { candidateUserId: Number.isNaN(id) ? null : id, candidateDepartment: null };
-        setMyVotes(next);
-        await api.post("/voting/vote", { categoryKey: category.key, candidateUserId: id });
-      } else {
-        next[category.key] = { candidateUserId: null, candidateDepartment: value || null };
-        setMyVotes(next);
-        await api.post("/voting/vote", { categoryKey: category.key, candidateDepartment: value });
-      }
+      const promises = categories.map(c => {
+        const vote = myVotes[c.key];
+        return api.post("/voting/vote", {
+          categoryKey: c.key,
+          candidateUserId: vote.candidateUserId,
+          candidateDepartment: vote.candidateDepartment,
+        });
+      });
+
+      await Promise.all(promises);
+      alert("Voting berhasil dikirim! Terima kasih atas partisipasi Anda.");
+      fetchBallot();
     } catch (e: any) {
-      setError(e?.response?.data?.message || e.message || "Gagal menyimpan vote");
-      await fetchBallot();
+      alert(e?.response?.data?.message || "Gagal mengirim voting");
     } finally {
-      setSavingKey(null);
+      setIsSubmittingAll(false);
     }
   };
 
@@ -394,6 +420,31 @@ export default function VotingPage() {
               </div>
             </div>
           ))}
+
+          <div className="mt-12 flex flex-col items-center border-t border-gray-200 pt-10 pb-20">
+            <p className="text-sm text-gray-500 mb-4 italic">Pastikan Anda telah mengisi semua kategori di atas.</p>
+            <button
+              onClick={handleSubmitAll}
+              disabled={isSubmittingAll}
+              className={`flex items-center gap-3 px-10 py-4 rounded-2xl text-lg font-bold shadow-lg transition-all transform hover:scale-105 active:scale-95 ${
+                isSubmittingAll 
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                  : 'bg-[#0F4D39] text-white hover:bg-[#0d3f2f] hover:shadow-[#0F4D39]/20'
+              }`}
+            >
+              {isSubmittingAll ? (
+                <>
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  Mengirim Voting...
+                </>
+              ) : (
+                <>
+                  <Award className="w-6 h-6" />
+                  Submit Hasil Voting
+                </>
+              )}
+            </button>
+          </div>
         </>
       )}
     </div>

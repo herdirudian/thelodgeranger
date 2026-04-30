@@ -39,6 +39,32 @@ export default function AdminPage() {
   const [rookieCandidateUserId, setRookieCandidateUserId] = useState<string>('');
   const [rookieUploading, setRookieUploading] = useState(false);
   const [rookieSearch, setRookieSearch] = useState('');
+  
+  const [votingSearch, setVotingSearch] = useState("");
+  const [selectedVotingCategory, setSelectedVotingCategory] = useState("");
+
+  const filteredVotingResults = useMemo(() => {
+    let filtered = [...votingResults];
+    
+    if (selectedVotingCategory) {
+      filtered = filtered.filter(cat => cat.key === selectedVotingCategory);
+    }
+
+    if (votingSearch.trim()) {
+      const q = votingSearch.toLowerCase();
+      filtered = filtered.map(cat => ({
+        ...cat,
+        items: (cat.items || []).filter((it: any) => {
+          const name = (cat.targetType === 'DEPARTMENT' ? it.candidateDepartment : it.name) || '';
+          const dept = it.department || '';
+          return name.toLowerCase().includes(q) || dept.toLowerCase().includes(q);
+        })
+      })).filter(cat => cat.items.length > 0);
+    }
+
+    return filtered;
+  }, [votingResults, votingSearch, selectedVotingCategory]);
+
   const waFiltered = waUsers.filter(u => {
     const q = waSearch.trim().toLowerCase();
     if (!q) return true;
@@ -1242,33 +1268,59 @@ export default function AdminPage() {
       {activeTab === 'voting' && (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <Award size={20} className="text-[#0F4D39]" />
-              Voting Results
-            </h2>
-            <button
-              type="button"
-              onClick={() => { fetchVotingResults(); fetchRookiePhotos(); }}
-              className="px-4 py-2 rounded bg-[#0F4D39] text-white"
-            >
-              Refresh
-            </button>
-          </div>
+             <h2 className="text-xl font-bold flex items-center gap-2">
+               <Award size={20} className="text-[#0F4D39]" />
+               Voting Overview
+             </h2>
+             <div className="flex flex-wrap items-center gap-3">
+               <input
+                 type="text"
+                 placeholder="Cari karyawan/departemen..."
+                 className="border border-gray-300 rounded px-3 py-1.5 text-sm w-48"
+                 value={votingSearch}
+                 onChange={e => setVotingSearch(e.target.value)}
+               />
+               <select
+                 className="border border-gray-300 rounded px-3 py-1.5 text-sm w-48 bg-white"
+                 value={selectedVotingCategory}
+                 onChange={e => setSelectedVotingCategory(e.target.value)}
+               >
+                 <option value="">Semua Kategori</option>
+                 {votingResults.map(r => (
+                   <option key={r.key} value={r.key}>{r.title}</option>
+                 ))}
+               </select>
+               <button
+                 type="button"
+                 onClick={() => { fetchVotingResults(); fetchRookiePhotos(); }}
+                 className="px-4 py-2 rounded bg-[#0F4D39] text-white text-sm font-bold"
+               >
+                 Refresh
+               </button>
+             </div>
+           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="border rounded-xl p-4">
-              <div className="font-bold mb-3">Hasil Voting</div>
-              {votingLoading ? (
-                <div className="text-sm text-gray-600">Memuat...</div>
-              ) : (
-                <div className="space-y-4">
-                  {votingResults.map((r: any) => (
-                    <div key={r.key} className="border rounded-lg p-3">
-                      <div className="text-sm font-bold text-gray-900">{r.title}</div>
-                      <div className="text-xs text-gray-500 mt-1">{r.group} • Total votes: {r.totalVotes || 0}</div>
-                      <div className="mt-3 space-y-2">
-                        {(r.items || []).slice(0, 5).map((it: any, idx: number) => (
-                          <div key={`${r.key}:${idx}`} className="flex items-center justify-between gap-3">
+           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+             <div className="border rounded-xl p-4">
+               <div className="font-bold mb-3">Hasil Voting (Rank)</div>
+               {votingLoading ? (
+                 <div className="text-sm text-gray-600">Memuat...</div>
+               ) : (
+                 <div className="space-y-4">
+                   {filteredVotingResults.map((r: any) => (
+                     <div key={r.key} className="border rounded-lg p-3 bg-gray-50/30">
+                       <div className="flex justify-between items-start">
+                         <div>
+                           <div className="text-sm font-bold text-gray-900">{r.title}</div>
+                           <div className="text-[10px] text-gray-500 uppercase tracking-tight">{r.group}</div>
+                         </div>
+                         <div className="bg-[#0F4D39]/10 text-[#0F4D39] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                           {r.totalVotes || 0} Votes
+                         </div>
+                       </div>
+                       <div className="mt-3 space-y-2">
+                         {(r.items || []).slice(0, 5).map((it: any, idx: number) => (
+                           <div key={`${r.key}:${idx}`} className="flex items-center justify-between gap-3 bg-white p-2 rounded border border-gray-100 shadow-sm">
                             <div className="flex items-center gap-3 min-w-0">
                               {r.key === 'BEST_ROOKIE_OF_THE_YEAR' && it.photoUrl ? (
                                 <img
