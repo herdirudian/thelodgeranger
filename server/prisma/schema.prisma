@@ -147,6 +147,7 @@ model User {
   publicSurveyAccesses PublicSurveyAccess[]
   votesGiven Vote[] @relation("VoteVoter")
   votesReceived Vote[] @relation("VoteCandidate")
+  voteCandidateMedia VoteCandidateMedia[]
 }
 
 model IndividualDevelopmentPlan {
@@ -698,6 +699,7 @@ model VotingCategory {
   updatedAt   DateTime         @updatedAt
 
   votes       Vote[]
+  candidateMedia VoteCandidateMedia[]
 }
 
 model Vote {
