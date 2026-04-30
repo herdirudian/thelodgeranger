@@ -176,7 +176,7 @@ exports.getBallot = async (req, res) => {
     const departments = [...new Set(users.map(u => u.department).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b)));
 
     const myVotesRaw = await prisma.vote.findMany({
-      where: { voterId: req.userId, categoryId: { in: categories.map(c => c.id) } },
+      where: { voterId: req.userId },
       select: { categoryId: true, candidateUserId: true, candidateDepartment: true }
     });
 
@@ -300,25 +300,38 @@ exports.getResults = async (req, res) => {
   try {
     await ensureCategories();
     const categories = await prisma.votingCategory.findMany({
-      where: { isActive: true },
       orderBy: [{ group: 'asc' }, { id: 'asc' }]
     });
 
     if (categories.length === 0) {
-      console.error('No active voting categories found in getResults');
+      console.error('No voting categories found in getResults');
     }
 
     const userMap = new Map();
     const results = [];
 
     for (const c of categories) {
+      // Find all votes for this category, regardless of isActive (to see past data if any)
+      const grouped = c.targetType === 'USER' 
+        ? await prisma.vote.groupBy({
+            by: ['candidateUserId'],
+            where: { categoryId: c.id, candidateUserId: { not: null } },
+            _count: { _all: true },
+            orderBy: { _count: { _all: 'desc' } }
+          })
+        : await prisma.vote.groupBy({
+            by: ['candidateDepartment'],
+            where: { categoryId: c.id, candidateDepartment: { not: null } },
+            _count: { _all: true },
+            orderBy: { _count: { _all: 'desc' } }
+          });
+
+      const totalVotes = grouped.reduce((sum, g) => sum + (g._count?._all || 0), 0);
+      
+      // If no votes and category is not active, skip it from overview
+      if (totalVotes === 0 && !c.isActive) continue;
+
       if (c.targetType === 'USER') {
-        const grouped = await prisma.vote.groupBy({
-          by: ['candidateUserId'],
-          where: { categoryId: c.id, candidateUserId: { not: null } },
-          _count: { _all: true },
-          orderBy: { _count: { _all: 'desc' } }
-        });
         const userIds = grouped.map(g => g.candidateUserId).filter(Boolean);
         if (userIds.length > 0) {
           const users = await prisma.user.findMany({
@@ -342,7 +355,7 @@ exports.getResults = async (req, res) => {
           group: c.group,
           title: c.title,
           targetType: c.targetType,
-          totalVotes: grouped.reduce((sum, g) => sum + (g._count?._all || 0), 0),
+          totalVotes,
           items: grouped.map(g => {
             const u = userMap.get(g.candidateUserId);
             return {
@@ -355,18 +368,12 @@ exports.getResults = async (req, res) => {
           })
         });
       } else if (c.targetType === 'DEPARTMENT') {
-        const grouped = await prisma.vote.groupBy({
-          by: ['candidateDepartment'],
-          where: { categoryId: c.id, candidateDepartment: { not: null } },
-          _count: { _all: true },
-          orderBy: { _count: { _all: 'desc' } }
-        });
         results.push({
           key: c.key,
           group: c.group,
           title: c.title,
           targetType: c.targetType,
-          totalVotes: grouped.reduce((sum, g) => sum + (g._count?._all || 0), 0),
+          totalVotes,
           items: grouped.map(g => ({
             candidateDepartment: g.candidateDepartment,
             count: g._count?._all || 0
