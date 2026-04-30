@@ -311,8 +311,25 @@ export default function VotingPage() {
                           <img 
                             src={rookieNominee.photoUrl.startsWith('http') ? rookieNominee.photoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${rookieNominee.photoUrl}`}
                             alt="Candidate"
-                            className="w-32 h-32 object-cover rounded-xl border-2 border-[#0F4D39]/20"
+                            className="w-32 h-32 object-cover rounded-xl border-2 border-[#0F4D39]/20 shadow-md"
                           />
+                        </div>
+                      )}
+
+                      {/* Display a small gallery of nominees for Best Rookie so staff can see photos before voting */}
+                      {c.key === 'BEST_ROOKIE_OF_THE_YEAR' && rookieNominees.length > 0 && !currentVal && (
+                        <div className="mt-4 flex flex-wrap justify-center gap-2">
+                          {rookieNominees.map(nom => (
+                            <div key={nom.id} className="text-center">
+                              <img 
+                                src={nom.photoUrl.startsWith('http') ? nom.photoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${nom.photoUrl}`}
+                                alt={nom.name}
+                                className="w-12 h-12 object-cover rounded-full border border-gray-200 grayscale hover:grayscale-0 cursor-pointer transition-all"
+                                title={nom.name}
+                                onClick={() => handleSelect(c, String(nom.id))}
+                              />
+                            </div>
+                          ))}
                         </div>
                       )}
 
