@@ -59,6 +59,19 @@ let hasSeeded = false;
 
 async function ensureCategories() {
   if (hasSeeded) return;
+
+  const keyMapping = {
+    'best_rookie': 'BEST_ROOKIE_OF_THE_YEAR',
+    'best_dept': 'BEST_DEPARTMENT_OF_THE_YEAR',
+    'fun_galak': 'SI_PALING_GALAK',
+    'fun_gosip': 'SI_PALING_GOSIP',
+    'SI_PALING_GOSIP_INFO_A1': 'SI_PALING_GOSIP',
+    'fun_heureuy': 'SI_PALING_HEUREUY',
+    'fun_someah': 'SI_PALING_SOMEAH',
+    'fun_eksis': 'SI_PALING_EKSIS'
+  };
+
+  // 1. Create/Update current categories
   for (const c of DEFAULT_CATEGORIES) {
     await prisma.votingCategory.upsert({
       where: { key: c.key },
@@ -79,6 +92,61 @@ async function ensureCategories() {
       }
     });
   }
+
+  // 2. Migrate data from old keys to new keys if they exist
+  const allCategories = await prisma.votingCategory.findMany();
+  const currentKeys = DEFAULT_CATEGORIES.map(c => c.key);
+
+  for (const oldKey in keyMapping) {
+    const newKey = keyMapping[oldKey];
+    const oldCat = allCategories.find(c => c.key === oldKey);
+    const newCat = allCategories.find(c => c.key === newKey);
+
+    if (oldCat && newCat && oldCat.id !== newCat.id) {
+      console.log(`Migrating voting data from ${oldKey} (id:${oldCat.id}) to ${newKey} (id:${newCat.id})`);
+      
+      // Migrate VoteCandidateMedia
+      await prisma.voteCandidateMedia.updateMany({
+        where: { categoryId: oldCat.id },
+        data: { categoryId: newCat.id }
+      });
+
+      // Migrate Votes
+      const oldVotes = await prisma.vote.findMany({ where: { categoryId: oldCat.id } });
+      for (const v of oldVotes) {
+        try {
+          await prisma.vote.upsert({
+            where: { categoryId_voterId: { categoryId: newCat.id, voterId: v.voterId } },
+            update: {
+              candidateUserId: v.candidateUserId,
+              candidateDepartment: v.candidateDepartment,
+              createdAt: v.createdAt
+            },
+            create: {
+              categoryId: newCat.id,
+              voterId: v.voterId,
+              candidateUserId: v.candidateUserId,
+              candidateDepartment: v.candidateDepartment,
+              createdAt: v.createdAt
+            }
+          });
+        } catch (e) {
+          console.error(`Failed to migrate vote for voter ${v.voterId}:`, e.message);
+        }
+      }
+
+      // Delete old category
+      await prisma.vote.deleteMany({ where: { categoryId: oldCat.id } });
+      await prisma.votingCategory.delete({ where: { id: oldCat.id } });
+    }
+  }
+
+  // 3. Deactivate any other categories that are not in current list
+  await prisma.votingCategory.updateMany({
+    where: { key: { notIn: currentKeys } },
+    data: { isActive: false }
+  });
+
   hasSeeded = true;
 }
 
