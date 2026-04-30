@@ -148,6 +148,7 @@ model User {
   votesGiven Vote[] @relation("VoteVoter")
   votesReceived Vote[] @relation("VoteCandidate")
   voteCandidateMedia VoteCandidateMedia[]
+  votingFinalized Boolean @default(false)
 }
 
 model IndividualDevelopmentPlan {

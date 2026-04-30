@@ -37,6 +37,7 @@ export default function VotingPage() {
   const [myVotes, setMyVotes] = useState<Record<string, MyVote>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [isSubmittingAll, setIsSubmittingAll] = useState(false);
+  const [isFinalized, setIsFinalized] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Additional state for displaying all rookie nominee photos
@@ -73,6 +74,7 @@ export default function VotingPage() {
       setAllRookiePhotos(res.data.options?.rookiePhotos || []);
       setDepartments(res.data.options?.departments || []);
       setMyVotes(res.data.myVotes || {});
+      setIsFinalized(res.data.isFinalized || false);
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message || "Gagal memuat voting");
     } finally {
@@ -138,6 +140,7 @@ export default function VotingPage() {
   };
 
   const handleSelect = (category: VotingCategory, value: string) => {
+    if (isFinalized) return;
     setMyVotes((prev) => ({
       ...prev,
       [category.key]:
@@ -148,6 +151,7 @@ export default function VotingPage() {
   };
 
   const handleSubmitAll = async () => {
+    if (isFinalized) return;
     // Validate: All categories must be filled
     const missing = categories.filter(c => {
       const vote = myVotes[c.key];
@@ -162,7 +166,7 @@ export default function VotingPage() {
       return;
     }
 
-    if (!confirm("Kirim hasil voting Anda sekarang? Anda masih bisa mengubahnya nanti jika diperlukan.")) return;
+    if (!confirm("Kirim hasil voting Anda sekarang? Setelah dikirim, Anda tidak dapat mengubah pilihan Anda lagi.")) return;
 
     setIsSubmittingAll(true);
     try {
@@ -176,7 +180,11 @@ export default function VotingPage() {
       });
 
       await Promise.all(promises);
-      alert("Voting berhasil dikirim! Terima kasih atas partisipasi Anda.");
+
+      // Finalize for this user
+      await api.post("/voting/finalize");
+
+      alert("Voting berhasil dikirim secara permanen! Terima kasih atas partisipasi Anda.");
       fetchBallot();
     } catch (e: any) {
       alert(e?.response?.data?.message || "Gagal mengirim voting");
@@ -346,10 +354,14 @@ export default function VotingPage() {
                               <div 
                                 key={nom.id}
                                 onClick={() => handleSelect(c, String(nom.id))}
-                                className={`relative flex flex-col items-center p-3 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-lg ${
-                                  isSelected 
-                                    ? 'border-[#0F4D39] bg-[#0F4D39]/5 scale-105' 
-                                    : 'border-transparent bg-gray-50 hover:border-gray-300'
+                                className={`relative flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${
+                                  isFinalized 
+                                    ? isSelected 
+                                      ? 'border-[#0F4D39] bg-[#0F4D39]/5 cursor-default' 
+                                      : 'border-transparent bg-gray-50 opacity-50 cursor-not-allowed'
+                                    : isSelected 
+                                      ? 'border-[#0F4D39] bg-[#0F4D39]/5 scale-105 cursor-pointer hover:shadow-lg' 
+                                      : 'border-transparent bg-gray-50 hover:border-gray-300 cursor-pointer hover:shadow-lg'
                                 }`}
                               >
                                 <div className="relative w-full aspect-square mb-3 overflow-hidden rounded-xl">
@@ -399,7 +411,8 @@ export default function VotingPage() {
                           <select
                             value={currentVal}
                             onChange={(e) => handleSelect(c, e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4D39]/40"
+                            disabled={isFinalized}
+                            className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4D39]/40 ${isFinalized ? 'bg-gray-100 cursor-not-allowed opacity-70' : 'bg-white'}`}
                           >
                             <option value="">Pilih karyawan</option>
                             {userOptions.map((u) => (
@@ -413,7 +426,8 @@ export default function VotingPage() {
                           <select
                             value={currentVal}
                             onChange={(e) => handleSelect(c, e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4D39]/40"
+                            disabled={isFinalized}
+                            className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4D39]/40 ${isFinalized ? 'bg-gray-100 cursor-not-allowed opacity-70' : 'bg-white'}`}
                           >
                             <option value="">Pilih departemen</option>
                             {departments.map((d) => (
@@ -432,28 +446,38 @@ export default function VotingPage() {
           ))}
 
           <div className="mt-12 flex flex-col items-center border-t border-gray-200 pt-10 pb-20">
-            <p className="text-sm text-gray-500 mb-4 italic">Pastikan Anda telah mengisi semua kategori di atas.</p>
-            <button
-              onClick={handleSubmitAll}
-              disabled={isSubmittingAll}
-              className={`flex items-center gap-3 px-10 py-4 rounded-2xl text-lg font-bold shadow-lg transition-all transform hover:scale-105 active:scale-95 ${
-                isSubmittingAll 
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                  : 'bg-[#0F4D39] text-white hover:bg-[#0d3f2f] hover:shadow-[#0F4D39]/20'
-              }`}
-            >
-              {isSubmittingAll ? (
-                <>
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                  Mengirim Voting...
-                </>
-              ) : (
-                <>
-                  <Award className="w-6 h-6" />
-                  Submit Hasil Voting
-                </>
-              )}
-            </button>
+            {isFinalized ? (
+              <div className="bg-green-50 border border-green-200 rounded-2xl p-6 flex flex-col items-center shadow-sm">
+                <CheckCircle2 className="w-12 h-12 text-green-600 mb-3" />
+                <h3 className="text-xl font-bold text-green-900">Voting Anda Sudah Terkirim</h3>
+                <p className="text-green-700 mt-1">Terima kasih atas partisipasi Anda. Pilihan Anda telah disimpan secara permanen.</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-gray-500 mb-4 italic">Pastikan Anda telah mengisi semua kategori di atas.</p>
+                <button
+                  onClick={handleSubmitAll}
+                  disabled={isSubmittingAll}
+                  className={`flex items-center gap-3 px-10 py-4 rounded-2xl text-lg font-bold shadow-lg transition-all transform hover:scale-105 active:scale-95 ${
+                    isSubmittingAll 
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                      : 'bg-[#0F4D39] text-white hover:bg-[#0d3f2f] hover:shadow-[#0F4D39]/20'
+                  }`}
+                >
+                  {isSubmittingAll ? (
+                    <>
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      Mengirim Voting...
+                    </>
+                  ) : (
+                    <>
+                      <Award className="w-6 h-6" />
+                      Submit Hasil Voting
+                    </>
+                  )}
+                </button>
+              </>
+            )}
           </div>
         </>
       )}

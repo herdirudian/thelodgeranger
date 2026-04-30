@@ -111,6 +111,8 @@ exports.getBallot = async (req, res) => {
       select: { categoryId: true, candidateUserId: true, candidateDepartment: true }
     });
 
+    const isFinalized = req.user?.votingFinalized || false;
+
     const catIdToKey = new Map(categories.map(c => [c.id, c.key]));
     const myVotes = {};
     for (const v of myVotesRaw) {
@@ -147,7 +149,8 @@ exports.getBallot = async (req, res) => {
           photoUrl: n.photoUrl
         }))
       },
-      myVotes
+      myVotes,
+      isFinalized
     });
   } catch (error) {
     console.error('Voting getBallot error:', error);
@@ -159,6 +162,13 @@ exports.submitVote = async (req, res) => {
   try {
     await ensureCategories();
     const { categoryKey, candidateUserId, candidateDepartment } = req.body || {};
+
+    // Check if finalized
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (user?.votingFinalized) {
+      return res.status(403).json({ message: "Anda sudah melakukan submit voting dan tidak dapat mengubahnya lagi." });
+    }
+
     if (!categoryKey) return res.status(400).json({ message: 'categoryKey is required' });
 
     const category = await prisma.votingCategory.findUnique({ where: { key: String(categoryKey) } });
@@ -199,6 +209,20 @@ exports.submitVote = async (req, res) => {
   } catch (error) {
     console.error('Voting submitVote error:', error);
     return res.status(500).json({ message: 'Error saving vote', error: error.message });
+  }
+};
+
+exports.finalizeVoting = async (req, res) => {
+  try {
+    const userId = req.userId;
+    await prisma.user.update({
+      where: { id: userId },
+      data: { votingFinalized: true }
+    });
+    return res.json({ message: "Voting finalized" });
+  } catch (error) {
+    console.error('Voting finalize error:', error);
+    return res.status(500).json({ message: 'Error finalizing voting', error: error.message });
   }
 };
 
