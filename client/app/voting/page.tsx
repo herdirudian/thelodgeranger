@@ -37,6 +37,9 @@ export default function VotingPage() {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Additional state for displaying all rookie nominee photos
+  const [allRookiePhotos, setAllRookiePhotos] = useState<any[]>([]);
+
   // Admin/HR states for Rookie Photo Management
   const [rookiePhotos, setRookiePhotos] = useState<any[]>([]);
   const [selectedRookieId, setSelectedRookieId] = useState<string>("");
@@ -52,10 +55,22 @@ export default function VotingPage() {
 
   useEffect(() => {
     fetchBallot();
+    fetchRookiePhotos(); // Fetch for everyone
     if (isAdmin) {
       fetchAdminData();
     }
-  }, [user]);
+  }, [user, isAdmin]);
+
+  const fetchRookiePhotos = async () => {
+    try {
+      // Use a public-ish endpoint if available, or just the admin one if allowed for all roles
+      // For now, let's use the one we have and check if backend allows it
+      const res = await api.get('/voting/admin/rookie-photos');
+      setAllRookiePhotos(res.data);
+    } catch (error) {
+      console.error('Error fetching rookie photos:', error);
+    }
+  };
 
   const fetchBallot = async () => {
     try {
@@ -112,6 +127,7 @@ export default function VotingPage() {
       alert("Foto kandidat berhasil ditambahkan!");
       setSelectedRookieId("");
       fetchAdminData();
+      fetchRookiePhotos(); // Refresh for everyone
       fetchBallot(); // Refresh ballot to show new photos
     } catch (error: any) {
       alert(error.response?.data?.message || "Gagal mengunggah foto");
@@ -125,6 +141,7 @@ export default function VotingPage() {
     try {
       await api.delete(`/voting/admin/rookie-photo/${candidateUserId}`);
       fetchAdminData();
+      fetchRookiePhotos();
       fetchBallot();
     } catch (error) {
       alert("Gagal menghapus foto");
@@ -236,7 +253,7 @@ export default function VotingPage() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {rookiePhotos.map(p => (
+            {allRookiePhotos.map(p => (
               <div key={p.candidateUserId} className="relative group rounded-xl overflow-hidden border border-gray-200 bg-white">
                 <img
                   src={p.photoUrl.startsWith('http') ? p.photoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${p.photoUrl}`}
@@ -285,7 +302,7 @@ export default function VotingPage() {
                       : vote.candidateDepartment || "";
 
                   const rookieNominee = c.key === 'BEST_ROOKIE_OF_THE_YEAR' && currentVal 
-                    ? rookieNominees.find(p => String(p.id) === currentVal)
+                    ? (rookieNominees.find(p => String(p.id) === currentVal) || allRookiePhotos.find(p => String(p.candidateUserId) === currentVal))
                     : null;
 
                   return (
