@@ -311,22 +311,30 @@ exports.getResults = async (req, res) => {
     const results = [];
 
     for (const c of categories) {
-      // Find all votes for this category, regardless of isActive (to see past data if any)
+      // Find all votes for this category
       const grouped = c.targetType === 'USER' 
         ? await prisma.vote.groupBy({
             by: ['candidateUserId'],
             where: { categoryId: c.id, candidateUserId: { not: null } },
-            _count: { _all: true },
-            orderBy: { _count: { _all: 'desc' } }
+            _count: { candidateUserId: true }
           })
         : await prisma.vote.groupBy({
             by: ['candidateDepartment'],
             where: { categoryId: c.id, candidateDepartment: { not: null } },
-            _count: { _all: true },
-            orderBy: { _count: { _all: 'desc' } }
+            _count: { candidateDepartment: true }
           });
 
-      const totalVotes = grouped.reduce((sum, g) => sum + (g._count?._all || 0), 0);
+      // Sort in JS to avoid Prisma groupBy orderBy issues
+      grouped.sort((a, b) => {
+        const countA = c.targetType === 'USER' ? (a._count?.candidateUserId || 0) : (a._count?.candidateDepartment || 0);
+        const countB = c.targetType === 'USER' ? (b._count?.candidateUserId || 0) : (b._count?.candidateDepartment || 0);
+        return countB - countA;
+      });
+
+      const totalVotes = grouped.reduce((sum, g) => {
+        const count = c.targetType === 'USER' ? (g._count?.candidateUserId || 0) : (g._count?.candidateDepartment || 0);
+        return sum + count;
+      }, 0);
       
       // If no votes and category is not active, skip it from overview
       if (totalVotes === 0 && !c.isActive) continue;
@@ -362,7 +370,7 @@ exports.getResults = async (req, res) => {
               candidateUserId: g.candidateUserId,
               name: u ? u.name : `User ${g.candidateUserId}`,
               department: u ? u.department : null,
-              count: g._count?._all || 0,
+              count: g._count?.candidateUserId || 0,
               photoUrl: c.key === BEST_ROOKIE_KEY ? (mediaMap.get(g.candidateUserId) || null) : null
             };
           })
@@ -376,7 +384,7 @@ exports.getResults = async (req, res) => {
           totalVotes,
           items: grouped.map(g => ({
             candidateDepartment: g.candidateDepartment,
-            count: g._count?._all || 0
+            count: g._count?.candidateDepartment || 0
           }))
         });
       }
