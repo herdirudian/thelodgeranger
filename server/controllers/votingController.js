@@ -14,7 +14,7 @@ const DEFAULT_CATEGORIES = [
   {
     key: 'BEST_DEPARTMENT_OF_THE_YEAR',
     group: 'Achievement Awards',
-    title: 'Best Departement of The Year',
+    title: 'Best Department of The Year',
     description: 'Diberikan kepada departemen yang menunjukkan kinerja terbaik melalui kolaborasi yang solid, pencapaian target, serta kontribusi signifikan terhadap keberhasilan perusahaan.',
     targetType: 'DEPARTMENT'
   },
@@ -22,35 +22,35 @@ const DEFAULT_CATEGORIES = [
     key: 'SI_PALING_GALAK',
     group: 'The Fun Awards',
     title: 'Si Paling Galak',
-    description: 'Si paling vokal yang selalu ngingetin dan memastikan semuanya tetap berjalan dengan baik.',
+    description: 'Si paling vokal yang selalu ngingetin dan memastikan semuanya tetap berjalan dengan baik 🔔',
     targetType: 'USER'
   },
   {
-    key: 'SI_PALING_GOSIP_INFO_A1',
+    key: 'SI_PALING_GOSIP',
     group: 'The Fun Awards',
     title: 'Si Paling Gosip (Info A1)',
-    description: 'Update tercepat, info terlengkap! Belum rame aja dia udah tahu duluan.',
+    description: 'Update tercepat, info terlengkap! Belum rame aja dia udah tahu duluan 📢',
     targetType: 'USER'
   },
   {
     key: 'SI_PALING_HEUREUY',
     group: 'The Fun Awards',
     title: 'Si Paling Heureuy',
-    description: 'Si pembawa vibes seru yang bikin hari kerja jadi lebih menyenangkan!',
+    description: 'Si pembawa vibes seru yang bikin hari kerja jadi lebih menyenangkan! 🥳',
     targetType: 'USER'
   },
   {
     key: 'SI_PALING_SOMEAH',
     group: 'The Fun Awards',
     title: 'Si Paling Someah',
-    description: 'Senyum ramahnya bikin hari lebih baik. Paling hangat, paling welcoming, dan enak diajak ngobrol!',
+    description: 'Senyum ramahnya bikin hari lebih baik. Paling hangat, paling welcoming, dan enak diajak ngobrol! 🧚🏻‍♀️',
     targetType: 'USER'
   },
   {
     key: 'SI_PALING_EKSIS',
     group: 'The Fun Awards',
     title: 'Si Paling Eksis',
-    description: 'Selalu hadir di segala momen. Energinya nggak pernah habis!',
+    description: 'Selalu hadir di segala momen. Energinya nggak pernah habis!⚡',
     targetType: 'USER'
   }
 ];
