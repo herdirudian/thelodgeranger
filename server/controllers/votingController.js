@@ -122,9 +122,27 @@ exports.getBallot = async (req, res) => {
       };
     }
 
+    // Special logic for nominees
+    const rookieCategory = categories.find(c => c.key === BEST_ROOKIE_KEY);
+    let rookieNominees = [];
+    if (rookieCategory) {
+      const media = await prisma.voteCandidateMedia.findMany({
+        where: { categoryId: rookieCategory.id },
+        include: { candidateUser: { select: { id: true, name: true, department: true, role: true } } }
+      });
+      rookieNominees = media.map(m => ({
+        ...m.candidateUser,
+        photoUrl: m.photoUrl
+      }));
+    }
+
     return res.json({
       categories,
-      options: { users, departments },
+      options: { 
+        users, 
+        departments,
+        rookieNominees // specifically for BEST_ROOKIE_OF_THE_YEAR
+      },
       myVotes
     });
   } catch (error) {

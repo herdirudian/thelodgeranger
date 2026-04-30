@@ -31,6 +31,7 @@ export default function VotingPage() {
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<VotingCategory[]>([]);
   const [users, setUsers] = useState<BallotUser[]>([]);
+  const [rookieNominees, setRookieNominees] = useState<any[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
   const [myVotes, setMyVotes] = useState<Record<string, MyVote>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -63,6 +64,7 @@ export default function VotingPage() {
       const res = await api.get("/voting/ballot");
       setCategories(res.data.categories || []);
       setUsers(res.data.options?.users || []);
+      setRookieNominees(res.data.options?.rookieNominees || []);
       setDepartments(res.data.options?.departments || []);
       setMyVotes(res.data.myVotes || {});
     } catch (e: any) {
@@ -91,10 +93,24 @@ export default function VotingPage() {
 
     setIsUploading(true);
     try {
-      await api.post('/voting/admin/rookie-photo', formData, {
+      // 1. Upload file to general upload endpoint
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      
+      const upRes = await api.post('/upload', uploadData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      alert("Foto berhasil diunggah!");
+      
+      const photoUrl = upRes.data.url;
+
+      // 2. Save to voting candidate media
+      await api.post('/voting/admin/rookie-photo', {
+        candidateUserId: parseInt(selectedRookieId),
+        photoUrl
+      });
+
+      alert("Foto kandidat berhasil ditambahkan!");
+      setSelectedRookieId("");
       fetchAdminData();
       fetchBallot(); // Refresh ballot to show new photos
     } catch (error: any) {
@@ -268,8 +284,8 @@ export default function VotingPage() {
                         : ""
                       : vote.candidateDepartment || "";
 
-                  const rookiePhoto = c.key === 'best_rookie' && currentVal 
-                    ? rookiePhotos.find(p => p.candidateUserId === parseInt(currentVal))
+                  const rookieNominee = c.key === 'BEST_ROOKIE_OF_THE_YEAR' && currentVal 
+                    ? rookieNominees.find(p => String(p.id) === currentVal)
                     : null;
 
                   return (
@@ -286,10 +302,10 @@ export default function VotingPage() {
                         )}
                       </div>
 
-                      {rookiePhoto && (
+                      {rookieNominee?.photoUrl && (
                         <div className="mt-4 flex justify-center">
                           <img 
-                            src={rookiePhoto.photoUrl.startsWith('http') ? rookiePhoto.photoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${rookiePhoto.photoUrl}`}
+                            src={rookieNominee.photoUrl.startsWith('http') ? rookieNominee.photoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${rookieNominee.photoUrl}`}
                             alt="Candidate"
                             className="w-32 h-32 object-cover rounded-xl border-2 border-[#0F4D39]/20"
                           />
@@ -304,12 +320,25 @@ export default function VotingPage() {
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4D39]/40"
                           >
                             <option value="">Pilih karyawan</option>
-                            {userOptions.map((u) => (
-                              <option key={u.id} value={u.id}>
-                                {u.name}
-                                {u.department ? ` (${u.department})` : ""}
-                              </option>
-                            ))}
+                            {c.key === 'BEST_ROOKIE_OF_THE_YEAR' ? (
+                              <>
+                                {rookieNominees.map((u) => (
+                                  <option key={u.id} value={u.id}>
+                                    {u.name}
+                                    {u.department ? ` (${u.department})` : ""}
+                                  </option>
+                                ))}
+                              </>
+                            ) : (
+                              <>
+                                {userOptions.map((u) => (
+                                  <option key={u.id} value={u.id}>
+                                    {u.name}
+                                    {u.department ? ` (${u.department})` : ""}
+                                  </option>
+                                ))}
+                              </>
+                            )}
                           </select>
                         ) : (
                           <select
