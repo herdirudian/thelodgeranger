@@ -397,6 +397,23 @@ exports.getResults = async (req, res) => {
   }
 };
 
+exports.resetAllVotes = async (req, res) => {
+  try {
+    // 1. Delete all records from Vote table
+    await prisma.vote.deleteMany({});
+    
+    // 2. Reset votingFinalized status for all users
+    await prisma.user.updateMany({
+      data: { votingFinalized: false }
+    });
+
+    return res.json({ message: 'Semua data voting telah dihapus dan status user telah di-reset.' });
+  } catch (error) {
+    console.error('Voting resetAllVotes error:', error);
+    return res.status(500).json({ message: 'Gagal menghapus data voting', error: error.message });
+  }
+};
+
 exports.getRookiePhotos = async (req, res) => {
   try {
     await ensureCategories();

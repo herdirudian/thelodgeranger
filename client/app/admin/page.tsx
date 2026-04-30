@@ -56,6 +56,7 @@ function AdminContent() {
   const [rookiePhotos, setRookiePhotos] = useState<any[]>([]);
   const [rookieCandidateUserId, setRookieCandidateUserId] = useState<string>('');
   const [rookieUploading, setRookieUploading] = useState(false);
+  const [isResettingVoting, setIsResettingVoting] = useState(false);
   const [rookieSearch, setRookieSearch] = useState('');
   
   const [votingSearch, setVotingSearch] = useState("");
@@ -160,6 +161,29 @@ function AdminContent() {
       setVotingResults([]);
     } finally {
       setVotingLoading(false);
+    }
+  };
+
+  const handleResetVoting = async () => {
+    if (!confirm("⚠️ PERINGATAN: Ini akan menghapus SEMUA data suara yang sudah masuk dan mengizinkan semua user untuk voting ulang. Tindakan ini tidak bisa dibatalkan. Lanjutkan?")) {
+      return;
+    }
+
+    const confirmText = prompt("Ketik 'RESET' untuk mengonfirmasi penghapusan permanen:");
+    if (confirmText !== 'RESET') {
+      alert("Reset dibatalkan.");
+      return;
+    }
+
+    setIsResettingVoting(true);
+    try {
+      const res = await api.post("/voting/admin/reset-all");
+      alert(res.data.message);
+      await fetchVotingResults();
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Gagal mereset data voting");
+    } finally {
+      setIsResettingVoting(false);
     }
   };
 
@@ -1314,6 +1338,15 @@ function AdminContent() {
                  className="px-4 py-2 rounded bg-[#0F4D39] text-white text-sm font-bold"
                >
                  Refresh
+               </button>
+               <button
+                 type="button"
+                 onClick={handleResetVoting}
+                 disabled={isResettingVoting}
+                 className="px-4 py-2 rounded bg-red-600 text-white text-sm font-bold hover:bg-red-700 flex items-center gap-2"
+               >
+                 {isResettingVoting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 size={16} />}
+                 Reset Semua Voting
                </button>
              </div>
            </div>

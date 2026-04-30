@@ -6,6 +6,7 @@ const { verifyToken, isAdmin } = require('../middleware/authJwt');
 router.get('/ballot', [verifyToken], controller.getBallot);
 router.post('/vote', [verifyToken], controller.submitVote);
 router.post('/finalize', [verifyToken], controller.finalizeVoting);
+router.post('/admin/reset-all', [verifyToken, isAdmin], controller.resetAllVotes);
 router.get('/results', [verifyToken, isAdmin], controller.getResults);
 router.get('/admin/rookie-photos', [verifyToken], controller.getRookiePhotos);
 router.post('/admin/rookie-photo', [verifyToken, isAdmin], controller.setRookiePhoto);
