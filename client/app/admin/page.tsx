@@ -1319,6 +1319,46 @@ function AdminContent() {
            </div>
 
            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+             {/* Winner Summary Section */}
+             <div className="lg:col-span-2 bg-gradient-to-br from-[#0F4D39] to-[#1a6b4d] rounded-2xl p-6 text-white shadow-xl mb-2">
+               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                 <Trophy className="text-yellow-400" />
+                 Pemenang Voting Teratas (Leaderboard)
+               </h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                 {votingResults.map((r: any) => {
+                   const winner = r.items && r.items[0];
+                   if (!winner || winner.count === 0) return null;
+                   return (
+                     <div key={r.key} className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 flex items-center gap-4">
+                       <div className="relative">
+                         {r.key === 'BEST_ROOKIE_OF_THE_YEAR' && winner.photoUrl ? (
+                           <img src={toPublicUrl(winner.photoUrl)} className="w-14 h-14 rounded-full object-cover border-2 border-yellow-400 shadow-lg" alt="Winner" />
+                         ) : (
+                           <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center border-2 border-yellow-400/50">
+                             <Award className="text-yellow-400 w-8 h-8" />
+                           </div>
+                         )}
+                         <div className="absolute -top-2 -right-1 bg-yellow-400 text-[#0F4D39] rounded-full p-1 shadow-sm">
+                           <Trophy size={12} />
+                         </div>
+                       </div>
+                       <div className="min-w-0">
+                         <div className="text-[10px] uppercase font-bold text-white/70 tracking-wider truncate">{r.title}</div>
+                         <div className="text-sm font-bold truncate">
+                           {r.targetType === 'DEPARTMENT' ? winner.candidateDepartment : winner.name}
+                         </div>
+                         <div className="text-xs text-yellow-300 font-bold mt-0.5">{winner.count} Suara</div>
+                       </div>
+                     </div>
+                   );
+                 })}
+                 {votingResults.every((r: any) => !r.items || r.items.length === 0) && (
+                   <div className="col-span-full text-center py-4 text-white/60 italic">Belum ada data pemenang.</div>
+                 )}
+               </div>
+             </div>
+
              <div className="border rounded-xl p-4">
                <div className="font-bold mb-3">Hasil Voting (Rank)</div>
                {votingLoading ? (
