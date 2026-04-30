@@ -346,6 +346,19 @@ export default function VotingPage() {
 
                   return (
                     <div key={c.key} className="rounded-xl border border-gray-200 bg-white p-5 flex flex-col shadow-sm">
+                      <div className="flex items-start justify-between gap-3 mb-auto">
+                        <div>
+                          <div className="text-base font-bold text-gray-900">{c.title}</div>
+                          {c.description && <div className="text-sm text-gray-600 mt-1">{c.description}</div>}
+                        </div>
+                        {savingKey === c.key ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-gray-500 mt-1" />
+                        ) : (
+                          <Save className="w-4 h-4 text-gray-400 mt-1" />
+                        )}
+                      </div>
+
+                      <div className="mt-4">
                         {c.targetType === "USER" ? (
                           <select
                             value={currentVal}
@@ -353,25 +366,12 @@ export default function VotingPage() {
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4D39]/40"
                           >
                             <option value="">Pilih karyawan</option>
-                            {c.key === 'BEST_ROOKIE_OF_THE_YEAR' ? (
-                              <>
-                                {rookieNominees.map((u) => (
-                                  <option key={u.id} value={u.id}>
-                                    {u.name}
-                                    {u.department ? ` (${u.department})` : ""}
-                                  </option>
-                                ))}
-                              </>
-                            ) : (
-                              <>
-                                {userOptions.map((u) => (
-                                  <option key={u.id} value={u.id}>
-                                    {u.name}
-                                    {u.department ? ` (${u.department})` : ""}
-                                  </option>
-                                ))}
-                              </>
-                            )}
+                            {userOptions.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name}
+                                {u.department ? ` (${u.department})` : ""}
+                              </option>
+                            ))}
                           </select>
                         ) : (
                           <select
