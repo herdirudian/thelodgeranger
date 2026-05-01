@@ -15,7 +15,7 @@ const DEFAULT_CATEGORIES = [
     key: 'BEST_ROOKIE_OF_THE_YEAR',
     group: 'Achievement Awards',
     title: 'Best Rookie of The Year',
-    description: 'Diberikan kepada karyawan baru yang mampu beradaptasi dengan cepat, menunjukkan performa yang menonjol, serta memberikan kontribusi positif dalam waktu yang relatif singkat.',
+    description: 'Diberikan kepada karyawan entry level yang mampu menunjukkan performa unggul, adaptif dalam bekerja, serta memberikan kontribusi positif bagi tim dan perusahaan.',
     targetType: 'USER'
   },
   {
