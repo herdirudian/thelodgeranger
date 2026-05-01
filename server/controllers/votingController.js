@@ -5,6 +5,13 @@ const BEST_ROOKIE_KEY = 'BEST_ROOKIE_OF_THE_YEAR';
 
 const DEFAULT_CATEGORIES = [
   {
+    key: 'BEST_EMPLOYEE_OF_THE_YEAR',
+    group: 'Achievement Awards',
+    title: 'Best Employee of The Year',
+    description: 'Diberikan kepada karyawan yang menunjukkan performa kerja yang baik secara konsisten, memberikan dampak signifikan bagi tim maupun perusahaan, serta menjadi teladan dalam profesionalisme dan nilai-nilai kerja.',
+    targetType: 'USER'
+  },
+  {
     key: 'BEST_ROOKIE_OF_THE_YEAR',
     group: 'Achievement Awards',
     title: 'Best Rookie of The Year',

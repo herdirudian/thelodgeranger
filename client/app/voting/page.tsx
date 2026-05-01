@@ -336,7 +336,10 @@ export default function VotingPage() {
                     ? (rookieNominees.find(p => String(p.id) === currentVal) || allRookiePhotos.find(p => String(p.candidateUserId) === currentVal))
                     : null;
 
-                  if (c.key === 'BEST_ROOKIE_OF_THE_YEAR') {
+                  if (c.key === 'BEST_EMPLOYEE_OF_THE_YEAR' || c.key === 'BEST_ROOKIE_OF_THE_YEAR') {
+                    const nominees = c.key === 'BEST_ROOKIE_OF_THE_YEAR' ? rookieNominees : userOptions;
+                    const isEmployeeOfYear = c.key === 'BEST_EMPLOYEE_OF_THE_YEAR';
+
                     return (
                       <div key={c.key} className="col-span-1 md:col-span-2 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                         <div className="flex items-center justify-between mb-6">
@@ -347,46 +350,64 @@ export default function VotingPage() {
                           {savingKey === c.key && <Loader2 className="w-5 h-5 animate-spin text-[#0F4D39]" />}
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                          {rookieNominees.map((nom) => {
-                            const isSelected = currentVal === String(nom.id);
-                            return (
-                              <div 
-                                key={nom.id}
-                                onClick={() => handleSelect(c, String(nom.id))}
-                                className={`relative flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${
-                                  isFinalized 
-                                    ? isSelected 
-                                      ? 'border-[#0F4D39] bg-[#0F4D39]/5 cursor-default' 
-                                      : 'border-transparent bg-gray-50 opacity-50 cursor-not-allowed'
-                                    : isSelected 
-                                      ? 'border-[#0F4D39] bg-[#0F4D39]/5 scale-105 cursor-pointer hover:shadow-lg' 
-                                      : 'border-transparent bg-gray-50 hover:border-gray-300 cursor-pointer hover:shadow-lg'
-                                }`}
+                        <div className={`grid gap-6 ${isEmployeeOfYear ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5'}`}>
+                          {isEmployeeOfYear ? (
+                            <div className="col-span-full">
+                               <select
+                                value={currentVal}
+                                onChange={(e) => handleSelect(c, e.target.value)}
+                                disabled={isFinalized}
+                                className={`w-full border border-gray-300 rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4D39]/40 ${isFinalized ? 'bg-gray-100 cursor-not-allowed opacity-70' : 'bg-white'}`}
                               >
-                                <div className="relative w-full aspect-square mb-3 overflow-hidden rounded-xl">
-                                  <img 
-                                    src={nom.photoUrl.startsWith('http') ? nom.photoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${nom.photoUrl}`}
-                                    alt={nom.name}
-                                    className={`w-full h-full object-cover transition-transform duration-500 ${isSelected ? 'scale-110' : ''}`}
-                                  />
-                                  {isSelected && (
-                                    <div className="absolute inset-0 bg-[#0F4D39]/20 flex items-center justify-center">
-                                      <div className="bg-white rounded-full p-1 shadow-md">
-                                        <CheckCircle2 className="w-6 h-6 text-[#0F4D39]" />
+                                <option value="">Pilih Karyawan Terbaik...</option>
+                                {userOptions.map((u) => (
+                                  <option key={u.id} value={u.id}>
+                                    {u.name} {u.department ? `(${u.department})` : ""}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ) : (
+                            nominees.map((nom) => {
+                              const isSelected = currentVal === String(nom.id);
+                              return (
+                                <div 
+                                  key={nom.id}
+                                  onClick={() => handleSelect(c, String(nom.id))}
+                                  className={`relative flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${
+                                    isFinalized 
+                                      ? isSelected 
+                                        ? 'border-[#0F4D39] bg-[#0F4D39]/5 cursor-default' 
+                                        : 'border-transparent bg-gray-50 opacity-50 cursor-not-allowed'
+                                      : isSelected 
+                                        ? 'border-[#0F4D39] bg-[#0F4D39]/5 scale-105 cursor-pointer hover:shadow-lg' 
+                                        : 'border-transparent bg-gray-50 hover:border-gray-300 cursor-pointer hover:shadow-lg'
+                                  }`}
+                                >
+                                  <div className="relative w-full aspect-square mb-3 overflow-hidden rounded-xl">
+                                    <img 
+                                      src={nom.photoUrl?.startsWith('http') ? nom.photoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${nom.photoUrl || '/default-avatar.png'}`}
+                                      alt={nom.name}
+                                      className={`w-full h-full object-cover transition-transform duration-500 ${isSelected ? 'scale-110' : ''}`}
+                                    />
+                                    {isSelected && (
+                                      <div className="absolute inset-0 bg-[#0F4D39]/20 flex items-center justify-center">
+                                        <div className="bg-white rounded-full p-1 shadow-md">
+                                          <CheckCircle2 className="w-6 h-6 text-[#0F4D39]" />
+                                        </div>
                                       </div>
-                                    </div>
-                                  )}
+                                    )}
+                                  </div>
+                                  <div className="text-center">
+                                    <p className={`text-sm font-bold leading-tight ${isSelected ? 'text-[#0F4D39]' : 'text-gray-900'}`}>
+                                      {nom.name}
+                                    </p>
+                                    <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">{nom.department}</p>
+                                  </div>
                                 </div>
-                                <div className="text-center">
-                                  <p className={`text-sm font-bold leading-tight ${isSelected ? 'text-[#0F4D39]' : 'text-gray-900'}`}>
-                                    {nom.name}
-                                  </p>
-                                  <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">{nom.department}</p>
-                                </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })
+                          )}
                         </div>
                       </div>
                     );
