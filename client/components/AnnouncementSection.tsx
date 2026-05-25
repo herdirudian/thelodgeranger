@@ -213,9 +213,23 @@ export default function AnnouncementSection() {
         );
     };
 
-    if (loading) return <div className="p-4 text-center">Loading announcements...</div>;
+    // Helper to get full URL for assets
+    const getFullUrl = (path: string | undefined) => {
+        if (!path) return "";
+        if (path.startsWith('http')) return path;
+        
+        // If the path starts with /uploads, we can try to access it via /api/uploads 
+        // to ensure it goes through the same proxy as the API
+        if (path.startsWith('/uploads')) {
+            return `${API_URL}${path}`;
+        }
+        
+        return `${SERVER_URL}${path}`;
+     };
+  
+     if (loading) return <div className="p-4 text-center">Loading announcements...</div>;
 
-    return (
+     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-orange-50 to-white">
                 <div className="flex items-center gap-2">
@@ -448,14 +462,14 @@ export default function AnnouncementSection() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                                 {announcement.imageUrl && (
                                     <a 
-                                        href={`${SERVER_URL}${announcement.imageUrl}`} 
+                                        href={getFullUrl(announcement.imageUrl)} 
                                         target="_blank" 
                                         rel="noreferrer"
                                         className="block group relative rounded-xl overflow-hidden border border-gray-200 hover:shadow-lg transition-all duration-200"
                                     >
                                         <div className="h-48 w-full bg-gray-100 relative">
                                             <img 
-                                                src={`${SERVER_URL}${announcement.imageUrl}`} 
+                                                src={getFullUrl(announcement.imageUrl)} 
                                                 alt={announcement.title}
                                                 className="w-full h-full object-cover"
                                             />
@@ -471,7 +485,7 @@ export default function AnnouncementSection() {
 
                                 {announcement.pdfUrl && (
                                     <a 
-                                        href={`${SERVER_URL}${announcement.pdfUrl}`} 
+                                        href={getFullUrl(announcement.pdfUrl)} 
                                         target="_blank" 
                                         rel="noreferrer"
                                         className="block group relative rounded-xl overflow-hidden border border-gray-200 hover:shadow-lg transition-all duration-200"
@@ -479,7 +493,7 @@ export default function AnnouncementSection() {
                                         <div className="h-48 bg-gray-50 relative border-b border-gray-100 group-hover:bg-gray-100 transition-colors">
                                             <div className="absolute inset-0 overflow-hidden opacity-50 pointer-events-none">
                                                 <object
-                                                    data={`${SERVER_URL}${announcement.pdfUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                                                    data={`${getFullUrl(announcement.pdfUrl)}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
                                                     type="application/pdf"
                                                     className="w-full h-[150%] -mt-10" // Trick to show top part without toolbar
                                                 >
