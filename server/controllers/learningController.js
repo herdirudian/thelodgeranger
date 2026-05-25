@@ -697,7 +697,8 @@ exports.createModule = async (req, res) => {
 
         res.status(201).json(module);
     } catch (error) {
-        res.status(500).json({ message: 'Error creating module' });
+        console.error('Error creating module:', error);
+        res.status(500).json({ message: 'Error creating module', error: error.message });
     }
 };
 
@@ -711,7 +712,8 @@ exports.updateModule = async (req, res) => {
         });
         res.json(module);
     } catch (error) {
-        res.status(500).json({ message: 'Error updating module' });
+        console.error('Error updating module:', error);
+        res.status(500).json({ message: 'Error updating module', error: error.message });
     }
 };
 
@@ -797,6 +799,11 @@ exports.createQuiz = async (req, res) => {
         const { moduleId } = req.params;
         const { questions, minScore } = req.body;
         
+        // Ensure only one quiz per module by deleting existing ones first
+        await prisma.quiz.deleteMany({
+            where: { moduleId: parseInt(moduleId) }
+        });
+
         const quiz = await prisma.quiz.create({
             data: {
                 moduleId: parseInt(moduleId),
@@ -806,7 +813,8 @@ exports.createQuiz = async (req, res) => {
         });
         res.status(201).json(quiz);
     } catch (error) {
-        res.status(500).json({ message: 'Error creating quiz' });
+        console.error('Error in createQuiz:', error);
+        res.status(500).json({ message: 'Error creating quiz', error: error.message });
     }
 };
 
@@ -815,33 +823,22 @@ exports.updateQuiz = async (req, res) => {
         const { moduleId } = req.params;
         const { questions, minScore } = req.body;
         
-        // Check if quiz exists
-        const existingQuiz = await prisma.quiz.findFirst({
+        // Ensure only one quiz per module by deleting existing ones first
+        await prisma.quiz.deleteMany({
             where: { moduleId: parseInt(moduleId) }
         });
 
-        let quiz;
-        if (existingQuiz) {
-            quiz = await prisma.quiz.update({
-                where: { id: existingQuiz.id },
-                data: {
-                    questions,
-                    minScore
-                }
-            });
-        } else {
-            quiz = await prisma.quiz.create({
-                data: {
-                    moduleId: parseInt(moduleId),
-                    questions,
-                    minScore
-                }
-            });
-        }
+        const quiz = await prisma.quiz.create({
+            data: {
+                moduleId: parseInt(moduleId),
+                questions,
+                minScore
+            }
+        });
 
         res.json(quiz);
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Error updating quiz' });
+        console.error('Error in updateQuiz:', error);
+        res.status(500).json({ message: 'Error updating quiz', error: error.message });
     }
 };

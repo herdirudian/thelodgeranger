@@ -193,9 +193,10 @@ export default function ManageElearning() {
       setEditingId(null);
       fetchModules();
       resetForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert('Gagal menyimpan modul.');
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Gagal menyimpan modul.';
+      alert(`${errorMessage}${error.response?.data?.error ? ` (${error.response.data.error})` : ''}`);
     }
   };
 
