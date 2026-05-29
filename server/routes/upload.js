@@ -56,13 +56,28 @@ router.get('/:filename', (req, res) => {
     try {
         const { filename } = req.params;
         const filePath = path.join(uploadDir, filename);
+        
+        console.log(`[FileServer] Requesting: ${filename}`);
+        console.log(`[FileServer] Checking path: ${filePath}`);
 
         if (fs.existsSync(filePath)) {
-            res.sendFile(filePath);
-        } else {
-            res.status(404).json({ message: 'File not found' });
+            return res.sendFile(filePath);
         }
+
+        // Smart search: try with prefixes if original not found
+        const prefixes = ['upload-', 'attendance-'];
+        for (const prefix of prefixes) {
+            const alternativePath = path.join(uploadDir, prefix + filename);
+            console.log(`[FileServer] Trying alternative: ${alternativePath}`);
+            if (fs.existsSync(alternativePath)) {
+                return res.sendFile(alternativePath);
+            }
+        }
+
+        console.error(`[FileServer] File NOT FOUND: ${filename}`);
+        res.status(404).json({ message: 'File not found', checkedPath: filePath });
     } catch (error) {
+        console.error(`[FileServer] Error: ${error.message}`);
         res.status(500).json({ message: 'Error retrieving file', error: error.message });
     }
 });
