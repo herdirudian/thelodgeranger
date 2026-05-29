@@ -28,6 +28,25 @@ exports.createRequest = async (req, res) => {
     const requester = await prisma.user.findUnique({ where: { id: userId } });
     const department = requester.department || null;
 
+    // Validation: H-2 for specific request types
+    const restrictedTypes = ['LEAVE', 'PDO', 'PERMISSION', 'OFF'];
+    if (restrictedTypes.includes(type)) {
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        
+        const requestDate = new Date(startDate);
+        requestDate.setHours(0, 0, 0, 0);
+        
+        const minDate = new Date(now);
+        minDate.setDate(now.getDate() + 2); // H-2 rule
+        
+        if (requestDate < minDate) {
+            return res.status(400).json({ 
+                message: `Pengajuan ${type.replace('_', ' ')} harus dilakukan maksimal H-2. Silakan pilih tanggal mulai minimal ${minDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}.` 
+            });
+        }
+    }
+
     const approvalConfig = await getActiveApprovalConfig('REQUEST', department);
 
     let initialStatus = 'PENDING_HOD';

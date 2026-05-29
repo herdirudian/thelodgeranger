@@ -283,6 +283,24 @@ export default function RequestsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // H-2 Validation for specific types
+      const restrictedTypes = ['LEAVE', 'PDO', 'PERMISSION', 'OFF'];
+      if (restrictedTypes.includes(type)) {
+          const now = new Date();
+          now.setHours(0, 0, 0, 0);
+          
+          const reqDate = new Date(startDate);
+          reqDate.setHours(0, 0, 0, 0);
+          
+          const minDate = new Date(now);
+          minDate.setDate(now.getDate() + 2);
+          
+          if (reqDate < minDate) {
+              alert(`Pengajuan ${type.replace('_', ' ')} harus dilakukan maksimal H-2. Tanggal mulai minimal adalah ${format(minDate, "dd MMM yyyy")}.`);
+              return;
+          }
+      }
+
       // Basic payload
       const payload: any = { type, reason };
       
