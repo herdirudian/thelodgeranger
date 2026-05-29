@@ -30,7 +30,8 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
       links.push({ name: 'Analytics', href: '/analytics', icon: BarChart2 });
   }
 
-  links.push({ name: 'Voting', href: '/voting', icon: Award });
+  // Voting hidden as it is completed
+  // links.push({ name: 'Voting', href: '/voting', icon: Award });
 
   if (user.role === 'HR') {
       links.push({ name: 'Onboarding', href: '/onboarding', icon: ClipboardList });

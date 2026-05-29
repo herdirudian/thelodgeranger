@@ -25,7 +25,8 @@ function AdminContent() {
   // Effect to handle tab from URL
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab && ['staff', 'schedule', 'contracts', 'approval', 'whatsapp', 'voting', 'bugs'].includes(tab)) {
+    // 'voting' removed from allowed tabs as it is completed
+    if (tab && ['staff', 'schedule', 'contracts', 'approval', 'whatsapp', 'bugs'].includes(tab)) {
       setActiveTab(tab);
     }
   }, [searchParams]);
@@ -748,13 +749,14 @@ function AdminContent() {
             <MessageSquare size={16} />
             WhatsApp Status
         </button>
-        <button 
+        {/* Voting tab hidden as it is completed */}
+        {/* <button 
             className={`pb-2 px-4 flex items-center gap-2 ${activeTab === 'voting' ? 'border-b-2 border-[#0F4D39] font-bold text-[#0F4D39]' : 'text-gray-700'}`}
             onClick={() => setActiveTab('voting')}
         >
             <Award size={16} />
             Voting Results
-        </button>
+        </button> */}
         <button 
             className={`pb-2 px-4 ${activeTab === 'bugs' ? 'border-b-2 border-[#0F4D39] font-bold text-[#0F4D39]' : 'text-gray-700'}`}
             onClick={() => setActiveTab('bugs')}
