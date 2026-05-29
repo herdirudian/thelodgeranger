@@ -12,9 +12,17 @@ export default function ManageElearning() {
   const [isCreating, setIsCreating] = useState(false);
   const [loading, setLoading] = useState(true);
   const publicBaseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
   const toPublicUrl = (url?: string) => {
     if (!url) return '';
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    
+    // Use dynamic API route for uploads to bypass proxy issues
+    if (url.startsWith('/uploads/')) {
+      const filename = url.split('/').pop();
+      return `${apiUrl}/upload/${filename}`;
+    }
+    
     return `${publicBaseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
   };
 

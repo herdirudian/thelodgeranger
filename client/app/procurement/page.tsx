@@ -272,6 +272,23 @@ export default function ProcurementPage() {
     }
   };
 
+    // Helper to get full URL for assets
+    const getFullUrl = (path: string | undefined) => {
+        if (!path) return "";
+        if (path.startsWith('http')) return path;
+        
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+        const serverUrl = apiUrl.replace(/\/api$/, '');
+
+        // Use dynamic API route for uploads to bypass proxy issues
+        if (path.startsWith('/uploads/')) {
+            const filename = path.split('/').pop();
+            return `${apiUrl}/upload/${filename}`;
+        }
+        
+        return `${serverUrl}${path}`;
+    };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) {
@@ -655,7 +672,7 @@ export default function ProcurementPage() {
                                                     <div className="font-medium">{item.itemName}</div>
                                                     {item.description && <div className="text-xs text-gray-500">{item.description}</div>}
                                                     {item.imageUrl && (
-                                                        <a href={`http://localhost:5000${item.imageUrl}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
+                                                        <a href={getFullUrl(item.imageUrl)} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
                                                             <ImageIcon className="w-3 h-3" /> View Image
                                                         </a>
                                                     )}
@@ -1138,7 +1155,7 @@ export default function ProcurementPage() {
                                            </div>
                                            {item.imageUrl && (
                                                 <a 
-                                                    href={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${item.imageUrl}`} 
+                                                    href={getFullUrl(item.imageUrl)} 
                                                     target="_blank" 
                                                     rel="noopener noreferrer"
                                                     className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1 w-fit bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
@@ -1291,18 +1308,18 @@ export default function ProcurementPage() {
                                         </h4>
                                         {previewModal.data.attachmentUrl.endsWith('.pdf') ? (
                                             <iframe 
-                                                src={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${previewModal.data.attachmentUrl}`}
+                                                src={getFullUrl(previewModal.data.attachmentUrl)}
                                                 className="w-full h-[400px] rounded border border-gray-200"
                                             ></iframe>
                                         ) : (
                                             <div className="relative group">
                                                 <img 
-                                                    src={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${previewModal.data.attachmentUrl}`}
+                                                    src={getFullUrl(previewModal.data.attachmentUrl)}
                                                     alt="Attachment"
                                                     className="w-full rounded border border-gray-200"
                                                 />
                                                 <a 
-                                                    href={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${previewModal.data.attachmentUrl}`}
+                                                    href={getFullUrl(previewModal.data.attachmentUrl)}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white font-medium transition-opacity rounded"

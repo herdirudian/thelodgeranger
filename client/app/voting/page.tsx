@@ -40,6 +40,23 @@ export default function VotingPage() {
   const [isFinalized, setIsFinalized] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper to get full URL for assets
+  const getFullUrl = (path: string | undefined) => {
+    if (!path) return "";
+    if (path.startsWith('http')) return path;
+    
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    const serverUrl = apiUrl.replace(/\/api$/, '');
+
+    // Use dynamic API route for uploads to bypass proxy issues
+    if (path.startsWith('/uploads/')) {
+        const filename = path.split('/').pop();
+        return `${apiUrl}/upload/${filename}`;
+    }
+    
+    return `${serverUrl}${path}`;
+  };
+
   // Additional state for displaying all rookie nominee photos
   const [allRookiePhotos, setAllRookiePhotos] = useState<any[]>([]);
 
@@ -287,7 +304,7 @@ export default function VotingPage() {
             {allRookiePhotos.map(p => (
               <div key={p.candidateUserId} className="relative group rounded-xl overflow-hidden border border-gray-200 bg-white">
                 <img
-                  src={p.photoUrl.startsWith('http') ? p.photoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${p.photoUrl}`}
+                  src={getFullUrl(p.photoUrl)}
                   className="w-full aspect-square object-cover"
                   alt={p.candidateUser?.name}
                 />
