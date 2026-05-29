@@ -51,4 +51,20 @@ router.post('/', upload.single('file'), (req, res) => {
     }
 });
 
+// Route to serve files dynamically to bypass potential proxy issues with static files
+router.get('/:filename', (req, res) => {
+    try {
+        const { filename } = req.params;
+        const filePath = path.join(uploadDir, filename);
+
+        if (fs.existsSync(filePath)) {
+            res.sendFile(filePath);
+        } else {
+            res.status(404).json({ message: 'File not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Error retrieving file', error: error.message });
+    }
+});
+
 module.exports = router;

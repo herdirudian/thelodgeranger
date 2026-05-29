@@ -218,10 +218,11 @@ export default function AnnouncementSection() {
         if (!path) return "";
         if (path.startsWith('http')) return path;
         
-        // If the path starts with /uploads, we can try to access it via /api/uploads 
+        // If the path starts with /uploads, we can try to access it via /api/upload 
         // to ensure it goes through the same proxy as the API
         if (path.startsWith('/uploads')) {
-            return `${API_URL}${path}`;
+            const filename = path.split('/').pop();
+            return `${API_URL}/upload/${filename}`;
         }
         
         return `${SERVER_URL}${path}`;
