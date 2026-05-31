@@ -860,10 +860,8 @@ export default function RequestsPage() {
                                     </div>
                                 </>
                             )}
-</toolcall_result>
-
-
-                            {type === 'ADD_MANPOWER' && (
+  
+                              {type === 'ADD_MANPOWER' && (
                                 <>
                                     <div className="space-y-2">
                                         <label className="block text-sm font-medium text-gray-700">Staff untuk Extra Man Power</label>
