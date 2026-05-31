@@ -106,6 +106,7 @@ export default function RequestsPage() {
   const [endTime, setEndTime] = useState("");
   const [newEmployeeName, setNewEmployeeName] = useState("");
   const [targetDepartment, setTargetDepartment] = useState("");
+  const [specialLeaveType, setSpecialLeaveType] = useState("");
   // WhatsApp Verification State
   const [waPhone, setWaPhone] = useState("");
   const [waOtp, setWaOtp] = useState("");
@@ -365,6 +366,15 @@ export default function RequestsPage() {
               }
               payload.quantity = quantity;
           } else if (type === 'SICK' || type === 'PERMISSION' || type === 'OFF') {
+              {
+                const match = colleagues.find(c => c.name === replacementName);
+                payload.replacementName = match ? `${match.name}|${match.id}` : replacementName;
+              }
+          } else if (type === 'SPECIAL_LEAVE') {
+              payload.startDate = startDate;
+              payload.endDate = endDate || startDate;
+              payload.returnDate = returnDate;
+              payload.reason = `${specialLeaveType}: ${reason}`; // Combine type with reason
               {
                 const match = colleagues.find(c => c.name === replacementName);
                 payload.replacementName = match ? `${match.name}|${match.id}` : replacementName;
@@ -745,6 +755,7 @@ export default function RequestsPage() {
                                     <option value="OFF">Off Day</option>
                                     <option value="OVERTIME">Lembur (Overtime)</option>
                                     <option value="EXTERNAL_DUTY">Dinas Luar (External Duty)</option>
+                                    {user?.employmentType === 'CONTRACT' && <option value="SPECIAL_LEAVE">Cuti Khusus (Special Leave)</option>}
                                 </select>
                                 <ChevronDown className="absolute top-4 right-4 w-4 h-4 text-gray-400 pointer-events-none" />
                             </div>
@@ -794,6 +805,63 @@ export default function RequestsPage() {
                                     </div>
                                 </>
                             )}
+
+                            {type === 'SPECIAL_LEAVE' && (
+                                <>
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700">Jenis Cuti Khusus</label>
+                                        <select 
+                                            value={specialLeaveType} 
+                                            onChange={(e) => setSpecialLeaveType(e.target.value)}
+                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] transition-all"
+                                            required
+                                        >
+                                            <option value="">Pilih Jenis Cuti</option>
+                                            <option value="Menikah">Menikah (3 Hari)</option>
+                                            <option value="Menikahkan Anak">Menikahkan Anak (2 Hari)</option>
+                                            <option value="Istri Melahirkan/Keguguran">Istri Melahirkan/Keguguran (2 Hari)</option>
+                                            <option value="Khitan Anak">Mengkhitankan Anak (2 Hari)</option>
+                                            <option value="Baptis Anak">Membaptis Anak (2 Hari)</option>
+                                            <option value="Melahirkan (3 Bulan)">Melahirkan (3 Bulan)</option>
+                                            <option value="Keguguran (Sesuai Ket. Dokter)">Keguguran (Sesuai Ket. Dokter)</option>
+                                            <option value="Duka Keluarga Inti">Duka Keluarga Inti (Suami/Istri/Anak/Ortu/Mertua/Saudara Kandung) - 3 Hari</option>
+                                            <option value="Duka Keluarga Non-Inti">Duka Keluarga Non-Inti - 1 Hari</option>
+                                            <option value="Ibadah Haji">Ibadah Haji (Maks. 40 Hari)</option>
+                                        </select>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                                            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] transition-all" required />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="block text-sm font-medium text-gray-700">End Date</label>
+                                            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] transition-all" required />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700">Return to Work Date</label>
+                                        <input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] transition-all" required />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700">Replacement Staff</label>
+                                        <select 
+                                            value={replacementName} 
+                                            onChange={(e) => setReplacementName(e.target.value)}
+                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] transition-all"
+                                            required
+                                        >
+                                            <option value="">Select Colleague</option>
+                                            <option value="Tidak ada pengganti">No Replacement Needed</option>
+                                            {colleagues.map(c => (
+                                                <option key={c.id} value={c.name}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </>
+                            )}
+</toolcall_result>
+
 
                             {type === 'ADD_MANPOWER' && (
                                 <>

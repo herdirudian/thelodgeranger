@@ -36,7 +36,7 @@ exports.createRequest = async (req, res) => {
     }
 
     // Validation: H-2 for specific request types
-    const restrictedTypes = ['LEAVE', 'PDO', 'PERMISSION', 'OFF'];
+    const restrictedTypes = ['LEAVE', 'PDO', 'PERMISSION', 'OFF', 'SPECIAL_LEAVE'];
     if (restrictedTypes.includes(type)) {
         const now = new Date();
         now.setHours(0, 0, 0, 0);

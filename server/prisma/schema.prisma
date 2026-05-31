@@ -61,6 +61,7 @@ enum RequestType {
   EXTERNAL_DUTY
   PDO
   LEAVE_WORKPLACE
+  SPECIAL_LEAVE
 }
 
 enum RequestStatus {
