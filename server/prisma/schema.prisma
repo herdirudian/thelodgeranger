@@ -82,6 +82,11 @@ enum SecurityReturnStatus {
   NOT_RETURNED
 }
 
+enum EmploymentType {
+  CONTRACT
+  DAILY_WORKER
+}
+
 enum IDPStatus {
   DRAFT
   SUBMITTED
@@ -107,6 +112,7 @@ model User {
   password  String
   name      String
   role      Role     @default(STAFF)
+  employmentType EmploymentType @default(CONTRACT)
   department String?
   leaveQuota Int      @default(12)
   pdo       Int      @default(0)

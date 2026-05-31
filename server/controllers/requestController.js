@@ -28,6 +28,13 @@ exports.createRequest = async (req, res) => {
     const requester = await prisma.user.findUnique({ where: { id: userId } });
     const department = requester.department || null;
 
+    // Validation: Employment Type restrictions
+    if (requester.employmentType === 'DAILY_WORKER' && type === 'LEAVE') {
+        return res.status(400).json({ 
+            message: 'Karyawan harian (Daily Worker/Casual) tidak memiliki jatah cuti tahunan.' 
+        });
+    }
+
     // Validation: H-2 for specific request types
     const restrictedTypes = ['LEAVE', 'PDO', 'PERMISSION', 'OFF'];
     if (restrictedTypes.includes(type)) {

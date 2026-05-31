@@ -47,6 +47,7 @@ function AdminContent() {
   const [bugStartDate, setBugStartDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [bugEndDate, setBugEndDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [staffSearch, setStaffSearch] = useState('');
+  const [staffTypeFilter, setStaffTypeFilter] = useState('');
   const [scheduleSearch, setScheduleSearch] = useState('');
   const [contractSearch, setContractSearch] = useState('');
   const [waUsers, setWaUsers] = useState<any[]>([]);
@@ -114,8 +115,16 @@ function AdminContent() {
   // User Form State
   const [editingUser, setEditingUser] = useState<any>(null);
   const [formDataUser, setFormDataUser] = useState({
-      name: "", email: "", password: "", role: "STAFF", department: "", leaveQuota: 12, pdo: 0,
-      contractStartDate: "", contractEndDate: ""
+    name: "",
+    email: "",
+    password: "",
+    role: "STAFF",
+    department: "",
+    employmentType: "CONTRACT",
+    leaveQuota: 12,
+    pdo: 0,
+    contractStartDate: "",
+    contractEndDate: ""
   });
 
   // Schedule Form State
@@ -324,12 +333,17 @@ function AdminContent() {
 
   const filteredStaff = users.filter(u => {
     const q = staffSearch.trim().toLowerCase();
-    if (!q) return true;
-    return (
+    const typeMatch = !staffTypeFilter || u.employmentType === staffTypeFilter;
+    
+    if (!q) return typeMatch;
+    
+    const searchMatch = (
       (u.name || '').toLowerCase().includes(q) ||
       (u.email || '').toLowerCase().includes(q) ||
       (u.department || '').toLowerCase().includes(q)
     );
+
+    return typeMatch && searchMatch;
   });
 
   const filteredSchedules = schedules.filter(s => {
@@ -482,7 +496,7 @@ function AdminContent() {
           }
           setShowUserModal(false);
           setEditingUser(null);
-          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", leaveQuota: 12, pdo: 0, contractStartDate: "", contractEndDate: "" });
+          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", employmentType: "CONTRACT", leaveQuota: 12, pdo: 0, contractStartDate: "", contractEndDate: "" });
           fetchUsers();
       } catch (err: any) {
           alert(err.response?.data?.message || "Error saving user");
@@ -507,6 +521,7 @@ function AdminContent() {
           password: "", // Don't fill password
           role: user.role,
           department: user.department || "",
+          employmentType: user.employmentType || "CONTRACT",
           leaveQuota: typeof user.leaveQuota === "number" ? user.leaveQuota : 12,
           pdo: typeof user.pdo === "number" ? user.pdo : 0,
           contractStartDate: user.contractStartDate ? new Date(user.contractStartDate).toISOString().split('T')[0] : "",
@@ -771,6 +786,15 @@ function AdminContent() {
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
                   <h2 className="text-xl font-bold">All Staff</h2>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto md:justify-end">
+                    <select
+                      className="border border-gray-300 rounded px-3 py-1.5 text-sm bg-white"
+                      value={staffTypeFilter}
+                      onChange={e => setStaffTypeFilter(e.target.value)}
+                    >
+                        <option value="">Semua Tipe</option>
+                        <option value="CONTRACT">Karyawan Kontrak</option>
+                        <option value="DAILY_WORKER">Daily Worker / Casual</option>
+                    </select>
                     <input
                       type="text"
                       placeholder="Search name / email / department..."
@@ -802,7 +826,7 @@ function AdminContent() {
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="p-3">Name</th>
-                            <th className="p-3">Email</th>
+                            <th className="p-3">Type</th>
                             <th className="p-3">Role</th>
                             <th className="p-3">Department</th>
                             <th className="p-3">Leave Quota</th>
@@ -814,8 +838,18 @@ function AdminContent() {
                     <tbody>
                         {filteredStaff.map((u) => (
                             <tr key={u.id} className="border-b">
-                                <td className="p-3 font-medium">{u.name}</td>
-                                <td className="p-3">{u.email}</td>
+                                <td className="p-3">
+                                    <div className="font-medium text-gray-900">{u.name}</div>
+                                    <div className="text-xs text-gray-500">{u.email}</div>
+                                </td>
+                                <td className="p-3">
+                                    <span className={clsx(
+                                        "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                                        u.employmentType === 'DAILY_WORKER' ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"
+                                    )}>
+                                        {u.employmentType?.replace('_', ' ') || 'CONTRACT'}
+                                    </span>
+                                </td>
                                 <td className="p-3">
                                     <span className="bg-gray-100 px-2 py-1 rounded text-xs">{u.role}</span>
                                 </td>
@@ -1765,6 +1799,15 @@ function AdminContent() {
                                 value={formDataUser.department} onChange={e => setFormDataUser({...formDataUser, department: e.target.value})}
                             />
                         </div>
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium">Employment Type</label>
+                          <select className="w-full border p-2 rounded" 
+                              value={formDataUser.employmentType} onChange={e => setFormDataUser({...formDataUser, employmentType: e.target.value})}
+                          >
+                              <option value="CONTRACT">CONTRACT (Karyawan Kontrak)</option>
+                              <option value="DAILY_WORKER">DAILY WORKER (Karyawan Harian)</option>
+                          </select>
                       </div>
                       <div>
                           <label className="block text-sm font-medium">Leave Quota (Days)</label>
