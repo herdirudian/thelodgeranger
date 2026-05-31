@@ -755,7 +755,7 @@ export default function RequestsPage() {
                                     <option value="OFF">Off Day</option>
                                     <option value="OVERTIME">Lembur (Overtime)</option>
                                     <option value="EXTERNAL_DUTY">Dinas Luar (External Duty)</option>
-                                    {user?.employmentType === 'CONTRACT' && <option value="SPECIAL_LEAVE">Cuti Khusus (Special Leave)</option>}
+                                    <option value="SPECIAL_LEAVE">Cuti Khusus (Special Leave)</option>
                                 </select>
                                 <ChevronDown className="absolute top-4 right-4 w-4 h-4 text-gray-400 pointer-events-none" />
                             </div>
