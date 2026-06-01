@@ -1,4 +1,5 @@
 const express = require('express');
+const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
 const compression = require('compression');
@@ -34,6 +35,12 @@ const { formatWibTime } = require('./utils/wibDate');
 
 const app = express();
 
+// Security Headers
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false, // Handled by Next.js if needed, or configure strictly here
+}));
+
 // Strict CORS (allowlist via env ALLOWED_ORIGINS, comma-separated)
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
 app.use(cors({
@@ -42,8 +49,9 @@ app.use(cors({
     if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) return cb(null, true);
     cb(new Error('Not allowed by CORS'));
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'], // Removed OPTIONS unless needed for preflight
   allowedHeaders: ['Authorization', 'Content-Type'],
+  maxAge: 86400, // Cache preflight for 24h
 }));
 app.use(compression());
 app.use(express.json({ limit: '50mb' }));
