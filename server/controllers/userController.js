@@ -33,6 +33,7 @@ exports.getAllUsers = async (req, res) => {
         email: true,
         role: true,
         department: true,
+        employmentType: true,
         leaveQuota: true,
         pdo: true,
         contractStartDate: true,
