@@ -149,11 +149,12 @@ exports.signChecklist = async (req, res) => {
         if (!submission) return res.status(404).json({ message: 'Submission not found' });
 
         const updateData = {};
-        const isSameDept = user.department === submission.template.department;
+        const isSameDept = user.department?.toLowerCase() === submission.template.department?.toLowerCase();
+        const isAssignedManually = user.checklistTemplateId === submission.templateId;
 
-        if (type === 'HOD' && (user.role.includes('HOD') || user.role.includes('SPV')) && isSameDept) {
+        if (type === 'HOD' && (user.role.includes('HOD') || user.role.includes('SPV')) && (isSameDept || isAssignedManually)) {
             updateData.hodSigned = true;
-        } else if (type === 'SPV' && user.role === 'SUPERVISOR' && isSameDept) {
+        } else if (type === 'SPV' && (user.role === 'SUPERVISOR' || user.role.includes('SPV')) && (isSameDept || isAssignedManually || user.role === 'SUPERVISOR')) {
             updateData.spvSigned = true;
         } else if (type === 'GM' && (user.role === 'GM' || user.role === 'ADMIN')) {
             updateData.gmSigned = true;
