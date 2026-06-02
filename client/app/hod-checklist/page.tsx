@@ -55,6 +55,8 @@ export default function HODChecklistPage() {
             const todayName = daysMap[englishDay] || englishDay;
             
             console.log("Filtering templates for day:", todayName);
+            
+            const filteredTemplates = res.data.filter((t: any) => {
                 if (!t.dayOfWeek) return true; // Show general templates
                 return t.dayOfWeek.toLowerCase() === todayName.toLowerCase(); // Only show today's specific checklist
             });
