@@ -4,7 +4,9 @@ const path = require('path');
 const fs = require('fs');
 
 const prisma = new PrismaClient();
-const checklistDir = 'C:\\xampp\\htdocs\\thelodgeranger\\Checklist';
+const checklistDir = process.platform === 'win32' 
+    ? 'C:\\xampp\\htdocs\\thelodgeranger\\Checklist' 
+    : '/var/www/thelodgeranger/Checklist';
 
 const fileToDept = {
     '01.Front Office  Daily Checklist  2026.xlsx': 'FRONT OFFICE',
