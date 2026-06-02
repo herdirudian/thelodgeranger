@@ -42,9 +42,19 @@ export default function HODChecklistPage() {
             const res = await api.get('/checklist/templates', { params: { department: dept } });
             
             // Filter logic: If there are templates with dayOfWeek, only show for today
-            const todayName = new Intl.DateTimeFormat('id-ID', { weekday: 'long' }).format(new Date()); // e.g. "Senin"
+            const daysMap: Record<string, string> = {
+                'Sunday': 'Minggu',
+                'Monday': 'Senin',
+                'Tuesday': 'Selasa',
+                'Wednesday': 'Rabu',
+                'Thursday': 'Kamis',
+                'Friday': 'Jumat',
+                'Saturday': 'Sabtu'
+            };
+            const englishDay = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date());
+            const todayName = daysMap[englishDay] || englishDay;
             
-            const filteredTemplates = res.data.filter((t: any) => {
+            console.log("Filtering templates for day:", todayName);
                 if (!t.dayOfWeek) return true; // Show general templates
                 return t.dayOfWeek.toLowerCase() === todayName.toLowerCase(); // Only show today's specific checklist
             });
