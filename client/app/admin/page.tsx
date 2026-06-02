@@ -512,7 +512,7 @@ function AdminContent() {
           }
           setShowUserModal(false);
           setEditingUser(null);
-          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", employmentType: "CONTRACT", leaveQuota: 12, pdo: 0, contractStartDate: "", contractEndDate: "" });
+          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", employmentType: "CONTRACT", checklistTemplateId: "", leaveQuota: 12, pdo: 0, contractStartDate: "", contractEndDate: "" });
           fetchUsers();
       } catch (err: any) {
           alert(err.response?.data?.message || "Error saving user");
@@ -828,7 +828,7 @@ function AdminContent() {
                     <button 
                       onClick={() => {
                           setEditingUser(null);
-                          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", employmentType: "CONTRACT", leaveQuota: 12, pdo: 0, contractStartDate: "", contractEndDate: "" });
+                          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", employmentType: "CONTRACT", checklistTemplateId: "", leaveQuota: 12, pdo: 0, contractStartDate: "", contractEndDate: "" });
                           setShowUserModal(true);
                       }}
                       className="w-full sm:w-auto justify-center bg-[#0F4D39] text-white px-4 py-2 rounded flex items-center space-x-2"
