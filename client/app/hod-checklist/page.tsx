@@ -40,13 +40,22 @@ export default function HODChecklistPage() {
             // HOD sees their department template, Admin/GM see all
             const dept = (user?.role === 'GM' || user?.role === 'ADMIN' || user?.role === 'HR') ? undefined : user?.department;
             const res = await api.get('/checklist/templates', { params: { department: dept } });
-            setTemplates(res.data);
-            if (res.data.length > 0) {
-                // Default to first template found for their dept
-                setSelectedTemplate(res.data[0]);
+            
+            // Filter logic: If there are templates with dayOfWeek, only show for today
+            const todayName = new Intl.DateTimeFormat('id-ID', { weekday: 'long' }).format(new Date()); // e.g. "Senin"
+            
+            const filteredTemplates = res.data.filter((t: any) => {
+                if (!t.dayOfWeek) return true; // Show general templates
+                return t.dayOfWeek.toLowerCase() === todayName.toLowerCase(); // Only show today's specific checklist
+            });
+
+            setTemplates(filteredTemplates);
+            if (filteredTemplates.length > 0) {
+                // Default to first template found
+                setSelectedTemplate(filteredTemplates[0]);
                 // Initialize answers
                 const initialAnswers: any = {};
-                res.data[0].categories.forEach((cat: any) => {
+                filteredTemplates[0].categories.forEach((cat: any) => {
                     cat.questions.forEach((q: any) => {
                         initialAnswers[q.id] = { value: q.type === 'BOOLEAN' ? false : q.type === 'NUMBER' ? 0 : "", remarks: "" };
                     });
