@@ -11,6 +11,7 @@ interface User {
   role: 'STAFF' | 'HOD' | 'HR' | 'GM' | 'FINANCE' | 'STORE' | 'SUPERVISOR' | 'ADMIN' | 'MERCHANDISE_STAFF' | 'MERCHANDISE_HOD' | 'MERCHANDISE_SPV' | 'PHOTOGRAPHER_STAFF' | 'PHOTOGRAPHER_HOD';
   employmentType?: 'CONTRACT' | 'DAILY_WORKER';
   department?: string;
+  checklistTemplateId?: number | null;
   leaveQuota?: number;
   pdo?: number;
   whatsappNumber?: string | null;
