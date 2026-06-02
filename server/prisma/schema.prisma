@@ -156,6 +156,7 @@ model User {
   votesReceived Vote[] @relation("VoteCandidate")
   voteCandidateMedia VoteCandidateMedia[]
   votingFinalized Boolean @default(false)
+  checklistSubmissions ChecklistSubmission[]
 }
 
 model IndividualDevelopmentPlan {
@@ -739,4 +740,87 @@ model VoteCandidateMedia {
 
   @@unique([categoryId, candidateUserId])
   @@index([candidateUserId])
+}
+
+enum ChecklistType {
+  BOOLEAN
+  NUMBER
+  TEXT
+}
+
+enum ChecklistSubmissionStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model ChecklistTemplate {
+  id          Int      @id @default(autoincrement())
+  name        String
+  department  String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  categories  ChecklistCategoryTemplate[]
+  submissions ChecklistSubmission[]
+}
+
+model ChecklistCategoryTemplate {
+  id          Int      @id @default(autoincrement())
+  templateId  Int
+  template    ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name        String
+  order       Int      @default(0)
+
+  questions   ChecklistQuestionTemplate[]
+}
+
+model ChecklistQuestionTemplate {
+  id          Int      @id @default(autoincrement())
+  categoryId  Int
+  category    ChecklistCategoryTemplate @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  question    String
+  type        ChecklistType @default(BOOLEAN)
+  order       Int      @default(0)
+  isRequired  Boolean  @default(true)
+
+  answers     ChecklistAnswer[]
+}
+
+model ChecklistSubmission {
+  id          Int      @id @default(autoincrement())
+  templateId  Int
+  template    ChecklistTemplate @relation(fields: [templateId], references: [id])
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  date        DateTime @default(now())
+  status      ChecklistSubmissionStatus @default(SUBMITTED)
+  notes       String?  @db.Text
+  
+  // Signatures
+  hodSigned   Boolean  @default(false)
+  gmSigned    Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  answers     ChecklistAnswer[]
+
+  @@index([templateId])
+  @@index([userId])
+  @@index([date])
+}
+
+model ChecklistAnswer {
+  id           Int      @id @default(autoincrement())
+  submissionId Int
+  submission   ChecklistSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  questionId   Int
+  question     ChecklistQuestionTemplate @relation(fields: [questionId], references: [id])
+  value        String   
+  remarks      String?  @db.Text
+
+  @@index([submissionId])
 }

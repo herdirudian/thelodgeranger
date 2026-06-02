@@ -45,6 +45,12 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
   links.push({ name: 'Self Assessment', href: '/self-assessment', icon: ClipboardCheck });
   links.push({ name: 'IDP', href: '/idp', icon: Target });
   links.push({ name: 'Penilaian 360', href: '/review-360', icon: Users });
+
+  // Daily Checklist for HOD and Management
+  const canSeeChecklist = user.role === 'HOD' || user.role === 'PHOTOGRAPHER_HOD' || user.role === 'MERCHANDISE_HOD' || user.role === 'MERCHANDISE_SPV' || user.role === 'GM' || user.role === 'ADMIN' || user.role === 'HR';
+  if (canSeeChecklist) {
+      links.push({ name: 'Daily Checklist', href: '/hod-checklist', icon: ClipboardCheck });
+  }
   
   if (user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN') {
       links.push({ name: 'Feedback', href: '/feedback', icon: MessageSquare });

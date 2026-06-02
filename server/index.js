@@ -29,6 +29,7 @@ const review360Routes = require('./routes/review360');
 const manualProcurementRoutes = require('./routes/manualProcurement');
 const idpRoutes = require('./routes/idp');
 const votingRoutes = require('./routes/voting');
+const checklistRoutes = require('./routes/checklist');
 const { PrismaClient } = require('@prisma/client');
 const { sendWhatsAppMessage } = require('./services/watzapService');
 const { formatWibTime } = require('./utils/wibDate');
@@ -103,6 +104,7 @@ app.use('/api/review360', review360Routes);
 app.use('/api/manual-procurement', manualProcurementRoutes);
 app.use('/api/idp', idpRoutes);
 app.use('/api/voting', votingRoutes);
+app.use('/api/checklist', checklistRoutes);
 
 const prisma = new PrismaClient();
 const reminderState = { 
