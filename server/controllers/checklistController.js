@@ -3,9 +3,15 @@ const prisma = new PrismaClient();
 
 exports.getTemplates = async (req, res) => {
     try {
-        const { department } = req.query;
+        const user = await prisma.user.findUnique({ where: { id: req.userId } });
         const where = { isActive: true };
-        if (department) where.department = department;
+        
+        // HOD restriction: only see their own department's template
+        if (user.role.includes('HOD') || user.role.includes('SPV')) {
+            where.department = user.department;
+        } else if (req.query.department) {
+            where.department = req.query.department;
+        }
 
         const templates = await prisma.checklistTemplate.findMany({
             where,
@@ -30,6 +36,15 @@ exports.submitChecklist = async (req, res) => {
     try {
         const { templateId, answers, notes, date } = req.body;
         const userId = req.userId;
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+
+        // Security check: Ensure HOD only submits for their department
+        const template = await prisma.checklistTemplate.findUnique({ where: { id: parseInt(templateId) } });
+        if (!template) return res.status(404).json({ message: 'Template not found' });
+
+        if ((user.role.includes('HOD') || user.role.includes('SPV')) && user.department !== template.department) {
+            return res.status(403).json({ message: 'Anda hanya diperbolehkan mengisi checklist departemen Anda sendiri.' });
+        }
 
         // Check if already submitted for today
         const startOfDay = new Date(date || new Date());
@@ -80,7 +95,7 @@ exports.getSubmissions = async (req, res) => {
         const user = await prisma.user.findUnique({ where: { id: req.userId } });
 
         const where = {};
-        if (user.role === 'HOD') {
+        if (user.role.includes('HOD') || user.role.includes('SPV')) {
             where.template = { department: user.department };
         } else if (department) {
             where.template = { department };
@@ -126,9 +141,9 @@ exports.signChecklist = async (req, res) => {
         if (!submission) return res.status(404).json({ message: 'Submission not found' });
 
         const updateData = {};
-        if (type === 'HOD' && user.role === 'HOD' && user.department === submission.template.department) {
+        if ((user.role.includes('HOD') || user.role.includes('SPV')) && user.department === submission.template.department) {
             updateData.hodSigned = true;
-        } else if (type === 'GM' && (user.role === 'GM' || user.role === 'ADMIN')) {
+        } else if (user.role === 'GM' || user.role === 'ADMIN') {
             updateData.gmSigned = true;
             updateData.status = 'APPROVED';
         } else {
