@@ -74,6 +74,10 @@ async function seed() {
                     const firstCol = String(row[0] || '').trim();
                     if (!firstCol || firstCol === 'THE LODGE MARIBAYA' || firstCol === 'Date' || firstCol.includes('Checklist') || firstCol === '0') continue;
 
+                    // Skip rows that are actually meant for signatures
+                    const lowerCol = firstCol.toLowerCase();
+                    if (lowerCol.includes('signature') || lowerCol.includes('tanda tangan') || lowerCol.includes('disetujui oleh')) continue;
+
                     // Detect Category (UPPERCASE)
                     if (firstCol === firstCol.toUpperCase() && firstCol.length > 3 && !firstCol.includes('TIME') && !firstCol.includes('CHECK')) {
                         currentCategory = await prisma.checklistCategoryTemplate.create({

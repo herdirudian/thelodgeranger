@@ -208,13 +208,26 @@ export default function HODChecklistPage() {
 
                     {selectedTemplate ? (
                         <form onSubmit={handleSubmit} className="space-y-8">
-                            {selectedTemplate.categories.map((category: any) => (
+                            {selectedTemplate.categories
+                                .filter((cat: any) => {
+                                    // Hide categories that only contain signature rows
+                                    return cat.questions.some((q: any) => {
+                                        const lowerQ = q.question.toLowerCase();
+                                        return !lowerQ.includes('signature') && !lowerQ.includes('tanda tangan');
+                                    });
+                                })
+                                .map((category: any) => (
                                 <div key={category.id} className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
                                     <div className="bg-gray-50 px-6 py-4 border-b border-gray-100">
                                         <h3 className="font-bold text-gray-800 uppercase tracking-wider">{category.name}</h3>
                                     </div>
                                     <div className="divide-y divide-gray-50">
-                                        {category.questions.map((q: any) => (
+                                        {category.questions
+                                            .filter((q: any) => {
+                                                const lowerQ = q.question.toLowerCase();
+                                                return !lowerQ.includes('signature') && !lowerQ.includes('tanda tangan');
+                                            })
+                                            .map((q: any) => (
                                             <div key={q.id} className="p-6 flex flex-col md:flex-row md:items-center gap-4 hover:bg-gray-50 transition-colors">
                                                 <div className="flex-1">
                                                     <p className="text-gray-700 font-medium">{q.question}</p>
@@ -343,7 +356,12 @@ export default function HODChecklistPage() {
                                 {expandedSubmission === sub.id && (
                                     <div className="p-6 bg-gray-50 border-t border-gray-100 space-y-6">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {sub.answers.map((ans: any) => (
+                                            {sub.answers
+                                                .filter((ans: any) => {
+                                                    const lowerQ = ans.question.question.toLowerCase();
+                                                    return !lowerQ.includes('signature') && !lowerQ.includes('tanda tangan');
+                                                })
+                                                .map((ans: any) => (
                                                 <div key={ans.id} className="bg-white p-4 rounded-xl border border-gray-100 flex items-center justify-between">
                                                     <div>
                                                         <p className="text-sm font-medium text-gray-700">{ans.question.question}</p>
