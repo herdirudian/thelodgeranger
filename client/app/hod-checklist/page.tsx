@@ -110,7 +110,7 @@ export default function HODChecklistPage() {
         }
     };
 
-    const handleSign = async (id: number, type: 'HOD' | 'GM') => {
+    const handleSign = async (id: number, type: 'HOD' | 'SPV' | 'GM') => {
         try {
             await api.put(`/checklist/submissions/${id}/sign`, { type });
             alert("Berhasil menandatangani checklist");
