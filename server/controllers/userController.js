@@ -34,6 +34,7 @@ exports.getAllUsers = async (req, res) => {
         role: true,
         department: true,
         employmentType: true,
+        checklistTemplateId: true,
         leaveQuota: true,
         pdo: true,
         contractStartDate: true,
@@ -66,7 +67,7 @@ exports.getColleagues = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const { email, password, name, role, department, leaveQuota, pdo, contractStartDate, contractEndDate, employmentType } = req.body;
+    const { email, password, name, role, department, leaveQuota, pdo, contractStartDate, contractEndDate, employmentType, checklistTemplateId } = req.body;
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) return res.status(400).json({ message: 'User already exists' });
@@ -81,6 +82,7 @@ exports.createUser = async (req, res) => {
         role,
         department,
         employmentType: employmentType || 'CONTRACT',
+        checklistTemplateId: checklistTemplateId ? parseInt(checklistTemplateId) : null,
         leaveQuota: typeof leaveQuota !== 'undefined' ? parseInt(leaveQuota) : 12,
         pdo: typeof pdo !== 'undefined' ? parseInt(pdo) : 0,
         contractStartDate: contractStartDate ? new Date(contractStartDate) : null,
@@ -132,9 +134,13 @@ exports.getWhatsAppStatus = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, role, department, password, leaveQuota, pdo, contractStartDate, contractEndDate, employmentType } = req.body;
+    const { name, email, role, department, password, leaveQuota, pdo, contractStartDate, contractEndDate, employmentType, checklistTemplateId } = req.body;
     
     let dataToUpdate = { name, email, role, department, employmentType };
+
+    if (checklistTemplateId !== undefined) {
+        dataToUpdate.checklistTemplateId = checklistTemplateId ? parseInt(checklistTemplateId) : null;
+    }
 
     if (leaveQuota !== undefined) {
         dataToUpdate.leaveQuota = parseInt(leaveQuota);

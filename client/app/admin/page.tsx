@@ -54,6 +54,7 @@ function AdminContent() {
   const [waUsers, setWaUsers] = useState<any[]>([]);
   const [waSearch, setWaSearch] = useState('');
   const [waDept, setWaDept] = useState('');
+  const [checklistTemplates, setChecklistTemplates] = useState<any[]>([]);
   const [votingResults, setVotingResults] = useState<any[]>([]);
   const [votingLoading, setVotingLoading] = useState(false);
   const [rookiePhotos, setRookiePhotos] = useState<any[]>([]);
@@ -122,6 +123,7 @@ function AdminContent() {
     role: "STAFF",
     department: "",
     employmentType: "CONTRACT",
+    checklistTemplateId: "" as string | number,
     leaveQuota: 12,
     pdo: 0,
     contractStartDate: "",
@@ -386,6 +388,10 @@ function AdminContent() {
         fetchVotingResults();
         fetchRookiePhotos();
       }
+      
+      if (activeTab === 'staff') {
+        fetchChecklistTemplates();
+      }
     }
 
     if (activeTab === 'bugs' && (user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN')) {
@@ -525,6 +531,7 @@ function AdminContent() {
           employmentType: user.employmentType || "CONTRACT",
           leaveQuota: typeof user.leaveQuota === "number" ? user.leaveQuota : 12,
           pdo: typeof user.pdo === "number" ? user.pdo : 0,
+          checklistTemplateId: user.checklistTemplateId || "",
           contractStartDate: user.contractStartDate ? new Date(user.contractStartDate).toISOString().split('T')[0] : "",
           contractEndDate: user.contractEndDate ? new Date(user.contractEndDate).toISOString().split('T')[0] : ""
       });
@@ -1835,6 +1842,18 @@ function AdminContent() {
                                 value={formDataUser.contractEndDate} onChange={e => setFormDataUser({...formDataUser, contractEndDate: e.target.value})}
                             />
                         </div>
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium">Daily Checklist Access</label>
+                          <select className="w-full border p-2 rounded" 
+                              value={formDataUser.checklistTemplateId} onChange={e => setFormDataUser({...formDataUser, checklistTemplateId: e.target.value})}
+                          >
+                              <option value="">Auto (Berdasarkan Departemen)</option>
+                              {checklistTemplates.map(t => (
+                                  <option key={t.id} value={t.id}>{t.name} ({t.department})</option>
+                              ))}
+                          </select>
+                          <p className="text-[10px] text-gray-500 mt-1 italic">Pilih manual jika user ini perlu mengisi checklist departemen lain.</p>
                       </div>
                       <div className="flex justify-end space-x-2 mt-4">
                           <button type="button" onClick={() => setShowUserModal(false)} className="px-4 py-2 text-gray-600">Cancel</button>

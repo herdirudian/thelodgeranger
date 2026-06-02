@@ -6,8 +6,11 @@ exports.getTemplates = async (req, res) => {
         const user = await prisma.user.findUnique({ where: { id: req.userId } });
         const where = { isActive: true };
         
-        // HOD restriction: only see their own department's template
-        if (user.role.includes('HOD') || user.role.includes('SPV')) {
+        // Priority 1: Check manual mapping (checklistTemplateId)
+        // Priority 2: Fallback to department mapping for HOD/SPV
+        if (user.checklistTemplateId) {
+            where.id = user.checklistTemplateId;
+        } else if (user.role.includes('HOD') || user.role.includes('SPV')) {
             where.department = user.department;
         } else if (req.query.department) {
             where.department = req.query.department;
@@ -38,12 +41,15 @@ exports.submitChecklist = async (req, res) => {
         const userId = req.userId;
         const user = await prisma.user.findUnique({ where: { id: userId } });
 
-        // Security check: Ensure HOD only submits for their department
+        // Security check: Ensure user only submits for their assigned template or department
         const template = await prisma.checklistTemplate.findUnique({ where: { id: parseInt(templateId) } });
         if (!template) return res.status(404).json({ message: 'Template not found' });
 
-        if ((user.role.includes('HOD') || user.role.includes('SPV')) && user.department !== template.department) {
-            return res.status(403).json({ message: 'Anda hanya diperbolehkan mengisi checklist departemen Anda sendiri.' });
+        const isAssignedManually = user.checklistTemplateId === template.id;
+        const isAssignedByDept = (user.role.includes('HOD') || user.role.includes('SPV')) && user.department === template.department;
+
+        if (!isAssignedManually && !isAssignedByDept && user.role !== 'ADMIN' && user.role !== 'GM') {
+            return res.status(403).json({ message: 'Anda tidak memiliki akses untuk mengisi checklist ini.' });
         }
 
         // Check if already submitted for today
@@ -95,7 +101,9 @@ exports.getSubmissions = async (req, res) => {
         const user = await prisma.user.findUnique({ where: { id: req.userId } });
 
         const where = {};
-        if (user.role.includes('HOD') || user.role.includes('SPV')) {
+        if (user.checklistTemplateId) {
+            where.templateId = user.checklistTemplateId;
+        } else if (user.role.includes('HOD') || user.role.includes('SPV')) {
             where.template = { department: user.department };
         } else if (department) {
             where.template = { department };
