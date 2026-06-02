@@ -310,8 +310,8 @@ export default function HODChecklistPage() {
                                                 {sub.status}
                                             </span>
                                             <div className="flex gap-2">
-                                                {sub.hodSigned ? <CheckCircle2 className="w-4 h-4 text-green-500" title="HOD Signed" /> : <Clock className="w-4 h-4 text-gray-300" title="Pending HOD" />}
-                                                {sub.gmSigned ? <CheckCircle2 className="w-4 h-4 text-green-500" title="GM Signed" /> : <Clock className="w-4 h-4 text-gray-300" title="Pending GM" />}
+                                                {sub.hodSigned ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Clock className="w-4 h-4 text-gray-300" />}
+                                                {sub.gmSigned ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Clock className="w-4 h-4 text-gray-300" />}
                                             </div>
                                         </div>
                                         {expandedSubmission === sub.id ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
