@@ -804,6 +804,7 @@ model ChecklistSubmission {
   
   // Signatures
   hodSigned   Boolean  @default(false)
+  spvSigned   Boolean  @default(false)
   gmSigned    Boolean  @default(false)
   
   createdAt   DateTime @default(now())

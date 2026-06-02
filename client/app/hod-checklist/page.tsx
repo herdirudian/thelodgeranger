@@ -311,6 +311,7 @@ export default function HODChecklistPage() {
                                             </span>
                                             <div className="flex gap-2">
                                                 {sub.hodSigned ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Clock className="w-4 h-4 text-gray-300" />}
+                                                {sub.spvSigned ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Clock className="w-4 h-4 text-gray-300" />}
                                                 {sub.gmSigned ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Clock className="w-4 h-4 text-gray-300" />}
                                             </div>
                                         </div>
@@ -351,6 +352,14 @@ export default function HODChecklistPage() {
                                                     className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 flex items-center gap-2"
                                                 >
                                                     <Signature className="w-4 h-4" /> Tanda Tangan HOD
+                                                </button>
+                                            )}
+                                            {!sub.spvSigned && user?.role === 'SUPERVISOR' && user.department === sub.template.department && (
+                                                <button 
+                                                    onClick={() => handleSign(sub.id, 'SPV')}
+                                                    className="px-6 py-2 bg-orange-600 text-white rounded-lg font-bold text-sm hover:bg-orange-700 flex items-center gap-2"
+                                                >
+                                                    <Signature className="w-4 h-4" /> Tanda Tangan SPV
                                                 </button>
                                             )}
                                             {!sub.gmSigned && (user?.role === 'GM' || user?.role === 'ADMIN') && (

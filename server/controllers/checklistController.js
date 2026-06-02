@@ -138,7 +138,7 @@ exports.getSubmissions = async (req, res) => {
 exports.signChecklist = async (req, res) => {
     try {
         const { id } = req.params;
-        const { type } = req.body; // 'HOD' or 'GM'
+        const { type } = req.body; // 'HOD', 'SPV', or 'GM'
         const user = await prisma.user.findUnique({ where: { id: req.userId } });
 
         const submission = await prisma.checklistSubmission.findUnique({
@@ -149,9 +149,13 @@ exports.signChecklist = async (req, res) => {
         if (!submission) return res.status(404).json({ message: 'Submission not found' });
 
         const updateData = {};
-        if ((user.role.includes('HOD') || user.role.includes('SPV')) && user.department === submission.template.department) {
+        const isSameDept = user.department === submission.template.department;
+
+        if (type === 'HOD' && (user.role.includes('HOD') || user.role.includes('SPV')) && isSameDept) {
             updateData.hodSigned = true;
-        } else if (user.role === 'GM' || user.role === 'ADMIN') {
+        } else if (type === 'SPV' && user.role === 'SUPERVISOR' && isSameDept) {
+            updateData.spvSigned = true;
+        } else if (type === 'GM' && (user.role === 'GM' || user.role === 'ADMIN')) {
             updateData.gmSigned = true;
             updateData.status = 'APPROVED';
         } else {
