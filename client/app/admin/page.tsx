@@ -164,6 +164,15 @@ function AdminContent() {
     }
   };
 
+  const fetchChecklistTemplates = async () => {
+    try {
+      const res = await api.get("/checklist/templates");
+      setChecklistTemplates(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const fetchVotingResults = async () => {
     try {
       setVotingLoading(true);
