@@ -355,7 +355,7 @@ export default function IDPPage() {
 
   const [editorSection, setEditorSection] = useState<
     'OBJECTIVE' | 'IDP' | 'REVIEW' | 'CAREER' | 'SUMMARY' | 'GUIDELINES' | 'IDP_GUIDELINES' | 'SAMPLE' | 'COMPETENCIES'
-  >('IDP');
+  >('OBJECTIVE');
 
   const [guidelines, setGuidelines] = useState<{ title: string; header: string; text: string } | null>(null);
   const [idpGuidelines, setIdpGuidelines] = useState<{ title: string; header: string; text: string } | null>(null);
@@ -720,16 +720,6 @@ export default function IDPPage() {
 
         <div className="flex flex-wrap gap-2 mb-6">
           <button
-            onClick={() => setEditorSection('GUIDELINES')}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${
-              editorSection === 'GUIDELINES'
-                ? 'bg-[#0F4D39] text-white border-[#0F4D39]'
-                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            Guideline
-          </button>
-          <button
             onClick={() => setEditorSection('OBJECTIVE')}
             className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${
               editorSection === 'OBJECTIVE'
@@ -750,16 +740,6 @@ export default function IDPPage() {
             IDP
           </button>
           <button
-            onClick={() => setEditorSection('REVIEW')}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${
-              editorSection === 'REVIEW'
-                ? 'bg-[#0F4D39] text-white border-[#0F4D39]'
-                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            Performance Review
-          </button>
-          <button
             onClick={() => setEditorSection('CAREER')}
             className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${
               editorSection === 'CAREER'
@@ -768,36 +748,6 @@ export default function IDPPage() {
             }`}
           >
             Career Preference
-          </button>
-          <button
-            onClick={() => setEditorSection('IDP_GUIDELINES')}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${
-              editorSection === 'IDP_GUIDELINES'
-                ? 'bg-[#0F4D39] text-white border-[#0F4D39]'
-                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            IDP - Guidelines
-          </button>
-          <button
-            onClick={() => setEditorSection('SAMPLE')}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${
-              editorSection === 'SAMPLE'
-                ? 'bg-[#0F4D39] text-white border-[#0F4D39]'
-                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            IDP - Sample
-          </button>
-          <button
-            onClick={() => setEditorSection('COMPETENCIES')}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${
-              editorSection === 'COMPETENCIES'
-                ? 'bg-[#0F4D39] text-white border-[#0F4D39]'
-                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            Competencies
           </button>
           <button
             onClick={() => setEditorSection('SUMMARY')}
