@@ -270,7 +270,13 @@ export default function Dashboard() {
     const checkAllowed = async () => {
       try {
         const res = await api.get('/public-survey/allowed');
-        setAllowedTypes(res.data?.allowedTypes || []);
+        const allowed = res.data?.allowedTypes || [];
+        setAllowedTypes(allowed);
+        
+        // If current surveyType is not allowed, switch to first allowed one
+        if (allowed.length > 0 && !allowed.includes('ALL') && !allowed.includes(surveyType)) {
+          setSurveyType(allowed[0] === 'ALL' ? 'WISATA' : allowed[0]);
+        }
       } catch {}
     };
     if (user) checkAllowed();

@@ -52,8 +52,14 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
       links.push({ name: 'Daily Checklist', href: '/hod-checklist', icon: ClipboardCheck });
   }
   
-  if (user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN') {
+  // Feedback menu visibility
+  const hasSurveyAccess = user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN' || (user.publicSurveyAccess && user.publicSurveyAccess.length > 0);
+  
+  if (hasSurveyAccess) {
       links.push({ name: 'Feedback', href: '/feedback', icon: MessageSquare });
+  }
+
+  if (user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN') {
       links.push({ name: 'Admin', href: '/admin', icon: User });
       links.push({ name: 'Survey Access', href: '/admin/public-survey-access', icon: Users });
   }
