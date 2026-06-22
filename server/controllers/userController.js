@@ -272,6 +272,7 @@ exports.verifyWhatsAppCode = async (req, res) => {
 exports.deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = parseInt(id);
     const requesterId = req.userId;
     const requester = await prisma.user.findUnique({ where: { id: requesterId } });
 
@@ -279,14 +280,37 @@ exports.deleteUser = async (req, res) => {
         return res.status(403).json({ message: 'Forbidden: Require Admin privileges' });
     }
 
-    // Optional: Delete related data first if cascading is not enabled
-    // But usually Prisma schema handles cascading deletes or we let DB handle it.
-    // If not, we might need to delete Schedules, Requests, etc. manually.
-    // For now assuming basic deletion is fine or cascading is set.
-    
-    await prisma.user.delete({ where: { id: parseInt(id) } });
+    // Handle foreign key constraints by deleting related data first
+    await prisma.$transaction([
+      prisma.attendance.deleteMany({ where: { userId } }),
+      prisma.schedule.deleteMany({ where: { userId } }),
+      prisma.request.deleteMany({ where: { userId } }),
+      prisma.request.updateMany({ 
+        where: { securityReturnById: userId }, 
+        data: { securityReturnById: null } 
+      }),
+      prisma.procurement.deleteMany({ where: { userId } }),
+      prisma.customerFeedback.deleteMany({ where: { staffId: userId } }),
+      prisma.announcement.deleteMany({ where: { userId } }),
+      prisma.notification.deleteMany({ where: { userId } }),
+      prisma.bugReport.deleteMany({ where: { userId } }),
+      prisma.individualDevelopmentPlan.deleteMany({ where: { userId } }),
+      prisma.individualDevelopmentPlan.deleteMany({ where: { createdById: userId } }),
+      prisma.onboardingTask.deleteMany({ where: { userId } }),
+      prisma.userLearningProgress.deleteMany({ where: { userId } }),
+      prisma.approvalAssignment.deleteMany({ where: { userId } }),
+      prisma.transactionApproval.deleteMany({ where: { userId } }),
+      prisma.review360Assignment.deleteMany({ where: { reviewerUserId: userId } }),
+      prisma.review360Assignment.deleteMany({ where: { targetUserId: userId } }),
+      prisma.review360Form.deleteMany({ where: { createdById: userId } }),
+      prisma.checklistSubmission.deleteMany({ where: { userId } }),
+      prisma.publicSurveyAccess.deleteMany({ where: { userId } }),
+      prisma.user.delete({ where: { id: userId } })
+    ]);
+
     res.status(200).json({ message: 'User deleted successfully' });
   } catch (error) {
+    console.error("Delete user error:", error);
     res.status(500).json({ message: 'Error deleting user', error: error.message });
   }
 };
