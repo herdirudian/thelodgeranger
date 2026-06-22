@@ -618,20 +618,20 @@ exports.getEmployeeRecap = async (req, res) => {
                 userId: { in: userIds },
                 startDate: { gte: start, lte: end },
                 status: 'APPROVED',
-                type: { in: ['SICK', 'PERMISSION', 'LEAVE', 'EXTERNAL_DUTY'] }
+                type: { in: ['SICK', 'PERMISSION', 'LEAVE', 'EXTERNAL_DUTY', 'PDO'] }
             }
         });
 
         // Map: userId -> { SICK: 0, PERMISSION: 0, ... }
         const reqMap = {};
         requestCounts.forEach(r => {
-            if (!reqMap[r.userId]) reqMap[r.userId] = { SICK: 0, PERMISSION: 0, LEAVE: 0, EXTERNAL_DUTY: 0 };
+            if (!reqMap[r.userId]) reqMap[r.userId] = { SICK: 0, PERMISSION: 0, LEAVE: 0, EXTERNAL_DUTY: 0, PDO: 0 };
             reqMap[r.userId][r.type] = r._count.id;
         });
         
         // 6. Merge Data
         const result = users.map(user => {
-            const reqs = reqMap[user.id] || { SICK: 0, PERMISSION: 0, LEAVE: 0, EXTERNAL_DUTY: 0 };
+            const reqs = reqMap[user.id] || { SICK: 0, PERMISSION: 0, LEAVE: 0, EXTERNAL_DUTY: 0, PDO: 0 };
             return {
                 id: user.id,
                 name: user.name,
@@ -643,7 +643,8 @@ exports.getEmployeeRecap = async (req, res) => {
                 sick: reqs.SICK || 0,
                 permission: reqs.PERMISSION || 0,
                 leave: reqs.LEAVE || 0,
-                external: reqs.EXTERNAL_DUTY || 0
+                external: reqs.EXTERNAL_DUTY || 0,
+                pdo: reqs.PDO || 0
             };
         });
 
@@ -842,20 +843,20 @@ exports.exportRecap = async (req, res) => {
                 userId: { in: userIds },
                 startDate: { gte: start, lte: end },
                 status: 'APPROVED',
-                type: { in: ['SICK', 'PERMISSION', 'LEAVE', 'EXTERNAL_DUTY'] }
+                type: { in: ['SICK', 'PERMISSION', 'LEAVE', 'EXTERNAL_DUTY', 'PDO'] }
             }
         });
 
         const reqMap = {};
         requestCounts.forEach(r => {
-            if (!reqMap[r.userId]) reqMap[r.userId] = { SICK: 0, PERMISSION: 0, LEAVE: 0, EXTERNAL_DUTY: 0 };
+            if (!reqMap[r.userId]) reqMap[r.userId] = { SICK: 0, PERMISSION: 0, LEAVE: 0, EXTERNAL_DUTY: 0, PDO: 0 };
             reqMap[r.userId][r.type] = r._count.id;
         });
 
         // 6. Build CSV
-        const header = "Employee ID,Name,Department,Role,Scheduled Days,Attendance Count,Overtime (Hours),Sick,Permission,Leave,External Duty\n";
+        const header = "Employee ID,Name,Department,Role,Scheduled Days,Attendance Count,Overtime (Hours),Sick,Permission,Leave,External Duty,PDO\n";
         const rows = users.map(user => {
-            const reqs = reqMap[user.id] || { SICK: 0, PERMISSION: 0, LEAVE: 0, EXTERNAL_DUTY: 0 };
+            const reqs = reqMap[user.id] || { SICK: 0, PERMISSION: 0, LEAVE: 0, EXTERNAL_DUTY: 0, PDO: 0 };
             return [
                 user.id,
                 `"${user.name}"`, // Quote name in case of commas
@@ -867,7 +868,8 @@ exports.exportRecap = async (req, res) => {
                 reqs.SICK || 0,
                 reqs.PERMISSION || 0,
                 reqs.LEAVE || 0,
-                reqs.EXTERNAL_DUTY || 0
+                reqs.EXTERNAL_DUTY || 0,
+                reqs.PDO || 0
             ].join(",");
         }).join("\n");
 

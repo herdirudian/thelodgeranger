@@ -58,6 +58,7 @@ interface EmployeeRecap {
     sick: number;
     permission: number;
     leave: number;
+    pdo: number;
     external: number;
 }
 
@@ -475,6 +476,7 @@ export default function AnalyticsPage() {
                                 <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Sick</th>
                                 <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Permit</th>
                                 <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Leave</th>
+                                <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">PDO</th>
                                 <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Ext. Duty</th>
                             </tr>
                         </thead>
@@ -482,17 +484,35 @@ export default function AnalyticsPage() {
                             {employeeRecaps.map((emp) => (
                                 <tr key={emp.id} className="hover:bg-gray-50/50 transition-colors">
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="font-medium text-gray-900">{emp.name}</div>
-                                        <div className="text-xs text-gray-500">{emp.role}</div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-[#0F4D39]/10 flex items-center justify-center text-[#0F4D39] font-bold text-xs">
+                                                {emp.name.substring(0, 2).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-gray-800">{emp.name}</p>
+                                                <p className="text-[10px] text-gray-400 font-bold uppercase">{emp.role}</p>
+                                            </div>
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{emp.department}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900">{emp.scheduledDays}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-bold text-gray-700">{emp.scheduledDays}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-[#0F4D39] font-bold">{emp.attendanceCount}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">{emp.overtimeHours} h</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-red-500 font-medium">{emp.sick}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-yellow-600 font-medium">{emp.permission}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-blue-600 font-medium">{emp.leave}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-purple-600 font-medium">{emp.external}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+                                        <p className={`font-bold ${emp.sick > 0 ? "text-red-500" : "text-gray-400"}`}>{emp.sick}</p>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+                                        <p className={`font-bold ${emp.permission > 0 ? "text-orange-500" : "text-gray-400"}`}>{emp.permission}</p>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+                                        <p className={`font-bold ${emp.leave > 0 ? "text-blue-500" : "text-gray-400"}`}>{emp.leave}</p>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+                                        <p className={`font-bold ${emp.pdo > 0 ? "text-purple-500" : "text-gray-400"}`}>{emp.pdo}</p>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+                                        <p className={`font-bold ${emp.external > 0 ? "text-indigo-500" : "text-gray-400"}`}>{emp.external}</p>
+                                    </td>
                                 </tr>
                             ))}
                             {employeeRecaps.length === 0 && (
