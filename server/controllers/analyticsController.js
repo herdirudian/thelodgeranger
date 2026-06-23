@@ -102,17 +102,22 @@ const getRoleAwareDeptFilter = async (req) => {
 exports.getDepartments = async (req, res) => {
     try {
         const departments = await prisma.user.findMany({
-            distinct: ['department'],
-            select: { department: true },
-            where: { 
-                department: { not: null },
-                NOT: { department: "" }
+            where: {
+                department: { not: null }
             },
-            orderBy: { department: 'asc' }
+            select: {
+                department: true
+            },
+            distinct: ['department'],
+            orderBy: {
+                department: 'asc'
+            }
         });
-        res.json(departments.map(d => d.department));
+        const list = departments.map(d => d.department).filter(Boolean);
+        console.log("Found departments:", list);
+        res.json(list);
     } catch (error) {
-        console.error("Error fetching departments:", error);
+        console.error("Error getting departments:", error);
         res.status(500).json({ message: 'Error fetching departments', error: error.message });
     }
 };

@@ -277,16 +277,19 @@ export default function ManageSchedulePage() {
 
       const allowedRoles = ['HOD', 'HR', 'GM', 'SUPERVISOR', 'ADMIN', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV'];
       if (allowedRoles.includes(userRole)) {
-         if (userRole === 'HR' || userRole === 'GM' || userRole === 'ADMIN') {
+         if (userRole === 'HR' || userRole === 'GM' || userRole === 'ADMIN' || userRole === 'HR Manager') {
            try {
              const deptRes = await api.get("/analytics/departments");
              const list = Array.isArray(deptRes.data) ? deptRes.data : [];
+             console.log("Departments list loaded:", list);
              setDepartments(list);
-             if (!userDept && list.length > 0) {
-               setDepartment(list[0]);
+             if (list.length > 0) {
+                // If HR has a specific dept, use it, otherwise use first from list
+                const defaultDept = userDept && list.includes(userDept) ? userDept : list[0];
+                setDepartment(defaultDept);
              }
            } catch (e) {
-             console.error(e);
+             console.error("Failed to load departments:", e);
            }
          }
 
