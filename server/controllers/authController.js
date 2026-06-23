@@ -53,6 +53,7 @@ exports.me = async (req, res) => {
                 publicSurveyAccess: {
                     select: {
                         id: true,
+                        userId: true,
                         type: true
                     }
                 }

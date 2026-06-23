@@ -277,19 +277,31 @@ export default function ManageSchedulePage() {
 
   const fetchUserAndData = async () => {
     try {
+      setLoading(true);
       const meRes = await api.get("/auth/me");
-      const userRole = meRes.data.role;
-      const userDept = meRes.data.department || "";
+      const userData = meRes.data;
+      const userRole = userData.role;
+      const userDept = userData.department || "";
+      
       setRole(userRole);
       setDepartment(userDept);
 
-      const allowedRoles = ['HOD', 'HR', 'GM', 'SUPERVISOR', 'ADMIN', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV'];
-      if (allowedRoles.includes(userRole)) {
-         if (userRole === 'HR' || userRole === 'GM' || userRole === 'ADMIN' || userRole === 'HR Manager') {
+      console.log("Logged in user role:", userRole);
+
+      // Aggressive check for HR/Admin/GM roles
+      const isManagement = userRole === 'HR' || 
+                           userRole === 'GM' || 
+                           userRole === 'ADMIN' || 
+                           userRole === 'HR Manager' || 
+                           userRole.includes('HR') || 
+                           userRole.includes('ADMIN');
+
+      if (isManagement || ['HOD', 'SUPERVISOR', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV'].includes(userRole)) {
+         if (isManagement) {
            try {
              const deptRes = await api.get("/analytics/departments");
              const list = Array.isArray(deptRes.data) ? deptRes.data : [];
-             console.log("Departments list loaded:", list);
+             console.log("Departments list loaded for management:", list);
              setDepartments(list);
              if (list.length > 0) {
                 // If HR has a specific dept, use it, otherwise use first from list
