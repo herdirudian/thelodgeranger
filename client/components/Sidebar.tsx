@@ -16,11 +16,17 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Attendance', href: '/attendance', icon: Clock },
     { name: 'Schedule', href: '/schedule', icon: Calendar },
-    { name: 'Requests', href: '/requests', icon: FileText },
-    { name: 'Procurement', href: '/procurement', icon: ShoppingBag },
   ];
 
-  const privileged = user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN';
+  const canManageSchedule = user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN' || user.role === 'SUPERVISOR' || user.role === 'HOD' || user.role === 'PHOTOGRAPHER_HOD' || user.role === 'MERCHANDISE_HOD' || user.role === 'MERCHANDISE_SPV';
+  if (canManageSchedule) {
+      links.push({ name: 'Manage Schedule', href: '/schedule/manage', icon: ClipboardList });
+  }
+
+  links.push({ name: 'Requests', href: '/requests', icon: FileText });
+   links.push({ name: 'Procurement', href: '/procurement', icon: ShoppingBag });
+
+   const privileged = user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN';
   const isSecurity = String(user.department || '').toLowerCase() === 'security';
   if (privileged || isSecurity) {
       links.push({ name: 'Security Dashboard', href: '/security-dashboard', icon: Shield });

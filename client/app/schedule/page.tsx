@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { format } from "date-fns";
 import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
 import { formatWibDayName, formatWibMonthDay, formatWibTime } from "@/lib/wibHelpers";
 
 function getScheduleStatus(description?: string) {
@@ -69,20 +70,11 @@ function isMidnightRange(startValue: any, endValue: any) {
 }
 
 export default function SchedulePage() {
+  const { user } = useAuth();
   const [schedules, setSchedules] = useState<any[]>([]);
-  const [role, setRole] = useState("");
   const now = new Date();
   const [viewMonth, setViewMonth] = useState<number>(now.getMonth());
   const [viewYear, setViewYear] = useState<number>(now.getFullYear());
-
-  const fetchMe = async () => {
-      try {
-          const res = await api.get("/auth/me");
-          setRole(res.data.role);
-      } catch (err) {
-          console.error(err);
-      }
-  };
 
   const fetchSchedule = async (start?: string, end?: string) => {
     try {
@@ -102,7 +94,6 @@ export default function SchedulePage() {
     const s = format(start, 'yyyy-MM-dd');
     const e = format(end, 'yyyy-MM-dd');
     fetchSchedule(s, e);
-    fetchMe();
   }, [viewMonth, viewYear]);
 
   const prevMonth = () => {
@@ -143,7 +134,7 @@ export default function SchedulePage() {
             <button onClick={toCurrentMonth} className="px-3 py-1 border rounded text-sm bg-white hover:bg-gray-50">Today</button>
           </div>
         </div>
-        {['HOD', 'HR', 'GM', 'SUPERVISOR', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV'].includes(role) && (
+        {user && ['HOD', 'HR', 'GM', 'SUPERVISOR', 'ADMIN', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV'].includes(user.role) && (
           <Link
             href="/schedule/manage"
             className="w-full md:w-auto text-center bg-[#0F4D39] text-white px-4 py-2 rounded hover:bg-[#0a3628]"

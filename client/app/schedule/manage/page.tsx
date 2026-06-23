@@ -256,7 +256,7 @@ export default function ManageSchedulePage() {
       setRole(userRole);
       setDepartment(userDept);
 
-      const allowedRoles = ['HOD', 'HR', 'GM', 'SUPERVISOR', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV'];
+      const allowedRoles = ['HOD', 'HR', 'GM', 'SUPERVISOR', 'ADMIN', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV'];
       if (allowedRoles.includes(userRole)) {
          if (userRole === 'HR' || userRole === 'GM' || userRole === 'ADMIN') {
            try {
