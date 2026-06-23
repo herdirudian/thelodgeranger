@@ -93,13 +93,23 @@ export default function ManageSchedulePage() {
           console.log("No users found for dept via direct API, trying fallback all users...");
           // Fallback: fetch all users and filter client-side
           const allRes = await api.get("/users");
-          const all = allRes.data || [];
+          const all = Array.isArray(allRes.data) ? allRes.data : [];
+          console.log("Total users fetched for fallback:", all.length);
           const byDept = all.filter((u: any) => normalizeDept(u.department) === normalizeDept(department));
-          console.log("Fallback filtered users:", byDept.length);
+          console.log("Fallback filtered users count:", byDept.length);
           setStaffList(byDept);
         }
       } catch (e) {
         console.error("Error loading staff:", e);
+        // Secondary Fallback if API fails
+        try {
+          const allRes = await api.get("/users");
+          const all = Array.isArray(allRes.data) ? allRes.data : [];
+          const byDept = all.filter((u: any) => normalizeDept(u.department) === normalizeDept(department));
+          setStaffList(byDept);
+        } catch (e2) {
+          console.error("Critical error: fallback staff load failed", e2);
+        }
       }
     };
     loadStaff();

@@ -16,12 +16,15 @@ exports.getAllUsers = async (req, res) => {
     
     // Optional: Filter by department query param if provided (and allowed)
     if (req.query.department) {
+        const queryDept = String(req.query.department).trim();
         if (requester.role === 'HOD') {
              // HOD restricted to own department
              whereClause.department = requester.department;
         } else {
-             // GM/HR/Admin can filter
-             whereClause.department = req.query.department;
+             // GM/HR/Admin can filter - Support case-insensitive and loose matching
+             whereClause.department = {
+                equals: queryDept
+             };
         }
     }
 
