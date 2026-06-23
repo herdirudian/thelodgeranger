@@ -59,7 +59,7 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
   }
   
   // Feedback menu visibility
-  const hasSurveyAccess = user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN' || (user.publicSurveyAccess && user.publicSurveyAccess.length > 0);
+  const hasSurveyAccess = user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN' || (user.publicSurveyAccesses && user.publicSurveyAccesses.length > 0);
   
   if (hasSurveyAccess) {
       links.push({ name: 'Feedback', href: '/feedback', icon: MessageSquare });

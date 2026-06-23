@@ -50,10 +50,9 @@ exports.me = async (req, res) => {
                 pdo: true,
                 whatsappNumber: true,
                 whatsappVerifiedAt: true,
-                publicSurveyAccess: {
+                publicSurveyAccesses: {
                     select: {
                         id: true,
-                        userId: true,
                         type: true
                     }
                 }

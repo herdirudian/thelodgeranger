@@ -16,7 +16,7 @@ interface User {
   pdo?: number;
   whatsappNumber?: string | null;
   whatsappVerifiedAt?: string | null;
-  publicSurveyAccess?: { id: number; type: string | null }[];
+  publicSurveyAccesses?: { id: number; type: string | null }[];
 }
 
 interface AuthContextType {
