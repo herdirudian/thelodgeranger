@@ -55,7 +55,15 @@ export default function ManageSchedulePage() {
 
   useEffect(() => {
     fetchUserAndData();
+    // Refresh departments periodically or on certain events if needed
   }, []);
+
+  useEffect(() => {
+    if (department) {
+      console.log("Department changed to:", department);
+      // We could trigger staff load here if not already handled by department effect
+    }
+  }, [department]);
 
   useEffect(() => {
     const loadColleagues = async () => {
@@ -738,18 +746,18 @@ export default function ManageSchedulePage() {
                           onChange={(e) => setSelectedMonth(e.target.value)}
                           className="border p-2 rounded"
                       />
-                      {((role === 'HR' || role === 'GM' || role === 'ADMIN') && departments.length > 0) ? (
+                      {((role === 'HR' || role === 'GM' || role === 'ADMIN' || role === 'HR Manager') && departments.length > 0) ? (
                         <select
                           value={department}
                           onChange={(e) => setDepartment(e.target.value)}
-                          className="border p-2 rounded"
+                          className="border p-2 rounded bg-white font-bold text-[#0F4D39]"
                         >
                           {departments.map((d) => (
                             <option key={d} value={d}>{d}</option>
                           ))}
                         </select>
                       ) : (
-                        <span className="text-gray-800">Department: {department}</span>
+                        <span className="text-gray-800 font-bold">{department || "Loading..."}</span>
                       )}
                       {scheduleDates.length > 0 && (
                           <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-md text-sm border border-blue-100">
