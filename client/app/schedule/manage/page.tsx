@@ -66,6 +66,7 @@ export default function ManageSchedulePage() {
           map[parseInt(u.id)] = { id: parseInt(u.id), name: u.name, department: u.department };
         });
         setColleaguesMap(map);
+        console.log("Colleagues map loaded:", Object.keys(map).length);
       } catch (e) {
         console.error("Failed to load colleagues list", e);
       }
@@ -76,21 +77,29 @@ export default function ManageSchedulePage() {
   useEffect(() => {
     const loadStaff = async () => {
       if (!department) return;
+      console.log("Loading staff for department:", department);
       try {
-        const usersRes = await api.get("/users?department=" + department);
+        const usersRes = await api.get("/users?department=" + encodeURIComponent(department));
         const raw = usersRes.data || [];
+        console.log("Raw users from API:", raw.length);
+        
+        // Use loose filtering for robustness
         const filtered = raw.filter((u: any) => normalizeDept(u.department) === normalizeDept(department));
+        console.log("Filtered users (loose):", filtered.length);
+        
         if (filtered.length > 0) {
           setStaffList(filtered);
         } else {
-          // Fallback: ambil semua users lalu filter di frontend (untuk kasus spasi/kapital di DB)
+          console.log("No users found for dept via direct API, trying fallback all users...");
+          // Fallback: fetch all users and filter client-side
           const allRes = await api.get("/users");
           const all = allRes.data || [];
           const byDept = all.filter((u: any) => normalizeDept(u.department) === normalizeDept(department));
+          console.log("Fallback filtered users:", byDept.length);
           setStaffList(byDept);
         }
       } catch (e) {
-        console.error(e);
+        console.error("Error loading staff:", e);
       }
     };
     loadStaff();
