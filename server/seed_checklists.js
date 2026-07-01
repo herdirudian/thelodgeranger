@@ -147,10 +147,19 @@ async function seed() {
                     const allData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                     
                     const sections = [
-                        'Counter Ticket', 'Funicular', 'Omah Bamboo', 'The Pines', 'The Cave'
+                        'Counter Ticket', 
+                        'Funicular', 
+                        'Hot Air Baloon & Tenant', 
+                        'Valley Swing', 
+                        'Funswing', 
+                        'Zibike', 
+                        'Operator Photo', 
+                        'Room Driver', 
+                        'Point Briefing',
+                        'GUEST COMPLATIONS & INCIDENTS'
                     ];
 
-                    // Map to store templates: { "Opening - Counter Ticket": templateId }
+                    // Map to store templates: { "OPENING-COUNTER TICKET": templateId }
                     const templateMap = {};
                     
                     // First, create all possible templates for Cashier
@@ -185,11 +194,12 @@ async function seed() {
                         if (!firstCol || firstCol === 'THE LODGE MARIBAYA' || firstCol === 'Date' || firstCol.includes('Checklist') || firstCol === '0') continue;
                         if (upper.includes('SIGNATURE') || upper.includes('TANDA TANGAN')) continue;
 
-                        // 1. Detect Outlet
-                        const matchedOutlet = sections.find(s => upper === s.toUpperCase());
+                        // 1. Detect Outlet (Loose matching for robustness)
+                        const matchedOutlet = sections.find(s => upper.includes(s.toUpperCase()));
                         if (matchedOutlet) {
                             currentOutlet = matchedOutlet;
                             currentSession = null; // Reset session when outlet changes
+                            console.log(`Found Outlet: ${currentOutlet}`);
                             continue;
                         }
 
@@ -208,6 +218,7 @@ async function seed() {
                                     }
                                 });
                                 qOrder = 1;
+                                console.log(`  -> Starting Session: ${currentSession} for ${currentOutlet}`);
                             }
                             continue;
                         }
