@@ -206,12 +206,12 @@ async function seed() {
                         if (!firstCol || firstCol === 'THE LODGE MARIBAYA' || firstCol === 'Date' || firstCol.includes('Checklist') || firstCol === '0') continue;
                         if (upper.includes('SIGNATURE') || upper.includes('TANDA TANGAN')) continue;
 
-                        // Detect Vehicle Unit Title (e.g. Wara-Wiri Grand Max D 8749 FH)
-                        // Pattern: Starts with a name and contains a Plate Number pattern
+                        // Detect Section Title (Large font / All Caps)
+                        // Precise match for Area titles as seen in the image
+                        const isAreaTitle = sections.some(s => upper === s);
                         const isVehicleTitle = /WARA-WIRI|GRAND MAX|TRUK|PICK UP|D \d{4} [A-Z]{1,2}/.test(upper) && !upper.includes('CHECKLIST');
-                        const isAreaTitle = sections.some(s => upper.includes(s));
 
-                        if (isVehicleTitle || isAreaTitle) {
+                        if (isAreaTitle || isVehicleTitle) {
                             const templateName = `Parkir - ${firstCol}`;
                             console.log(`Creating Parking Template: ${templateName}`);
                             
@@ -224,7 +224,7 @@ async function seed() {
 
                         if (!currentTemplate) continue;
 
-                        // Detect Category (All Caps)
+                        // Detect Category (e.g. KONDISI EKSTERIOR or OPENING CHECKLIST)
                         const isCategory = firstCol === upper && firstCol.length > 3 && !upper.includes('TIME') && !upper.includes('STATUS');
                         if (isCategory) {
                             currentCategory = await prisma.checklistCategoryTemplate.create({
@@ -239,11 +239,11 @@ async function seed() {
                         }
 
                         // Add Questions
-                        if (firstCol && firstCol !== 'YES' && firstCol !== 'NO' && firstCol !== 'FALSE') {
-                            // If no category yet, create a default one
+                        if (firstCol && firstCol !== 'YES' && firstCol !== 'NO' && firstCol !== 'FALSE' && firstCol !== 'Check list') {
+                            // If no category yet, create a default one (e.g. for Area questions before any sub-category)
                             if (!currentCategory) {
                                 currentCategory = await prisma.checklistCategoryTemplate.create({
-                                    data: { templateId: currentTemplate.id, name: 'GENERAL', order: 1 }
+                                    data: { templateId: currentTemplate.id, name: 'OPENING', order: 1 }
                                 });
                             }
 
