@@ -185,24 +185,20 @@ async function seed() {
                     const worksheet = workbook.Sheets[sheetName];
                     const allData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                     
-                    const parkingSections = [
+                    const sections = [
                         'AREA PARKIR UMUM', 
                         'AREA PARKIR CIKEBUL', 
                         'AREA PARKIR FAIRY GARDEN (FG)',
-                        'CHECKLIST KENDARAAN OPERASIONAL',
                         'CLOSING CHECKLIST',
-                        'KENDARAAN OPERASIONAL'
+                        'PENUTUPAN AREA'
                     ];
 
-                    const templateMap = {};
-                    // We'll create templates dynamically as we find them in the sheet
-                    
                     let currentTemplate = null;
                     let currentCategory = null;
                     let qOrder = 1;
-                    let vehicleCount = 0;
 
-                    for (const row of allData) {
+                    for (let rowIndex = 0; rowIndex < allData.length; rowIndex++) {
+                        const row = allData[rowIndex];
                         if (!row || row.length === 0) continue;
                         const firstCol = String(row[0] || '').trim();
                         const upper = firstCol.toUpperCase();
@@ -210,34 +206,50 @@ async function seed() {
                         if (!firstCol || firstCol === 'THE LODGE MARIBAYA' || firstCol === 'Date' || firstCol.includes('Checklist') || firstCol === '0') continue;
                         if (upper.includes('SIGNATURE') || upper.includes('TANDA TANGAN')) continue;
 
-                        // Detect Section Title (Large font / All Caps)
-                        const isTitle = firstCol === upper && firstCol.length > 5 && !upper.includes('TIME') && !upper.includes('CHECK LIST');
-                        
-                        // Special detection for specific vehicles like "Wara-Wiri Grand Max D 8749 FH"
-                        // These might not be all caps, but they are important titles
-                        const isVehicleTitle = (upper.includes('GRAND MAX') || upper.includes('WARA-WIRI') || / [A-Z] \d{4} [A-Z]{1,2}/.test(firstCol));
+                        // Detect Vehicle Unit Title (e.g. Wara-Wiri Grand Max D 8749 FH)
+                        // Pattern: Starts with a name and contains a Plate Number pattern
+                        const isVehicleTitle = /WARA-WIRI|GRAND MAX|TRUK|PICK UP|D \d{4} [A-Z]{1,2}/.test(upper) && !upper.includes('CHECKLIST');
+                        const isAreaTitle = sections.some(s => upper.includes(s));
 
-                        if (isTitle || isVehicleTitle) {
-                            let templateName = `Parkir - ${firstCol}`;
-                            console.log(`Found Parking Section: ${firstCol}`);
-
+                        if (isVehicleTitle || isAreaTitle) {
+                            const templateName = `Parkir - ${firstCol}`;
+                            console.log(`Creating Parking Template: ${templateName}`);
+                            
                             currentTemplate = await prisma.checklistTemplate.create({
                                 data: { name: templateName, department: dept, dayOfWeek: null }
                             });
-                            
-                            // Create an initial category for this template
-                            currentCategory = await prisma.checklistCategoryTemplate.create({
-                                data: { templateId: currentTemplate.id, name: firstCol, order: 1 }
-                            });
-                            qOrder = 1;
+                            currentCategory = null; // Reset category for new template
                             continue;
                         }
 
-                        // Add Questions to current active template
-                        if (currentCategory && upper !== 'TIME CHECKING' && upper !== 'CHECK LIST' && upper !== 'YES' && upper !== 'NO') {
+                        if (!currentTemplate) continue;
+
+                        // Detect Category (All Caps)
+                        const isCategory = firstCol === upper && firstCol.length > 3 && !upper.includes('TIME') && !upper.includes('STATUS');
+                        if (isCategory) {
+                            currentCategory = await prisma.checklistCategoryTemplate.create({
+                                data: {
+                                    templateId: currentTemplate.id,
+                                    name: firstCol,
+                                    order: qOrder++
+                                }
+                            });
+                            qOrder = 1; // Reset question order for new category
+                            continue;
+                        }
+
+                        // Add Questions
+                        if (firstCol && firstCol !== 'YES' && firstCol !== 'NO' && firstCol !== 'FALSE') {
+                            // If no category yet, create a default one
+                            if (!currentCategory) {
+                                currentCategory = await prisma.checklistCategoryTemplate.create({
+                                    data: { templateId: currentTemplate.id, name: 'GENERAL', order: 1 }
+                                });
+                            }
+
                             let type = 'BOOLEAN';
-                            if (firstCol.includes('____') || firstCol.includes('Number of') || firstCol.includes('Jumlah') || firstCol.includes('Time') || firstCol.includes(':')) {
-                                type = 'TEXT'; // Vehicles often need text input for names/types
+                            if (upper.includes('TIME') || upper.includes('STATUS') || upper.includes('JENIS') || upper.includes('NAMA') || firstCol.includes(':')) {
+                                type = 'TEXT';
                             }
 
                             await prisma.checklistQuestionTemplate.create({
