@@ -144,8 +144,16 @@ async function seed() {
                 // Special handling for Cashier to create per-section templates
                 if (dept === 'Cashier') {
                     const cashierSections = [
-                        { name: 'Opening Counter Ticket', keywords: ['OPENING', 'TICKET', 'TICKETING'] },
-                        { name: 'Closing Counter Ticket', keywords: ['CLOSING', 'TICKET', 'TICKETING'] },
+                        { name: 'Opening - Counter Ticket', keywords: ['OPENING', 'COUNTER TICKET'] },
+                        { name: 'Opening - Funicular', keywords: ['OPENING', 'FUNICULAR'] },
+                        { name: 'Opening - Omah Bamboo', keywords: ['OPENING', 'OMAH BAMBOO'] },
+                        { name: 'Opening - The Pines', keywords: ['OPENING', 'THE PINES'] },
+                        { name: 'Opening - The Cave', keywords: ['OPENING', 'THE CAVE'] },
+                        { name: 'Closing - Counter Ticket', keywords: ['CLOSING', 'COUNTER TICKET'] },
+                        { name: 'Closing - Funicular', keywords: ['CLOSING', 'FUNICULAR'] },
+                        { name: 'Closing - Omah Bamboo', keywords: ['CLOSING', 'OMAH BAMBOO'] },
+                        { name: 'Closing - The Pines', keywords: ['CLOSING', 'THE PINES'] },
+                        { name: 'Closing - The Cave', keywords: ['CLOSING', 'THE CAVE'] },
                         { name: 'Inventory & Stock', keywords: ['INVENTORY', 'STOCK'] },
                         { name: 'General Cashier', keywords: ['GENERAL', 'KESIMPULAN'] }
                     ];
@@ -181,7 +189,12 @@ async function seed() {
                             // Detect Category (UPPERCASE)
                             if (firstCol === firstCol.toUpperCase() && firstCol.length > 3 && !firstCol.includes('TIME') && !firstCol.includes('CHECK')) {
                                 const categoryUpper = firstCol.toUpperCase();
-                                isSectionMatch = section.keywords.some(k => categoryUpper.includes(k)) || categoryUpper.includes('GENERAL') || categoryUpper.includes('KESIMPULAN');
+                                
+                                // Check if this category matches ALL keywords in section
+                                // e.g. section "Opening - Funicular" keywords are ["OPENING", "FUNICULAR"]
+                                isSectionMatch = section.keywords.every(k => categoryUpper.includes(k)) || 
+                                                 categoryUpper.includes('GENERAL') || 
+                                                 categoryUpper.includes('KESIMPULAN');
                                 
                                 if (isSectionMatch) {
                                     currentCategory = await prisma.checklistCategoryTemplate.create({
