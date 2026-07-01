@@ -15,7 +15,8 @@ import {
     ChevronDown,
     ChevronUp,
     FileText,
-    Signature
+    Signature,
+    Download
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -88,6 +89,34 @@ export default function HODChecklistPage() {
         }
     };
 
+    const exportToCSV = () => {
+        if (submissions.length === 0) return;
+
+        const headers = ["ID", "Template", "Department", "Staff", "Date", "Status", "HOD Sign", "SPV Sign", "GM Sign", "Notes"];
+        const rows = submissions.map(sub => [
+            sub.id,
+            sub.template.name,
+            sub.template.department,
+            sub.user.name,
+            format(new Date(sub.date), 'yyyy-MM-dd'),
+            sub.status,
+            sub.hodSigned ? 'YES' : 'NO',
+            sub.spvSigned ? 'YES' : 'NO',
+            sub.gmSigned ? 'YES' : 'NO',
+            `"${(sub.notes || '').replace(/"/g, '""')}"`
+        ]);
+
+        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `checklist_report_${format(new Date(), 'yyyyMMdd')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const handleAnswerChange = (questionId: number, value: any) => {
         setAnswers(prev => ({
             ...prev,
@@ -154,27 +183,37 @@ export default function HODChecklistPage() {
                     <p className="text-gray-500 mt-1">Laporan pemantauan operasional harian departemen</p>
                 </div>
 
-                <div className="flex bg-gray-100 p-1 rounded-xl">
-                    <button 
-                        onClick={() => setActiveTab('form')}
-                        className={clsx(
-                            "px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
-                            activeTab === 'form' ? "bg-white text-[#0F4D39] shadow-sm" : "text-gray-500 hover:text-gray-700"
-                        )}
-                    >
-                        <FileText className="w-4 h-4" />
-                        Form Pengisian
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('history')}
-                        className={clsx(
-                            "px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
-                            activeTab === 'history' ? "bg-white text-[#0F4D39] shadow-sm" : "text-gray-500 hover:text-gray-700"
-                        )}
-                    >
-                        <History className="w-4 h-4" />
-                        Riwayat
-                    </button>
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex bg-gray-100 p-1 rounded-xl">
+                        <button 
+                            onClick={() => setActiveTab('form')}
+                            className={clsx(
+                                "px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
+                                activeTab === 'form' ? "bg-white text-[#0F4D39] shadow-sm" : "text-gray-500 hover:text-gray-700"
+                            )}
+                        >
+                            <FileText className="w-4 h-4" />
+                            Form Pengisian
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('history')}
+                            className={clsx(
+                                "px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
+                                activeTab === 'history' ? "bg-white text-[#0F4D39] shadow-sm" : "text-gray-500 hover:text-gray-700"
+                            )}
+                        >
+                            <History className="w-4 h-4" />
+                            Riwayat
+                        </button>
+                    </div>
+                    {activeTab === 'history' && (
+                        <button 
+                            onClick={exportToCSV}
+                            className="px-4 py-2 border border-[#0F4D39] text-[#0F4D39] rounded-lg text-sm font-bold hover:bg-[#0F4D39]/5 flex items-center gap-2"
+                        >
+                            <Download className="w-4 h-4" /> Export Report
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -182,7 +221,7 @@ export default function HODChecklistPage() {
                 <div className="space-y-6">
                     {templates.length > 1 && (
                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Pilih Departemen:</label>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Pilih Bagian / Outlet:</label>
                             <select 
                                 value={selectedTemplate?.id}
                                 onChange={(e) => {
@@ -197,10 +236,10 @@ export default function HODChecklistPage() {
                                     });
                                     setAnswers(initialAnswers);
                                 }}
-                                className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0F4D39] outline-none"
+                                className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0F4D39] outline-none font-bold"
                             >
                                 {templates.map(t => (
-                                    <option key={t.id} value={t.id}>{t.name} ({t.department})</option>
+                                    <option key={t.id} value={t.id}>{t.name}</option>
                                 ))}
                             </select>
                         </div>

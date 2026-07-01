@@ -9,18 +9,18 @@ const checklistDir = process.platform === 'win32'
     : '/var/www/thelodgeranger/Checklist';
 
 const fileToDept = {
-    '01.Front Office  Daily Checklist  2026.xlsx': 'FRONT OFFICE',
-    '02. Cashier Daily Checklist 2026.xlsx': 'CASHIER',
-    '03.Room Checklist The Lodge Camp & Village.xlsx': 'HOUSEKEEPING',
-    '04. Parking & Driver Daily Checklist 2026.xlsx': 'PARKING & DRIVER',
-    '05. Public Area  Daily Checklist 2026.xlsx': 'PUBLIC AREA',
+    '01.Front Office  Daily Checklist  2026.xlsx': 'Front Office',
+    '02. Cashier Daily Checklist 2026.xlsx': 'Cashier',
+    '03.Room Checklist The Lodge Camp & Village.xlsx': 'Room / Housekeeping',
+    '04. Parking & Driver Daily Checklist 2026.xlsx': 'Parkir',
+    '05. Security Daily Checklist 2026.xlsx': 'Security',
     '06. IT Checklist 2026.xlsx': 'IT',
-    '07. F&B Service Daily Checklist.xlsx': 'F&B SERVICE',
-    '08. POMEC Checklist 2026.xlsx': 'POMEC',
-    '09. F&B Product Daily Checklist.xlsx': 'F&B PRODUCT',
-    '10. Gardener  Daily Checklist 2026.xlsx': 'GARDENER',
-    '11. Wahana Daily Checklist.xlsx': 'WAHANA',
-    '12. Activity  Daily Checklist  2026.xlsx': 'ACTIVITY'
+    '07. Housekeeping Public Area Checklist.xlsx': 'Housekeeping',
+    '08. Engineering Daily Checklist.xlsx': 'Engineering',
+    '09. FB Product Daily Checklist.xlsx': 'FB Product',
+    '10. FB Service Daily Checklist.xlsx': 'FB Service',
+    '11. Marcomm Daily Checklist.xlsx': 'Marcomm',
+    '12. HR Daily Checklist.xlsx': 'HR'
 };
 
 async function seed() {
