@@ -91,10 +91,15 @@ async function seed() {
                                 // Detect Category (UPPERCASE)
                                 if (firstCol === firstCol.toUpperCase() && firstCol.length > 3 && !firstCol.includes('TIME') && !firstCol.includes('CHECK')) {
                                     // If it's a general category or matches our specific unit
-                                    isUnitMatch = firstCol.includes(unit.name.toUpperCase()) || 
-                                                  firstCol.includes('GUEST') || 
-                                                  firstCol.includes('GENERAL') ||
-                                                  firstCol.includes('KESIMPULAN');
+                                    // Using more flexible matching for unit names
+                                    const categoryUpper = firstCol.toUpperCase();
+                                    const unitNameUpper = unit.name.toUpperCase();
+                                    
+                                    isUnitMatch = categoryUpper.includes(unitNameUpper) || 
+                                                  (unit.name === 'Rumah Gypsy' && categoryUpper.includes('GYPSY')) ||
+                                                  categoryUpper.includes('GUEST') || 
+                                                  categoryUpper.includes('GENERAL') ||
+                                                  categoryUpper.includes('KESIMPULAN');
                                     
                                     if (isUnitMatch) {
                                         currentCategory = await prisma.checklistCategoryTemplate.create({
