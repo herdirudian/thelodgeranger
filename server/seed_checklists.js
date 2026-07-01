@@ -213,15 +213,13 @@ async function seed() {
                         // Detect Section Title (Large font / All Caps)
                         const isTitle = firstCol === upper && firstCol.length > 5 && !upper.includes('TIME') && !upper.includes('CHECK LIST');
                         
-                        if (isTitle) {
+                        // Special detection for specific vehicles like "Wara-Wiri Grand Max D 8749 FH"
+                        // These might not be all caps, but they are important titles
+                        const isVehicleTitle = (upper.includes('GRAND MAX') || upper.includes('WARA-WIRI') || / [A-Z] \d{4} [A-Z]{1,2}/.test(firstCol));
+
+                        if (isTitle || isVehicleTitle) {
                             let templateName = `Parkir - ${firstCol}`;
-                            
-                            // Special handling for vehicles to create multiple units if needed
-                            if (upper.includes('KENDARAAN OPERASIONAL')) {
-                                // If it's a vehicle section, we might want to create "Kendaraan 1", "Kendaraan 2" etc.
-                                // For now, let's just create one button per large title found
-                                console.log(`Found Parking Section: ${firstCol}`);
-                            }
+                            console.log(`Found Parking Section: ${firstCol}`);
 
                             currentTemplate = await prisma.checklistTemplate.create({
                                 data: { name: templateName, department: dept, dayOfWeek: null }
