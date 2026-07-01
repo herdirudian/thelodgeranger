@@ -6,12 +6,12 @@ const fs = require('fs');
 const prisma = new PrismaClient();
 const checklistDir = process.platform === 'win32' 
     ? 'C:\\xampp\\htdocs\\thelodgeranger\\Checklist\\Checklist Fix' 
-    : '/var/www/thelodgeranger/Checklist/Checklist_Fix';
+    : '/var/www/thelodgeranger/Checklist';
 
 const fileToDept = {
-    '02. Cashier Daily Checklist  2026 (done).xlsx': 'Cashier',
-    '03.Room Checklist The Lodge Camp & Village (DONE0.xlsx': 'Room / Housekeeping',
-    '04. Parking & Driver Daily Checklist 2026 (done).xlsx': 'Parkir'
+    '02. Cashier Daily Checklist 2026.xlsx': 'Cashier',
+    '03.Room Checklist The Lodge Camp & Village.xlsx': 'Room / Housekeeping',
+    '04. Parking & Driver Daily Checklist 2026.xlsx': 'Parkir'
 };
 
 async function seed() {
