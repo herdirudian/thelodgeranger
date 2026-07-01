@@ -140,6 +140,80 @@ async function seed() {
                     }
                     continue; // Skip the default template creation for Room
                 }
+
+                // Special handling for Cashier to create per-section templates
+                if (dept === 'Cashier') {
+                    const cashierSections = [
+                        { name: 'Opening Counter Ticket', keywords: ['OPENING', 'TICKET', 'TICKETING'] },
+                        { name: 'Closing Counter Ticket', keywords: ['CLOSING', 'TICKET', 'TICKETING'] },
+                        { name: 'Inventory & Stock', keywords: ['INVENTORY', 'STOCK'] },
+                        { name: 'General Cashier', keywords: ['GENERAL', 'KESIMPULAN'] }
+                    ];
+
+                    const worksheet = workbook.Sheets[sheetName];
+                    const allData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    for (const section of cashierSections) {
+                        const templateName = `Cashier - ${section.name}`;
+                        console.log(`  -> Creating cashier template: ${templateName}`);
+                        
+                        const template = await prisma.checklistTemplate.create({
+                            data: {
+                                name: templateName,
+                                department: dept,
+                                dayOfWeek: null
+                            }
+                        });
+
+                        let currentCategory = null;
+                        let catOrder = 1;
+                        let qOrder = 1;
+                        let isSectionMatch = false;
+
+                        for (const row of allData) {
+                            if (!row || row.length === 0) continue;
+                            const firstCol = String(row[0] || '').trim();
+                            if (!firstCol || firstCol === 'THE LODGE MARIBAYA' || firstCol === 'Date' || firstCol.includes('Checklist') || firstCol === '0') continue;
+
+                            const lowerCol = firstCol.toLowerCase();
+                            if (lowerCol.includes('signature') || lowerCol.includes('tanda tangan') || lowerCol.includes('disetujui oleh')) continue;
+
+                            // Detect Category (UPPERCASE)
+                            if (firstCol === firstCol.toUpperCase() && firstCol.length > 3 && !firstCol.includes('TIME') && !firstCol.includes('CHECK')) {
+                                const categoryUpper = firstCol.toUpperCase();
+                                isSectionMatch = section.keywords.some(k => categoryUpper.includes(k)) || categoryUpper.includes('GENERAL') || categoryUpper.includes('KESIMPULAN');
+                                
+                                if (isSectionMatch) {
+                                    currentCategory = await prisma.checklistCategoryTemplate.create({
+                                        data: {
+                                            templateId: template.id,
+                                            name: firstCol,
+                                            order: catOrder++
+                                        }
+                                    });
+                                    qOrder = 1;
+                                }
+                            } else if (currentCategory && isSectionMatch) {
+                                if (firstCol === 'Check list' || firstCol === 'Time Checking' || firstCol === 'YES' || firstCol === 'NO') continue;
+                                
+                                let type = 'BOOLEAN';
+                                if (firstCol.includes('____') || firstCol.includes('Number of') || firstCol.includes('Jumlah') || firstCol.includes('Time')) {
+                                    type = 'NUMBER';
+                                }
+
+                                await prisma.checklistQuestionTemplate.create({
+                                    data: {
+                                        categoryId: currentCategory.id,
+                                        question: firstCol,
+                                        type: type,
+                                        order: qOrder++
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    continue;
+                }
                 
                 const templateName = isDaySheet 
                     ? `${dept} (${cleanSheetName})` 
