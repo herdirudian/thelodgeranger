@@ -15,7 +15,8 @@ const fileToDept = {
 };
 
 async function seed() {
-    const files = fs.readdirSync(checklistDir).filter(f => f.endsWith('.xlsx') && !f.startsWith('~$'));
+    const files = Object.keys(fileToDept);
+    console.log(`Starting seed for 3 specific departments: ${files.join(', ')}`);
 
     // Clear existing templates to avoid duplicates during re-seed
     await prisma.checklistAnswer.deleteMany();
@@ -27,7 +28,13 @@ async function seed() {
     const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
     for (const file of files) {
-        const dept = fileToDept[file] || file.split('.')[1]?.trim() || file;
+        const filePath = path.join(checklistDir, file);
+        if (!fs.existsSync(filePath)) {
+            console.warn(`File not found: ${filePath}, skipping...`);
+            continue;
+        }
+
+        const dept = fileToDept[file];
         console.log(`Processing ${file} for ${dept}...`);
 
         try {
