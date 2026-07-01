@@ -6,7 +6,7 @@ const fs = require('fs');
 const prisma = new PrismaClient();
 const checklistDir = process.platform === 'win32' 
     ? 'C:\\xampp\\htdocs\\thelodgeranger\\Checklist\\Checklist Fix' 
-    : '/var/www/thelodgeranger/Checklist/Checklist Fix';
+    : '/var/www/thelodgeranger/Checklist/Checklist_Fix';
 
 const fileToDept = {
     '02. Cashier Daily Checklist  2026 (done).xlsx': 'Cashier',
