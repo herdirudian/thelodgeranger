@@ -180,96 +180,75 @@ async function seed() {
                     continue;
                 }
 
-                // Special handling for Parking
+                // Special handling for Parking to create per-area and per-vehicle templates
                 if (dept === 'Parkir') {
                     const worksheet = workbook.Sheets[sheetName];
                     const allData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                     
-                    const parkingAreas = [
-                        { name: 'Area Parkir Umum', keywords: ['PARKIR UMUM'] },
-                        { name: 'Area Parkir Cikebul', keywords: ['CIKEBUL'] },
-                        { name: 'Area Parkir Fairy Garden', keywords: ['FAIRY GARDEN', 'FG'] }
+                    const parkingSections = [
+                        'AREA PARKIR UMUM', 
+                        'AREA PARKIR CIKEBUL', 
+                        'AREA PARKIR FAIRY GARDEN (FG)',
+                        'CHECKLIST KENDARAAN OPERASIONAL',
+                        'CLOSING CHECKLIST',
+                        'KENDARAAN OPERASIONAL'
                     ];
 
-                    const vehicleUnits = [
-                        { name: 'Kendaraan 1', id: 1 }, { name: 'Kendaraan 2', id: 2 },
-                        { name: 'Kendaraan 3', id: 3 }, { name: 'Kendaraan 4', id: 4 },
-                        { name: 'Kendaraan 5', id: 5 }
-                    ];
-
-                    for (const area of parkingAreas) {
-                        const template = await prisma.checklistTemplate.create({
-                            data: { name: `Parkir - ${area.name}`, department: dept, dayOfWeek: null }
-                        });
-                        
-                        let currentCategory = null;
-                        let isMatch = false;
-                        let qOrder = 1;
-
-                        for (const row of allData) {
-                            if (!row || row.length === 0) continue;
-                            const firstCol = String(row[0] || '').trim();
-                            const upper = firstCol.toUpperCase();
-                            if (upper.includes('SIGNATURE') || upper.includes('TANDA TANGAN')) continue;
-                            if (upper === 'OPENING CHECKLIST') continue;
-
-                            if (firstCol === upper && firstCol.length > 3 && !upper.includes('TIME')) {
-                                isMatch = area.keywords.some(k => upper.includes(k));
-                                if (isMatch) {
-                                    currentCategory = await prisma.checklistCategoryTemplate.create({
-                                        data: { templateId: template.id, name: firstCol, order: 1 }
-                                    });
-                                    qOrder = 1;
-                                }
-                            } else if (currentCategory && isMatch) {
-                                if (upper === 'TIME CHECKING' || upper === 'CHECK LIST') continue;
-                                await prisma.checklistQuestionTemplate.create({
-                                    data: { categoryId: currentCategory.id, question: firstCol, type: 'BOOLEAN', order: qOrder++ }
-                                });
-                            }
-                        }
-                    }
-
-                    const vehicleQuestions = [];
-                    let inVehicleSection = false;
-                    let tempCat = null;
+                    const templateMap = {};
+                    // We'll create templates dynamically as we find them in the sheet
+                    
+                    let currentTemplate = null;
+                    let currentCategory = null;
+                    let qOrder = 1;
+                    let vehicleCount = 0;
 
                     for (const row of allData) {
+                        if (!row || row.length === 0) continue;
                         const firstCol = String(row[0] || '').trim();
                         const upper = firstCol.toUpperCase();
-                        if (upper.includes('KENDARAAN OPERASIONAL')) { inVehicleSection = true; continue; }
-                        if (inVehicleSection) {
-                            if (upper.includes('JENIS KENDARAAN') || upper.includes('NAMA UNIT')) {
-                                vehicleQuestions.push({ cat: 'INFO', q: firstCol, type: 'TEXT' });
-                            } else if (firstCol === upper && firstCol.length > 3 && !upper.includes('TIME') && !upper.includes('STATUS')) {
-                                tempCat = firstCol;
-                            } else if (tempCat && firstCol !== upper && !upper.includes('TIME') && !upper.includes('STATUS')) {
-                                vehicleQuestions.push({ cat: tempCat, q: firstCol, type: 'BOOLEAN' });
-                            }
-                            if (upper.includes('STATUS KENDARAAN')) {
-                                vehicleQuestions.push({ cat: 'STATUS', q: firstCol, type: 'TEXT' });
-                                break;
-                            }
-                        }
-                    }
 
-                    for (const unit of vehicleUnits) {
-                        const template = await prisma.checklistTemplate.create({
-                            data: { name: `Parkir - ${unit.name}`, department: dept, dayOfWeek: null }
-                        });
-                        let lastCatName = "";
-                        let currentCat = null;
-                        let qOrder = 1;
-                        for (const vq of vehicleQuestions) {
-                            if (vq.cat !== lastCatName) {
-                                currentCat = await prisma.checklistCategoryTemplate.create({
-                                    data: { templateId: template.id, name: vq.cat, order: 1 }
-                                });
-                                lastCatName = vq.cat;
-                                qOrder = 1;
+                        if (!firstCol || firstCol === 'THE LODGE MARIBAYA' || firstCol === 'Date' || firstCol.includes('Checklist') || firstCol === '0') continue;
+                        if (upper.includes('SIGNATURE') || upper.includes('TANDA TANGAN')) continue;
+
+                        // Detect Section Title (Large font / All Caps)
+                        const isTitle = firstCol === upper && firstCol.length > 5 && !upper.includes('TIME') && !upper.includes('CHECK LIST');
+                        
+                        if (isTitle) {
+                            let templateName = `Parkir - ${firstCol}`;
+                            
+                            // Special handling for vehicles to create multiple units if needed
+                            if (upper.includes('KENDARAAN OPERASIONAL')) {
+                                // If it's a vehicle section, we might want to create "Kendaraan 1", "Kendaraan 2" etc.
+                                // For now, let's just create one button per large title found
+                                console.log(`Found Parking Section: ${firstCol}`);
                             }
+
+                            currentTemplate = await prisma.checklistTemplate.create({
+                                data: { name: templateName, department: dept, dayOfWeek: null }
+                            });
+                            
+                            // Create an initial category for this template
+                            currentCategory = await prisma.checklistCategoryTemplate.create({
+                                data: { templateId: currentTemplate.id, name: firstCol, order: 1 }
+                            });
+                            qOrder = 1;
+                            continue;
+                        }
+
+                        // Add Questions to current active template
+                        if (currentCategory && upper !== 'TIME CHECKING' && upper !== 'CHECK LIST' && upper !== 'YES' && upper !== 'NO') {
+                            let type = 'BOOLEAN';
+                            if (firstCol.includes('____') || firstCol.includes('Number of') || firstCol.includes('Jumlah') || firstCol.includes('Time') || firstCol.includes(':')) {
+                                type = 'TEXT'; // Vehicles often need text input for names/types
+                            }
+
                             await prisma.checklistQuestionTemplate.create({
-                                data: { categoryId: currentCat.id, question: vq.q, type: vq.type, order: qOrder++ }
+                                data: {
+                                    categoryId: currentCategory.id,
+                                    question: firstCol,
+                                    type: type,
+                                    order: qOrder++
+                                }
                             });
                         }
                     }
