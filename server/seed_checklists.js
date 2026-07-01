@@ -38,7 +38,7 @@ async function seed() {
         console.log(`Processing ${file} for ${dept}...`);
 
         try {
-            const workbook = XLSX.readFile(path.join(checklistDir, file));
+            const workbook = XLSX.readFile(filePath);
             
             for (const sheetName of workbook.SheetNames) {
                 if (sheetName.startsWith('Sheet') || sheetName.includes('BELUM')) continue;
@@ -46,14 +46,40 @@ async function seed() {
                 const cleanSheetName = sheetName.trim();
                 const isDaySheet = days.includes(cleanSheetName);
                 
+                // Special handling for Room / Housekeeping to create per-unit templates
+                if (dept === 'Room / Housekeeping') {
+                    const roomUnits = [
+                        { name: 'Fun Camp', count: 12 },
+                        { name: 'Joglo', count: 2 },
+                        { name: 'Villa Kayu', count: 1 },
+                        { name: 'Rumah Pohon', count: 2 },
+                        { name: 'Rumah Gypsy', count: 1 }
+                    ];
+
+                    for (const unit of roomUnits) {
+                        for (let i = 1; i <= unit.count; i++) {
+                            const unitName = unit.count > 1 ? `${unit.name} ${i}` : unit.name;
+                            const templateName = `Room - ${unitName}`;
+                            
+                            console.log(`  -> Creating room template: ${templateName}`);
+                            const template = await prisma.checklistTemplate.create({
+                                data: {
+                                    name: templateName,
+                                    department: dept,
+                                    dayOfWeek: null
+                                }
+                            });
+                            await createQuestionsForTemplate(template, workbook.Sheets[sheetName]);
+                        }
+                    }
+                    continue; // Skip the default template creation for Room
+                }
+                
                 const templateName = isDaySheet 
                     ? `${dept} (${cleanSheetName})` 
                     : (workbook.SheetNames.length > 1 ? `${dept} - ${cleanSheetName}` : dept);
 
                 console.log(`  -> Creating template: ${templateName}`);
-
-                const worksheet = workbook.Sheets[sheetName];
-                const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
                 const template = await prisma.checklistTemplate.create({
                     data: {
@@ -63,51 +89,56 @@ async function seed() {
                     }
                 });
 
-                let currentCategory = null;
-                let catOrder = 1;
-                let qOrder = 1;
-
-                for (const row of data) {
-                    if (!row || row.length === 0) continue;
-                    const firstCol = String(row[0] || '').trim();
-                    if (!firstCol || firstCol === 'THE LODGE MARIBAYA' || firstCol === 'Date' || firstCol.includes('Checklist') || firstCol === '0') continue;
-
-                    // Skip rows that are actually meant for signatures
-                    const lowerCol = firstCol.toLowerCase();
-                    if (lowerCol.includes('signature') || lowerCol.includes('tanda tangan') || lowerCol.includes('disetujui oleh')) continue;
-
-                    // Detect Category (UPPERCASE)
-                    if (firstCol === firstCol.toUpperCase() && firstCol.length > 3 && !firstCol.includes('TIME') && !firstCol.includes('CHECK')) {
-                        currentCategory = await prisma.checklistCategoryTemplate.create({
-                            data: {
-                                templateId: template.id,
-                                name: firstCol,
-                                order: catOrder++
-                            }
-                        });
-                        qOrder = 1;
-                    } else if (currentCategory) {
-                        if (firstCol === 'Check list' || firstCol === 'Time Checking' || firstCol === 'YES' || firstCol === 'NO') continue;
-                        
-                        let type = 'BOOLEAN';
-                        if (firstCol.includes('____') || firstCol.includes('Number of') || firstCol.includes('Jumlah') || firstCol.includes('Time')) {
-                            type = 'NUMBER';
-                        }
-
-                        await prisma.checklistQuestionTemplate.create({
-                            data: {
-                                categoryId: currentCategory.id,
-                                question: firstCol,
-                                type: type,
-                                order: qOrder++
-                            }
-                        });
-                    }
-                }
+                await createQuestionsForTemplate(template, workbook.Sheets[sheetName]);
             }
             console.log(`Finished ${dept}`);
         } catch (e) {
             console.error(`Error processing ${file}:`, e.message);
+        }
+    }
+}
+
+async function createQuestionsForTemplate(template, worksheet) {
+    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    let currentCategory = null;
+    let catOrder = 1;
+    let qOrder = 1;
+
+    for (const row of data) {
+        if (!row || row.length === 0) continue;
+        const firstCol = String(row[0] || '').trim();
+        if (!firstCol || firstCol === 'THE LODGE MARIBAYA' || firstCol === 'Date' || firstCol.includes('Checklist') || firstCol === '0') continue;
+
+        // Skip rows that are actually meant for signatures
+        const lowerCol = firstCol.toLowerCase();
+        if (lowerCol.includes('signature') || lowerCol.includes('tanda tangan') || lowerCol.includes('disetujui oleh')) continue;
+
+        // Detect Category (UPPERCASE)
+        if (firstCol === firstCol.toUpperCase() && firstCol.length > 3 && !firstCol.includes('TIME') && !firstCol.includes('CHECK')) {
+            currentCategory = await prisma.checklistCategoryTemplate.create({
+                data: {
+                    templateId: template.id,
+                    name: firstCol,
+                    order: catOrder++
+                }
+            });
+            qOrder = 1;
+        } else if (currentCategory) {
+            if (firstCol === 'Check list' || firstCol === 'Time Checking' || firstCol === 'YES' || firstCol === 'NO') continue;
+            
+            let type = 'BOOLEAN';
+            if (firstCol.includes('____') || firstCol.includes('Number of') || firstCol.includes('Jumlah') || firstCol.includes('Time')) {
+                type = 'NUMBER';
+            }
+
+            await prisma.checklistQuestionTemplate.create({
+                data: {
+                    categoryId: currentCategory.id,
+                    question: firstCol,
+                    type: type,
+                    order: qOrder++
+                }
+            });
         }
     }
 }
