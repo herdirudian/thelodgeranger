@@ -49,7 +49,7 @@ async function seed() {
                 // Special handling for Room / Housekeeping to create per-unit templates
                 if (dept === 'Room / Housekeeping') {
                     const roomUnits = [
-                        { name: 'Fun Camp', count: 12 },
+                        { name: 'Fun Camp', count: 14 },
                         { name: 'Joglo', count: 2 },
                         { name: 'Villa Kayu', count: 1 },
                         { name: 'Rumah Pohon', count: 2 },
