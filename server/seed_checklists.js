@@ -143,86 +143,109 @@ async function seed() {
 
                 // Special handling for Cashier to create per-section templates
                 if (dept === 'Cashier') {
-                    const cashierSections = [
-                        { name: 'Opening - Counter Ticket', keywords: ['OPENING', 'COUNTER TICKET'] },
-                        { name: 'Opening - Funicular', keywords: ['OPENING', 'FUNICULAR'] },
-                        { name: 'Opening - Omah Bamboo', keywords: ['OPENING', 'OMAH BAMBOO'] },
-                        { name: 'Opening - The Pines', keywords: ['OPENING', 'THE PINES'] },
-                        { name: 'Opening - The Cave', keywords: ['OPENING', 'THE CAVE'] },
-                        { name: 'Closing - Counter Ticket', keywords: ['CLOSING', 'COUNTER TICKET'] },
-                        { name: 'Closing - Funicular', keywords: ['CLOSING', 'FUNICULAR'] },
-                        { name: 'Closing - Omah Bamboo', keywords: ['CLOSING', 'OMAH BAMBOO'] },
-                        { name: 'Closing - The Pines', keywords: ['CLOSING', 'THE PINES'] },
-                        { name: 'Closing - The Cave', keywords: ['CLOSING', 'THE CAVE'] },
-                        { name: 'Inventory & Stock', keywords: ['INVENTORY', 'STOCK'] },
-                        { name: 'General Cashier', keywords: ['GENERAL', 'KESIMPULAN'] }
-                    ];
-
                     const worksheet = workbook.Sheets[sheetName];
                     const allData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    const sections = [
+                        'Counter Ticket', 'Funicular', 'Omah Bamboo', 'The Pines', 'The Cave'
+                    ];
 
-                    for (const section of cashierSections) {
-                        const templateName = `Cashier - ${section.name}`;
-                        console.log(`  -> Creating cashier template: ${templateName}`);
-                        
-                        const template = await prisma.checklistTemplate.create({
-                            data: {
-                                name: templateName,
-                                department: dept,
-                                dayOfWeek: null
-                            }
-                        });
+                    // Map to store templates: { "Opening - Counter Ticket": templateId }
+                    const templateMap = {};
+                    
+                    // First, create all possible templates for Cashier
+                    for (const s of sections) {
+                        for (const type of ['Opening', 'Closing']) {
+                            const name = `Cashier - ${type} - ${s}`;
+                            const t = await prisma.checklistTemplate.create({
+                                data: { name, department: dept, dayOfWeek: null }
+                            });
+                            templateMap[`${type.toUpperCase()}-${s.toUpperCase()}`] = t.id;
+                        }
+                    }
+                    
+                    // Create Inventory and General templates
+                    const invT = await prisma.checklistTemplate.create({
+                        data: { name: 'Cashier - Inventory & Stock', department: dept, dayOfWeek: null }
+                    });
+                    const genT = await prisma.checklistTemplate.create({
+                        data: { name: 'Cashier - General Cashier', department: dept, dayOfWeek: null }
+                    });
 
-                        let currentCategory = null;
-                        let catOrder = 1;
-                        let qOrder = 1;
-                        let isSectionMatch = false;
+                    let currentOutlet = null;
+                    let currentSession = null; // OPENING or CLOSING
+                    let currentCategory = null;
+                    let qOrder = 1;
 
-                        for (const row of allData) {
-                            if (!row || row.length === 0) continue;
-                            const firstCol = String(row[0] || '').trim();
-                            if (!firstCol || firstCol === 'THE LODGE MARIBAYA' || firstCol === 'Date' || firstCol.includes('Checklist') || firstCol === '0') continue;
+                    for (const row of allData) {
+                        if (!row || row.length === 0) continue;
+                        const firstCol = String(row[0] || '').trim();
+                        const upper = firstCol.toUpperCase();
 
-                            const lowerCol = firstCol.toLowerCase();
-                            if (lowerCol.includes('signature') || lowerCol.includes('tanda tangan') || lowerCol.includes('disetujui oleh')) continue;
+                        if (!firstCol || firstCol === 'THE LODGE MARIBAYA' || firstCol === 'Date' || firstCol.includes('Checklist') || firstCol === '0') continue;
+                        if (upper.includes('SIGNATURE') || upper.includes('TANDA TANGAN')) continue;
 
-                            // Detect Category (UPPERCASE)
-                            if (firstCol === firstCol.toUpperCase() && firstCol.length > 3 && !firstCol.includes('TIME') && !firstCol.includes('CHECK')) {
-                                const categoryUpper = firstCol.toUpperCase();
-                                
-                                // Check if this category matches ALL keywords in section
-                                // e.g. section "Opening - Funicular" keywords are ["OPENING", "FUNICULAR"]
-                                isSectionMatch = section.keywords.every(k => categoryUpper.includes(k)) || 
-                                                 categoryUpper.includes('GENERAL') || 
-                                                 categoryUpper.includes('KESIMPULAN');
-                                
-                                if (isSectionMatch) {
-                                    currentCategory = await prisma.checklistCategoryTemplate.create({
-                                        data: {
-                                            templateId: template.id,
-                                            name: firstCol,
-                                            order: catOrder++
-                                        }
-                                    });
-                                    qOrder = 1;
-                                }
-                            } else if (currentCategory && isSectionMatch) {
-                                if (firstCol === 'Check list' || firstCol === 'Time Checking' || firstCol === 'YES' || firstCol === 'NO') continue;
-                                
-                                let type = 'BOOLEAN';
-                                if (firstCol.includes('____') || firstCol.includes('Number of') || firstCol.includes('Jumlah') || firstCol.includes('Time')) {
-                                    type = 'NUMBER';
-                                }
+                        // 1. Detect Outlet
+                        const matchedOutlet = sections.find(s => upper === s.toUpperCase());
+                        if (matchedOutlet) {
+                            currentOutlet = matchedOutlet;
+                            currentSession = null; // Reset session when outlet changes
+                            continue;
+                        }
 
-                                await prisma.checklistQuestionTemplate.create({
+                        // 2. Detect Session (OPENING/CLOSING)
+                        if (upper === 'OPENING' || upper === 'CLOSING') {
+                            currentSession = upper;
+                            const templateId = templateMap[`${currentSession}-${currentOutlet?.toUpperCase()}`];
+                            
+                            if (templateId) {
+                                // Create a category for this session in this outlet
+                                currentCategory = await prisma.checklistCategoryTemplate.create({
                                     data: {
-                                        categoryId: currentCategory.id,
-                                        question: firstCol,
-                                        type: type,
-                                        order: qOrder++
+                                        templateId: templateId,
+                                        name: `${currentSession} - ${currentOutlet}`,
+                                        order: 1
                                     }
                                 });
+                                qOrder = 1;
                             }
+                            continue;
+                        }
+
+                        // 3. Detect Inventory/General
+                        if (upper.includes('INVENTORY') || upper.includes('STOCK')) {
+                            currentOutlet = 'INVENTORY';
+                            currentCategory = await prisma.checklistCategoryTemplate.create({
+                                data: { templateId: invT.id, name: 'INVENTORY & STOCK', order: 1 }
+                            });
+                            qOrder = 1;
+                            continue;
+                        }
+
+                        if (upper.includes('GENERAL') || upper.includes('KESIMPULAN')) {
+                            currentOutlet = 'GENERAL';
+                            currentCategory = await prisma.checklistCategoryTemplate.create({
+                                data: { templateId: genT.id, name: 'GENERAL', order: 1 }
+                            });
+                            qOrder = 1;
+                            continue;
+                        }
+
+                        // 4. Add Questions
+                        if (currentCategory && firstCol !== 'Check list' && firstCol !== 'Time Checking' && firstCol !== 'YES' && firstCol !== 'NO') {
+                            let type = 'BOOLEAN';
+                            if (firstCol.includes('____') || firstCol.includes('Number of') || firstCol.includes('Jumlah') || firstCol.includes('Time')) {
+                                type = 'NUMBER';
+                            }
+
+                            await prisma.checklistQuestionTemplate.create({
+                                data: {
+                                    categoryId: currentCategory.id,
+                                    question: firstCol,
+                                    type: type,
+                                    order: qOrder++
+                                }
+                            });
                         }
                     }
                     continue;
