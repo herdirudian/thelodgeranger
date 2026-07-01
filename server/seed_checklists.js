@@ -56,11 +56,16 @@ async function seed() {
                         { name: 'Rumah Gypsy', count: 1 }
                     ];
 
+                    const worksheet = workbook.Sheets[sheetName];
+                    const allData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
                     for (const unit of roomUnits) {
                         for (let i = 1; i <= unit.count; i++) {
                             const unitName = unit.count > 1 ? `${unit.name} ${i}` : unit.name;
                             const templateName = `Room - ${unitName}`;
                             
+                            // FILTER DATA: Only keep rows where the Category OR Question contains the unitName
+                            // or common categories like "GUEST COMPLATIONS"
                             console.log(`  -> Creating room template: ${templateName}`);
                             const template = await prisma.checklistTemplate.create({
                                 data: {
@@ -69,7 +74,63 @@ async function seed() {
                                     dayOfWeek: null
                                 }
                             });
-                            await createQuestionsForTemplate(template, workbook.Sheets[sheetName]);
+
+                            let currentCategory = null;
+                            let catOrder = 1;
+                            let qOrder = 1;
+                            let isUnitMatch = false;
+
+                            for (const row of allData) {
+                                if (!row || row.length === 0) continue;
+                                const firstCol = String(row[0] || '').trim();
+                                if (!firstCol || firstCol === 'THE LODGE MARIBAYA' || firstCol === 'Date' || firstCol.includes('Checklist') || firstCol === '0') continue;
+
+                                const lowerCol = firstCol.toLowerCase();
+                                if (lowerCol.includes('signature') || lowerCol.includes('tanda tangan') || lowerCol.includes('disetujui oleh')) continue;
+
+                                // Detect Category (UPPERCASE)
+                                if (firstCol === firstCol.toUpperCase() && firstCol.length > 3 && !firstCol.includes('TIME') && !firstCol.includes('CHECK')) {
+                                    // If it's a general category or matches our specific unit
+                                    isUnitMatch = firstCol.includes(unit.name.toUpperCase()) || 
+                                                  firstCol.includes('GUEST') || 
+                                                  firstCol.includes('GENERAL') ||
+                                                  firstCol.includes('KESIMPULAN');
+                                    
+                                    if (isUnitMatch) {
+                                        currentCategory = await prisma.checklistCategoryTemplate.create({
+                                            data: {
+                                                templateId: template.id,
+                                                name: firstCol,
+                                                order: catOrder++
+                                            }
+                                        });
+                                        qOrder = 1;
+                                    }
+                                } else if (currentCategory && isUnitMatch) {
+                                    // If we are in a matched category, check if the question is for this specific unit number
+                                    // e.g. "Cek Kebersihan Fun Camp 1"
+                                    const isSpecificUnitNumber = /\d+/.test(firstCol);
+                                    if (isSpecificUnitNumber && !firstCol.includes(String(i))) {
+                                        continue; // Skip if it's for a different unit number
+                                    }
+
+                                    if (firstCol === 'Check list' || firstCol === 'Time Checking' || firstCol === 'YES' || firstCol === 'NO') continue;
+                                    
+                                    let type = 'BOOLEAN';
+                                    if (firstCol.includes('____') || firstCol.includes('Number of') || firstCol.includes('Jumlah') || firstCol.includes('Time')) {
+                                        type = 'NUMBER';
+                                    }
+
+                                    await prisma.checklistQuestionTemplate.create({
+                                        data: {
+                                            categoryId: currentCategory.id,
+                                            question: firstCol,
+                                            type: type,
+                                            order: qOrder++
+                                        }
+                                    });
+                                }
+                            }
                         }
                     }
                     continue; // Skip the default template creation for Room
