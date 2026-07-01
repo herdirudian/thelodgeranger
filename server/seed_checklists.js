@@ -141,8 +141,112 @@ async function seed() {
                     continue; // Skip the default template creation for Room
                 }
 
-                // Special handling for Cashier to create per-section templates
-                if (dept === 'Cashier') {
+                // Special handling for Parking to create per-area and per-vehicle templates
+                if (dept === 'Parkir') {
+                    const worksheet = workbook.Sheets[sheetName];
+                    const allData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    // Areas
+                    const parkingAreas = [
+                        { name: 'Area Parkir Umum', keywords: ['PARKIR UMUM'] },
+                        { name: 'Area Parkir Cikebul', keywords: ['CIKEBUL'] },
+                        { name: 'Area Parkir Fairy Garden', keywords: ['FAIRY GARDEN', 'FG'] }
+                    ];
+
+                    // Vehicles (Let's create 5 slots for vehicles for now, or based on the Excel)
+                    const vehicleUnits = [
+                        { name: 'Kendaraan 1', id: 1 },
+                        { name: 'Kendaraan 2', id: 2 },
+                        { name: 'Kendaraan 3', id: 3 },
+                        { name: 'Kendaraan 4', id: 4 },
+                        { name: 'Kendaraan 5', id: 5 }
+                    ];
+
+                    // Create Area Templates
+                    for (const area of parkingAreas) {
+                        const template = await prisma.checklistTemplate.create({
+                            data: { name: `Parkir - ${area.name}`, department: dept, dayOfWeek: null }
+                        });
+                        
+                        let currentCategory = null;
+                        let isMatch = false;
+                        let qOrder = 1;
+
+                        for (const row of allData) {
+                            if (!row || row.length === 0) continue;
+                            const firstCol = String(row[0] || '').trim();
+                            const upper = firstCol.toUpperCase();
+
+                            if (upper.includes('SIGNATURE') || upper.includes('TANDA TANGAN')) continue;
+                            if (upper === 'OPENING CHECKLIST') continue;
+
+                            if (firstCol === upper && firstCol.length > 3 && !upper.includes('TIME')) {
+                                isMatch = area.keywords.some(k => upper.includes(k));
+                                if (isMatch) {
+                                    currentCategory = await prisma.checklistCategoryTemplate.create({
+                                        data: { templateId: template.id, name: firstCol, order: 1 }
+                                    });
+                                    qOrder = 1;
+                                }
+                            } else if (currentCategory && isMatch) {
+                                if (upper === 'TIME CHECKING' || upper === 'CHECK LIST') continue;
+                                await prisma.checklistQuestionTemplate.create({
+                                    data: { categoryId: currentCategory.id, question: firstCol, type: 'BOOLEAN', order: qOrder++ }
+                                });
+                            }
+                        }
+                    }
+
+                    // Create Vehicle Templates
+                    // In Excel, vehicles repeat under "CHECKLIST KENDARAAN OPERASIONAL"
+                    // We'll extract one full set of vehicle questions and apply to each unit
+                    const vehicleQuestions = [];
+                    let inVehicleSection = false;
+                    let tempCat = null;
+
+                    for (const row of allData) {
+                        const firstCol = String(row[0] || '').trim();
+                        const upper = firstCol.toUpperCase();
+                        if (upper.includes('KENDARAAN OPERASIONAL')) { inVehicleSection = true; continue; }
+                        if (inVehicleSection) {
+                            if (upper.includes('JENIS KENDARAAN') || upper.includes('NAMA UNIT')) {
+                                vehicleQuestions.push({ cat: 'INFO', q: firstCol, type: 'TEXT' });
+                            } else if (firstCol === upper && firstCol.length > 3 && !upper.includes('TIME') && !upper.includes('STATUS')) {
+                                tempCat = firstCol;
+                            } else if (tempCat && firstCol !== upper && !upper.includes('TIME') && !upper.includes('STATUS')) {
+                                vehicleQuestions.push({ cat: tempCat, q: firstCol, type: 'BOOLEAN' });
+                            }
+                            if (upper.includes('STATUS KENDARAAN')) {
+                                vehicleQuestions.push({ cat: 'STATUS', q: firstCol, type: 'TEXT' });
+                                break; // Just take the first vehicle's question set
+                            }
+                        }
+                    }
+
+                    for (const unit of vehicleUnits) {
+                        const template = await prisma.checklistTemplate.create({
+                            data: { name: `Parkir - ${unit.name}`, department: dept, dayOfWeek: null }
+                        });
+                        
+                        let lastCatName = "";
+                        let currentCat = null;
+                        let qOrder = 1;
+
+                        for (const vq of vehicleQuestions) {
+                            if (vq.cat !== lastCatName) {
+                                currentCat = await prisma.checklistCategoryTemplate.create({
+                                    data: { templateId: template.id, name: vq.cat, order: 1 }
+                                });
+                                lastCatName = vq.cat;
+                                qOrder = 1;
+                            }
+                            await prisma.checklistQuestionTemplate.create({
+                                data: { categoryId: currentCat.id, question: vq.q, type: vq.type, order: qOrder++ }
+                            });
+                        }
+                    }
+                    continue;
+                }
                     const worksheet = workbook.Sheets[sheetName];
                     const allData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                     
