@@ -30,11 +30,24 @@ export default function HODChecklistPage() {
     const [loading, setLoading] = useState(false);
     const [submissions, setSubmissions] = useState<any[]>([]);
     const [expandedSubmission, setExpandedSubmission] = useState<number | null>(null);
+    const [todaySubmissions, setTodaySubmissions] = useState<Record<number, boolean>>({});
 
     useEffect(() => {
         fetchTemplates();
         fetchSubmissions();
     }, []);
+
+    useEffect(() => {
+        // Calculate which templates are already submitted today
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const submittedMap: Record<number, boolean> = {};
+        submissions.forEach(sub => {
+            if (format(new Date(sub.date), 'yyyy-MM-dd') === todayStr) {
+                submittedMap[sub.templateId] = true;
+            }
+        });
+        setTodaySubmissions(submittedMap);
+    }, [submissions]);
 
     const fetchTemplates = async () => {
         try {
@@ -220,28 +233,56 @@ export default function HODChecklistPage() {
             {activeTab === 'form' && (
                 <div className="space-y-6">
                     {templates.length > 1 && (
-                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Pilih Bagian / Outlet:</label>
-                            <select 
-                                value={selectedTemplate?.id}
-                                onChange={(e) => {
-                                    const t = templates.find(t => t.id === parseInt(e.target.value));
-                                    setSelectedTemplate(t);
-                                    // Reset answers
-                                    const initialAnswers: any = {};
-                                    t.categories.forEach((cat: any) => {
-                                        cat.questions.forEach((q: any) => {
-                                            initialAnswers[q.id] = { value: q.type === 'BOOLEAN' ? false : q.type === 'NUMBER' ? 0 : "", remarks: "" };
-                                        });
-                                    });
-                                    setAnswers(initialAnswers);
-                                }}
-                                className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0F4D39] outline-none font-bold"
-                            >
-                                {templates.map(t => (
-                                    <option key={t.id} value={t.id}>{t.name}</option>
-                                ))}
-                            </select>
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                            <label className="block text-sm font-bold text-gray-700 mb-4">Pilih Kamar / Unit yang Akan Di-cek:</label>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                                {templates.map(t => {
+                                    const isSubmitted = todaySubmissions[t.id];
+                                    const isSelected = selectedTemplate?.id === t.id;
+                                    
+                                    return (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => {
+                                                setSelectedTemplate(t);
+                                                // Initialize answers
+                                                const initialAnswers: any = {};
+                                                t.categories.forEach((cat: any) => {
+                                                    cat.questions.forEach((q: any) => {
+                                                        initialAnswers[q.id] = { value: q.type === 'BOOLEAN' ? false : q.type === 'NUMBER' ? 0 : "", remarks: "" };
+                                                    });
+                                                });
+                                                setAnswers(initialAnswers);
+                                            }}
+                                            className={clsx(
+                                                "relative p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-2 text-center",
+                                                isSelected 
+                                                    ? "border-[#0F4D39] bg-[#0F4D39]/5 ring-2 ring-[#0F4D39]/20" 
+                                                    : "border-gray-100 bg-white hover:border-gray-200",
+                                                isSubmitted && "opacity-60"
+                                            )}
+                                        >
+                                            <div className={clsx(
+                                                "p-2 rounded-full",
+                                                isSubmitted ? "bg-green-100 text-green-600" : (isSelected ? "bg-[#0F4D39] text-white" : "bg-gray-100 text-gray-400")
+                                            )}>
+                                                {isSubmitted ? <CheckCircle2 className="w-5 h-5" /> : <div className="w-5 h-5 font-bold text-xs flex items-center justify-center">?</div>}
+                                            </div>
+                                            <span className={clsx(
+                                                "text-xs font-bold break-words",
+                                                isSelected ? "text-[#0F4D39]" : "text-gray-600"
+                                            )}>
+                                                {t.name.replace('Room - ', '')}
+                                            </span>
+                                            {isSubmitted && (
+                                                <span className="absolute -top-2 -right-2 bg-green-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+                                                    DONE
+                                                </span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
 
