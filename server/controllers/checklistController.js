@@ -84,7 +84,8 @@ exports.submitChecklist = async (req, res) => {
                     create: answers.map(a => ({
                         questionId: parseInt(a.questionId),
                         value: String(a.value),
-                        remarks: a.remarks
+                        remarks: a.remarks,
+                        photoUrl: a.photoUrl // Added this
                     }))
                 }
             }

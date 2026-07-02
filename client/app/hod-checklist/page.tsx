@@ -157,6 +157,30 @@ export default function HODChecklistPage() {
         }));
     };
 
+    const handleQuestionPhotoUpload = async (questionId: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await api.post('/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            
+            setAnswers(prev => ({
+                ...prev,
+                [questionId]: { ...prev[questionId], photoUrl: res.data.url }
+            }));
+        } catch (error) {
+            console.error("Upload error:", error);
+            alert("Gagal mengupload foto");
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -343,58 +367,117 @@ export default function HODChecklistPage() {
                                                 return !lowerQ.includes('signature') && !lowerQ.includes('tanda tangan');
                                             })
                                             .map((q: any) => (
-                                            <div key={q.id} className="p-6 flex flex-col md:flex-row md:items-center gap-4 hover:bg-gray-50 transition-colors">
-                                                <div className="flex-1">
-                                                    <p className="text-gray-700 font-medium">{q.question}</p>
+                                            <div key={q.id} className="p-6 flex flex-col gap-4 hover:bg-gray-50 transition-colors">
+                                                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                                                    <div className="flex-1">
+                                                        <p className="text-gray-700 font-medium">{q.question}</p>
+                                                    </div>
+                                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                                                        {q.type === 'BOOLEAN' && (
+                                                            <div className="flex bg-gray-100 p-1 rounded-lg">
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => handleAnswerChange(q.id, true)}
+                                                                    className={clsx(
+                                                                        "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
+                                                                        answers[q.id]?.value === true ? "bg-white text-green-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                                                                    )}
+                                                                >
+                                                                    YES
+                                                                </button>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => handleAnswerChange(q.id, false)}
+                                                                    className={clsx(
+                                                                        "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
+                                                                        answers[q.id]?.value === false ? "bg-white text-red-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                                                                    )}
+                                                                >
+                                                                    NO
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        {q.type === 'NUMBER' && (
+                                                            <input 
+                                                                type="number"
+                                                                value={answers[q.id]?.value}
+                                                                onChange={(e) => handleAnswerChange(q.id, parseInt(e.target.value) || 0)}
+                                                                className="w-24 p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0F4D39] outline-none"
+                                                            />
+                                                        )}
+                                                        {q.type === 'TEXT' && (
+                                                            <input 
+                                                                type="text"
+                                                                value={answers[q.id]?.value}
+                                                                onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                                                                className="w-full sm:w-64 p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0F4D39] outline-none"
+                                                            />
+                                                        )}
+                                                        <input 
+                                                            type="text"
+                                                            placeholder="Catatan (opsional)"
+                                                            value={answers[q.id]?.remarks}
+                                                            onChange={(e) => handleRemarkChange(q.id, e.target.value)}
+                                                            className="w-full sm:w-48 p-2 border border-gray-200 rounded-lg text-xs italic bg-gray-50 focus:bg-white focus:ring-2 focus:ring-[#0F4D39] outline-none"
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                                                    {q.type === 'BOOLEAN' && (
-                                                        <div className="flex bg-gray-100 p-1 rounded-lg">
+
+                                                {/* Per-Question Camera/Gallery Section */}
+                                                <div className="flex flex-wrap items-center gap-3 mt-2">
+                                                    {!answers[q.id]?.photoUrl ? (
+                                                        <div className="flex gap-2">
+                                                            <label className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-all text-gray-600 text-xs font-bold">
+                                                                <input 
+                                                                    type="file" 
+                                                                    accept="image/*" 
+                                                                    capture="environment" 
+                                                                    onChange={(e) => handleQuestionPhotoUpload(q.id, e)}
+                                                                    className="hidden"
+                                                                    disabled={uploading}
+                                                                />
+                                                                <Camera className="w-4 h-4" />
+                                                                Camera
+                                                            </label>
+                                                            <label className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-all text-gray-600 text-xs font-bold">
+                                                                <input 
+                                                                    type="file" 
+                                                                    accept="image/*" 
+                                                                    onChange={(e) => handleQuestionPhotoUpload(q.id, e)}
+                                                                    className="hidden"
+                                                                    disabled={uploading}
+                                                                />
+                                                                <ImageIcon className="w-4 h-4" />
+                                                                Gallery
+                                                            </label>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="relative group">
+                                                            <img 
+                                                                src={getFullUrl(answers[q.id].photoUrl)} 
+                                                                alt="Evidence" 
+                                                                className="w-20 h-20 object-cover rounded-lg border border-gray-200 shadow-sm"
+                                                            />
                                                             <button 
                                                                 type="button"
-                                                                onClick={() => handleAnswerChange(q.id, true)}
-                                                                className={clsx(
-                                                                    "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
-                                                                    answers[q.id]?.value === true ? "bg-white text-green-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                                                                )}
+                                                                onClick={() => {
+                                                                    setAnswers(prev => ({
+                                                                        ...prev,
+                                                                        [q.id]: { ...prev[q.id], photoUrl: "" }
+                                                                    }));
+                                                                }}
+                                                                className="absolute -top-1 -right-1 p-1 bg-red-500 text-white rounded-full shadow hover:bg-red-600 transition-colors"
                                                             >
-                                                                YES
-                                                            </button>
-                                                            <button 
-                                                                type="button"
-                                                                onClick={() => handleAnswerChange(q.id, false)}
-                                                                className={clsx(
-                                                                    "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
-                                                                    answers[q.id]?.value === false ? "bg-white text-red-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                                                                )}
-                                                            >
-                                                                NO
+                                                                <X className="w-3 h-3" />
                                                             </button>
                                                         </div>
                                                     )}
-                                                    {q.type === 'NUMBER' && (
-                                                        <input 
-                                                            type="number"
-                                                            value={answers[q.id]?.value}
-                                                            onChange={(e) => handleAnswerChange(q.id, parseInt(e.target.value) || 0)}
-                                                            className="w-24 p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0F4D39] outline-none"
-                                                        />
+                                                    {uploading && !answers[q.id]?.photoUrl && (
+                                                        <div className="flex items-center gap-1 text-[10px] text-[#0F4D39] font-bold animate-pulse">
+                                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                                            Uploading...
+                                                        </div>
                                                     )}
-                                                    {q.type === 'TEXT' && (
-                                                        <input 
-                                                            type="text"
-                                                            value={answers[q.id]?.value}
-                                                            onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                                                            className="w-full sm:w-64 p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0F4D39] outline-none"
-                                                        />
-                                                    )}
-                                                    <input 
-                                                        type="text"
-                                                        placeholder="Catatan (opsional)"
-                                                        value={answers[q.id]?.remarks}
-                                                        onChange={(e) => handleRemarkChange(q.id, e.target.value)}
-                                                        className="w-full sm:w-48 p-2 border border-gray-200 rounded-lg text-xs italic bg-gray-50 focus:bg-white focus:ring-2 focus:ring-[#0F4D39] outline-none"
-                                                    />
                                                 </div>
                                             </div>
                                         ))}
@@ -410,64 +493,6 @@ export default function HODChecklistPage() {
                                     className="w-full p-4 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-[#0F4D39] outline-none min-h-[120px]"
                                     placeholder="Tuliskan catatan atau kendala operasional hari ini..."
                                 />
-                            </div>
-
-                            {/* Camera Upload Section */}
-                            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                                <label className="block text-sm font-bold text-gray-700 mb-4">Bukti Foto (Evidence):</label>
-                                
-                                <div className="flex flex-col sm:flex-row items-center gap-4">
-                                    {!photoUrl ? (
-                                        <div className="flex flex-wrap gap-3 w-full">
-                                            <label className="flex-1 flex items-center justify-center gap-2 py-4 px-6 border-2 border-dashed border-gray-200 rounded-2xl cursor-pointer hover:border-[#0F4D39] hover:bg-[#0F4D39]/5 transition-all text-gray-500 hover:text-[#0F4D39]">
-                                                <input 
-                                                    type="file" 
-                                                    accept="image/*" 
-                                                    capture="environment" 
-                                                    onChange={handlePhotoUpload}
-                                                    className="hidden"
-                                                    disabled={uploading}
-                                                />
-                                                <Camera className="w-6 h-6" />
-                                                <span className="font-bold">Ambil Foto (Camera)</span>
-                                            </label>
-                                            
-                                            <label className="flex-1 flex items-center justify-center gap-2 py-4 px-6 border-2 border-dashed border-gray-200 rounded-2xl cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all text-gray-500 hover:text-blue-500">
-                                                <input 
-                                                    type="file" 
-                                                    accept="image/*" 
-                                                    onChange={handlePhotoUpload}
-                                                    className="hidden"
-                                                    disabled={uploading}
-                                                />
-                                                <ImageIcon className="w-6 h-6" />
-                                                <span className="font-bold">Pilih dari Galeri</span>
-                                            </label>
-                                        </div>
-                                    ) : (
-                                        <div className="relative w-full max-w-sm">
-                                            <img 
-                                                src={getFullUrl(photoUrl)} 
-                                                alt="Evidence" 
-                                                className="w-full h-48 object-cover rounded-2xl shadow-md"
-                                            />
-                                            <button 
-                                                type="button"
-                                                onClick={() => setPhotoUrl("")}
-                                                className="absolute -top-2 -right-2 p-1.5 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-colors"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {uploading && (
-                                        <div className="flex items-center gap-2 text-[#0F4D39] font-bold animate-pulse">
-                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                            <span>Sedang mengupload...</span>
-                                        </div>
-                                    )}
-                                </div>
                             </div>
 
                             <button 
@@ -535,17 +560,39 @@ export default function HODChecklistPage() {
                                                     return !lowerQ.includes('signature') && !lowerQ.includes('tanda tangan');
                                                 })
                                                 .map((ans: any) => (
-                                                <div key={ans.id} className="bg-white p-4 rounded-xl border border-gray-100 flex items-center justify-between">
-                                                    <div>
-                                                        <p className="text-sm font-medium text-gray-700">{ans.question.question}</p>
-                                                        {ans.remarks && <p className="text-xs text-gray-400 italic mt-1">"{ans.remarks}"</p>}
+                                                <div key={ans.id} className="bg-white p-4 rounded-xl border border-gray-100 flex flex-col gap-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <div>
+                                                            <p className="text-sm font-medium text-gray-700">{ans.question.question}</p>
+                                                            {ans.remarks && <p className="text-xs text-gray-400 italic mt-1">"{ans.remarks}"</p>}
+                                                        </div>
+                                                        <div className={clsx(
+                                                            "font-bold text-sm",
+                                                            ans.question.type === 'BOOLEAN' ? (ans.value === 'true' ? "text-green-600" : "text-red-600") : "text-[#0F4D39]"
+                                                        )}>
+                                                            {ans.question.type === 'BOOLEAN' ? (ans.value === 'true' ? "YES" : "NO") : ans.value}
+                                                        </div>
                                                     </div>
-                                                    <div className={clsx(
-                                                        "font-bold text-sm",
-                                                        ans.question.type === 'BOOLEAN' ? (ans.value === 'true' ? "text-green-600" : "text-red-600") : "text-[#0F4D39]"
-                                                    )}>
-                                                        {ans.question.type === 'BOOLEAN' ? (ans.value === 'true' ? "YES" : "NO") : ans.value}
-                                                    </div>
+                                                    
+                                                    {ans.photoUrl && (
+                                                        <div className="mt-2">
+                                                            <a 
+                                                                href={getFullUrl(ans.photoUrl)} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="inline-block relative group"
+                                                            >
+                                                                <img 
+                                                                    src={getFullUrl(ans.photoUrl)} 
+                                                                    alt="Answer Evidence" 
+                                                                    className="w-24 h-24 object-cover rounded-lg border border-gray-100 shadow-sm group-hover:shadow-md transition-all"
+                                                                />
+                                                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 rounded-lg transition-all flex items-center justify-center">
+                                                                    <span className="text-white text-[8px] font-bold">Zoom</span>
+                                                                </div>
+                                                            </a>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>

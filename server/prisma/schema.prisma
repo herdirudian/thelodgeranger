@@ -827,6 +827,7 @@ model ChecklistAnswer {
   question     ChecklistQuestionTemplate @relation(fields: [questionId], references: [id])
   value        String   
   remarks      String?  @db.Text
+  photoUrl     String?  // Photo evidence per question
 
   @@index([submissionId])
 }
