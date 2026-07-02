@@ -6,7 +6,8 @@ import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { format, differenceInDays } from "date-fns";
 import { formatWibDate, formatWibMonthDay, formatWibTime } from "@/lib/wibHelpers";
-import { User, Calendar, Trash2, Edit2, Plus, Download, Bug, Settings2, Info, MessageSquare, Award, Upload, Trophy, BarChart2, Loader2, ImageIcon } from "lucide-react";
+import { User, Calendar, Trash2, Edit2, Plus, Download, Bug, Settings2, Info, MessageSquare, Award, Upload, Trophy, BarChart2, Loader2, ImageIcon, ClipboardCheck, Settings, List, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import clsx from "clsx";
 
@@ -781,14 +782,13 @@ function AdminContent() {
             <MessageSquare size={16} />
             WhatsApp Status
         </button>
-        {/* Voting tab hidden as it is completed */}
-        {/* <button 
-            className={`pb-2 px-4 flex items-center gap-2 ${activeTab === 'voting' ? 'border-b-2 border-[#0F4D39] font-bold text-[#0F4D39]' : 'text-gray-700'}`}
-            onClick={() => setActiveTab('voting')}
+        <button 
+            className={`pb-2 px-4 flex items-center gap-2 ${activeTab === 'checklists' ? 'border-b-2 border-[#0F4D39] font-bold text-[#0F4D39]' : 'text-gray-700'}`}
+            onClick={() => setActiveTab('checklists')}
         >
-            <Award size={16} />
-            Voting Results
-        </button> */}
+            <ClipboardCheck size={16} />
+            Checklist Manager
+        </button>
         <button 
             className={`pb-2 px-4 ${activeTab === 'bugs' ? 'border-b-2 border-[#0F4D39] font-bold text-[#0F4D39]' : 'text-gray-700'}`}
             onClick={() => setActiveTab('bugs')}
@@ -1580,7 +1580,51 @@ function AdminContent() {
         </div>
       )}
 
-      {/* BUG REPORT TAB */}
+      {/* CHECKLIST TAB */}
+      {activeTab === 'checklists' && (
+        <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 text-center space-y-6">
+          <div className="max-w-md mx-auto">
+            <div className="w-20 h-20 bg-[#0F4D39]/10 rounded-full flex items-center justify-center mx-auto mb-6">
+              <ClipboardCheck size={40} className="text-[#0F4D39]" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">Checklist Template Manager</h2>
+            <p className="text-gray-500 mt-2">
+              Kelola pertanyaan checklist untuk setiap departemen (Parkir, Room, Cashier, dll) secara manual tanpa perlu upload Excel.
+            </p>
+            <div className="pt-8">
+              <Link 
+                href="/admin/checklist-manager"
+                className="inline-flex items-center justify-center px-6 py-3 bg-[#0F4D39] text-white font-bold rounded-lg hover:bg-[#0a3a2b] transition-all shadow-md hover:shadow-lg"
+              >
+                Buka Manager Checklist <ChevronRight size={20} className="ml-2" />
+              </Link>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-12 text-left">
+            <div className="p-4 border border-gray-100 rounded-lg bg-gray-50/50">
+              <h3 className="font-bold text-sm mb-1 flex items-center gap-2">
+                <Plus size={16} className="text-[#0F4D39]" /> Input Manual
+              </h3>
+              <p className="text-xs text-gray-500">Tambah pertanyaan satu per satu sesuai kebutuhan operasional terbaru.</p>
+            </div>
+            <div className="p-4 border border-gray-100 rounded-lg bg-gray-50/50">
+              <h3 className="font-bold text-sm mb-1 flex items-center gap-2">
+                <Settings size={16} className="text-[#0F4D39]" /> Fleksibel
+              </h3>
+              <p className="text-xs text-gray-500">Ubah urutan, tipe input (Yes/No, Angka, Teks), atau hapus pertanyaan lama kapan saja.</p>
+            </div>
+            <div className="p-4 border border-gray-100 rounded-lg bg-gray-50/50">
+              <h3 className="font-bold text-sm mb-1 flex items-center gap-2">
+                <List size={16} className="text-[#0F4D39]" /> Per Unit
+              </h3>
+              <p className="text-xs text-gray-500">Sesuaikan pertanyaan untuk setiap unit (misal: Kamar tertentu atau Outlet tertentu).</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BUG REPORTS TAB */}
       {activeTab === 'bugs' && (
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
               <div className="flex justify-between items-center gap-4">

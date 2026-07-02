@@ -173,3 +173,146 @@ exports.signChecklist = async (req, res) => {
         res.status(500).json({ message: 'Error signing checklist', error: error.message });
     }
 };
+
+// --- ADMIN / TEMPLATE MANAGEMENT ---
+
+exports.adminGetTemplates = async (req, res) => {
+    try {
+        const { department } = req.query;
+        const where = {};
+        if (department) where.department = department;
+
+        const templates = await prisma.checklistTemplate.findMany({
+            where,
+            include: {
+                categories: {
+                    include: {
+                        questions: {
+                            orderBy: { order: 'asc' }
+                        }
+                    },
+                    orderBy: { order: 'asc' }
+                }
+            },
+            orderBy: { name: 'asc' }
+        });
+        res.json(templates);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching templates', error: error.message });
+    }
+};
+
+exports.createTemplate = async (req, res) => {
+    try {
+        const { name, department, dayOfWeek } = req.body;
+        const template = await prisma.checklistTemplate.create({
+            data: { name, department, dayOfWeek }
+        });
+        res.status(201).json(template);
+    } catch (error) {
+        res.status(500).json({ message: 'Error creating template', error: error.message });
+    }
+};
+
+exports.updateTemplate = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, department, dayOfWeek, isActive } = req.body;
+        const template = await prisma.checklistTemplate.update({
+            where: { id: parseInt(id) },
+            data: { name, department, dayOfWeek, isActive }
+        });
+        res.json(template);
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating template', error: error.message });
+    }
+};
+
+exports.deleteTemplate = async (req, res) => {
+    try {
+        const { id } = req.params;
+        await prisma.checklistTemplate.delete({ where: { id: parseInt(id) } });
+        res.json({ message: 'Template deleted' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting template', error: error.message });
+    }
+};
+
+exports.createCategory = async (req, res) => {
+    try {
+        const { templateId, name, order } = req.body;
+        const category = await prisma.checklistCategoryTemplate.create({
+            data: { templateId: parseInt(templateId), name, order: order || 0 }
+        });
+        res.status(201).json(category);
+    } catch (error) {
+        res.status(500).json({ message: 'Error creating category', error: error.message });
+    }
+};
+
+exports.updateCategory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, order } = req.body;
+        const category = await prisma.checklistCategoryTemplate.update({
+            where: { id: parseInt(id) },
+            data: { name, order }
+        });
+        res.json(category);
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating category', error: error.message });
+    }
+};
+
+exports.deleteCategory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        await prisma.checklistCategoryTemplate.delete({ where: { id: parseInt(id) } });
+        res.json({ message: 'Category deleted' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting category', error: error.message });
+    }
+};
+
+exports.createQuestion = async (req, res) => {
+    try {
+        const { categoryId, question, type, order, isRequired } = req.body;
+        const q = await prisma.checklistQuestionTemplate.create({
+            data: { 
+                categoryId: parseInt(categoryId), 
+                question, 
+                type: type || 'BOOLEAN', 
+                order: order || 0,
+                isRequired: isRequired !== undefined ? isRequired : true
+            }
+        });
+        res.status(201).json(q);
+    } catch (error) {
+        res.status(500).json({ message: 'Error creating question', error: error.message });
+    }
+};
+
+exports.updateQuestion = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { question, type, order, isRequired } = req.body;
+        const q = await prisma.checklistQuestionTemplate.update({
+            where: { id: parseInt(id) },
+            data: { question, type, order, isRequired }
+        });
+        res.json(q);
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating question', error: error.message });
+    }
+};
+
+exports.deleteQuestion = async (req, res) => {
+    try {
+        const { id } = req.params;
+        await prisma.checklistQuestionTemplate.delete({ where: { id: parseInt(id) } });
+        res.json({ message: 'Question deleted' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting question', error: error.message });
+    }
+};
+
