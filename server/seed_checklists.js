@@ -180,86 +180,81 @@ async function seed() {
                     continue;
                 }
 
-                // Special handling for Parking to create per-area and per-vehicle templates
+                // Special handling for Parking to create per-sheet templates
                 if (dept === 'Parkir') {
-                    const worksheet = workbook.Sheets[sheetName];
-                    const allData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    const workbook = XLSX.readFile(filePath);
                     
-                    const sections = [
-                        'AREA PARKIR UMUM', 
-                        'AREA PARKIR CIKEBUL', 
-                        'AREA PARKIR FAIRY GARDEN (FG)',
-                        'CLOSING CHECKLIST',
-                        'PENUTUPAN AREA'
-                    ];
+                    for (const sheetName of workbook.SheetNames) {
+                        if (sheetName.startsWith('Sheet') || sheetName.includes('BELUM')) continue;
 
-                    let currentTemplate = null;
-                    let currentCategory = null;
-                    let qOrder = 1;
+                        const cleanSheetName = sheetName.trim();
+                        console.log(`  -> Processing Parking Sheet: ${cleanSheetName}`);
 
-                    for (let rowIndex = 0; rowIndex < allData.length; rowIndex++) {
-                        const row = allData[rowIndex];
-                        if (!row || row.length === 0) continue;
-                        const firstCol = String(row[0] || '').trim();
-                        const upper = firstCol.toUpperCase();
+                        const worksheet = workbook.Sheets[sheetName];
+                        const allData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-                        if (!firstCol || firstCol === 'THE LODGE MARIBAYA' || firstCol === 'Date' || firstCol.includes('Checklist') || firstCol === '0') continue;
-                        if (upper.includes('SIGNATURE') || upper.includes('TANDA TANGAN')) continue;
+                        // Determine if this sheet is for Opening or Closing based on sheet name
+                        const isClosingSheet = cleanSheetName.toUpperCase().includes('CLOSING');
+                        const prefix = isClosingSheet ? 'Closing' : 'Opening';
+                        
+                        const templateName = `Parkir - ${prefix} - ${cleanSheetName}`;
+                        const template = await prisma.checklistTemplate.create({
+                            data: {
+                                name: templateName,
+                                department: dept,
+                                dayOfWeek: null
+                            }
+                        });
 
-                        // Detect Section Title (Large font / All Caps)
-                        // Precise match for Area titles as seen in the image
-                        const isAreaTitle = sections.some(s => upper === s);
-                        const isVehicleTitle = /WARA-WIRI|GRAND MAX|TRUK|PICK UP|D \d{4} [A-Z]{1,2}/.test(upper) && !upper.includes('CHECKLIST');
+                        let currentCategory = null;
+                        let catOrder = 1;
+                        let qOrder = 1;
 
-                        if (isAreaTitle || isVehicleTitle) {
-                            const templateName = `Parkir - ${firstCol}`;
-                            console.log(`Creating Parking Template: ${templateName}`);
+                        for (const row of allData) {
+                            if (!row || row.length === 0) continue;
+                            const firstCol = String(row[0] || '').trim();
+                            const upper = firstCol.toUpperCase();
+
+                            if (!firstCol || firstCol === 'THE LODGE MARIBAYA' || firstCol === 'Date' || firstCol.includes('Checklist') || firstCol === '0') continue;
+                            if (upper.includes('SIGNATURE') || upper.includes('TANDA TANGAN')) continue;
+
+                            // Detect Category (UPPERCASE titles)
+                            const isCategory = firstCol === upper && firstCol.length > 3 && !upper.includes('TIME') && !upper.includes('STATUS') && !upper.includes('CHECK LIST');
                             
-                            currentTemplate = await prisma.checklistTemplate.create({
-                                data: { name: templateName, department: dept, dayOfWeek: null }
-                            });
-                            currentCategory = null; // Reset category for new template
-                            continue;
-                        }
-
-                        if (!currentTemplate) continue;
-
-                        // Detect Category (e.g. KONDISI EKSTERIOR or OPENING CHECKLIST)
-                        const isCategory = firstCol === upper && firstCol.length > 3 && !upper.includes('TIME') && !upper.includes('STATUS');
-                        if (isCategory) {
-                            currentCategory = await prisma.checklistCategoryTemplate.create({
-                                data: {
-                                    templateId: currentTemplate.id,
-                                    name: firstCol,
-                                    order: qOrder++
-                                }
-                            });
-                            qOrder = 1; // Reset question order for new category
-                            continue;
-                        }
-
-                        // Add Questions
-                        if (firstCol && firstCol !== 'YES' && firstCol !== 'NO' && firstCol !== 'FALSE' && firstCol !== 'Check list') {
-                            // If no category yet, create a default one (e.g. for Area questions before any sub-category)
-                            if (!currentCategory) {
+                            if (isCategory) {
                                 currentCategory = await prisma.checklistCategoryTemplate.create({
-                                    data: { templateId: currentTemplate.id, name: 'OPENING', order: 1 }
+                                    data: {
+                                        templateId: template.id,
+                                        name: firstCol,
+                                        order: catOrder++
+                                    }
+                                });
+                                qOrder = 1;
+                            } else {
+                                // If it's a question
+                                if (upper === 'TIME CHECKING' || upper === 'CHECK LIST' || upper === 'YES' || upper === 'NO' || upper === 'FALSE') continue;
+
+                                // Create a default category if none exists yet
+                                if (!currentCategory) {
+                                    currentCategory = await prisma.checklistCategoryTemplate.create({
+                                        data: { templateId: template.id, name: 'GENERAL', order: catOrder++ }
+                                    });
+                                }
+
+                                let type = 'BOOLEAN';
+                                if (upper.includes('TIME') || upper.includes('STATUS') || upper.includes('JENIS') || upper.includes('NAMA') || firstCol.includes(':')) {
+                                    type = 'TEXT';
+                                }
+
+                                await prisma.checklistQuestionTemplate.create({
+                                    data: {
+                                        categoryId: currentCategory.id,
+                                        question: firstCol,
+                                        type: type,
+                                        order: qOrder++
+                                    }
                                 });
                             }
-
-                            let type = 'BOOLEAN';
-                            if (upper.includes('TIME') || upper.includes('STATUS') || upper.includes('JENIS') || upper.includes('NAMA') || firstCol.includes(':')) {
-                                type = 'TEXT';
-                            }
-
-                            await prisma.checklistQuestionTemplate.create({
-                                data: {
-                                    categoryId: currentCategory.id,
-                                    question: firstCol,
-                                    type: type,
-                                    order: qOrder++
-                                }
-                            });
                         }
                     }
                     continue;
