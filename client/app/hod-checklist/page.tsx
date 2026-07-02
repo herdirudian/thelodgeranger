@@ -29,7 +29,7 @@ export default function HODChecklistPage() {
     const [activeTab, setActiveTab] = useState<'form' | 'history'>('form');
     const [templates, setTemplates] = useState<any[]>([]);
     const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
-    const [answers, setAnswers] = useState<Record<number, { value: any, remarks: string }>>({});
+    const [answers, setAnswers] = useState<Record<number, { value: any, remarks: string, photoUrl?: string }>>({});
     const [notes, setNotes] = useState("");
     const [loading, setLoading] = useState(false);
     const [submissions, setSubmissions] = useState<any[]>([]);
@@ -89,7 +89,7 @@ export default function HODChecklistPage() {
                 const initialAnswers: any = {};
                 filteredTemplates[0].categories.forEach((cat: any) => {
                     cat.questions.forEach((q: any) => {
-                        initialAnswers[q.id] = { value: q.type === 'BOOLEAN' ? false : q.type === 'NUMBER' ? 0 : "", remarks: "" };
+                        initialAnswers[q.id] = { value: q.type === 'BOOLEAN' ? false : q.type === 'NUMBER' ? 0 : "", remarks: "", photoUrl: "" };
                     });
                 });
                 setAnswers(initialAnswers);
@@ -308,7 +308,7 @@ export default function HODChecklistPage() {
                                                 const initialAnswers: any = {};
                                                 t.categories.forEach((cat: any) => {
                                                     cat.questions.forEach((q: any) => {
-                                                        initialAnswers[q.id] = { value: q.type === 'BOOLEAN' ? false : q.type === 'NUMBER' ? 0 : "", remarks: "" };
+                                                        initialAnswers[q.id] = { value: q.type === 'BOOLEAN' ? false : q.type === 'NUMBER' ? 0 : "", remarks: "", photoUrl: "" };
                                                     });
                                                 });
                                                 setAnswers(initialAnswers);
