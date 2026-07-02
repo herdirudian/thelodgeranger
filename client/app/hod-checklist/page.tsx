@@ -461,7 +461,7 @@ export default function HODChecklistPage() {
                                                     ) : (
                                                         <div className="relative group">
                                                             <img 
-                                                                src={getFullUrl(answers[q.id].photoUrl)} 
+                                                                src={getFullUrl(answers[q.id].photoUrl || '')} 
                                                                 alt="Evidence" 
                                                                 className="w-20 h-20 object-cover rounded-lg border border-gray-200 shadow-sm"
                                                             />
