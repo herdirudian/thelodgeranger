@@ -24,12 +24,18 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 
+interface AnswerData {
+    value: any;
+    remarks: string;
+    photoUrl?: string;
+}
+
 export default function HODChecklistPage() {
     const { user } = useAuth();
     const [activeTab, setActiveTab] = useState<'form' | 'history'>('form');
     const [templates, setTemplates] = useState<any[]>([]);
     const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
-    const [answers, setAnswers] = useState<Record<number, { value: any, remarks: string, photoUrl?: string }>>({});
+    const [answers, setAnswers] = useState<Record<number, AnswerData>>({});
     const [notes, setNotes] = useState("");
     const [loading, setLoading] = useState(false);
     const [submissions, setSubmissions] = useState<any[]>([]);
@@ -210,7 +216,8 @@ export default function HODChecklistPage() {
             const formattedAnswers = Object.entries(answers).map(([qId, data]) => ({
                 questionId: parseInt(qId),
                 value: data.value,
-                remarks: data.remarks
+                remarks: data.remarks,
+                photoUrl: data.photoUrl
             }));
 
             await api.post('/checklist/submit', {
