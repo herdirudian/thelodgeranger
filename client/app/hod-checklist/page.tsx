@@ -16,7 +16,11 @@ import {
     ChevronUp,
     FileText,
     Signature,
-    Download
+    Download,
+    Camera,
+    ImageIcon,
+    X,
+    Loader2
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -31,6 +35,8 @@ export default function HODChecklistPage() {
     const [submissions, setSubmissions] = useState<any[]>([]);
     const [expandedSubmission, setExpandedSubmission] = useState<number | null>(null);
     const [todaySubmissions, setTodaySubmissions] = useState<Record<number, boolean>>({});
+    const [photoUrl, setPhotoUrl] = useState("");
+    const [uploading, setUploading] = useState(false);
 
     useEffect(() => {
         fetchTemplates();
@@ -102,6 +108,13 @@ export default function HODChecklistPage() {
         }
     };
 
+    const getFullUrl = (path: string) => {
+        if (!path) return '';
+        if (path.startsWith('http')) return path;
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+        return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+    };
+
     const exportToCSV = () => {
         if (submissions.length === 0) return;
 
@@ -144,6 +157,26 @@ export default function HODChecklistPage() {
         }));
     };
 
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await api.post('/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setPhotoUrl(res.data.url);
+        } catch (error) {
+            console.error("Upload error:", error);
+            alert("Gagal mengupload foto");
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedTemplate) return;
@@ -159,11 +192,13 @@ export default function HODChecklistPage() {
             await api.post('/checklist/submit', {
                 templateId: selectedTemplate.id,
                 answers: formattedAnswers,
-                notes
+                notes,
+                photoUrl
             });
 
             alert("Checklist berhasil dikirim!");
             setNotes("");
+            setPhotoUrl("");
             fetchSubmissions();
             setActiveTab('history');
         } catch (error: any) {
@@ -377,9 +412,67 @@ export default function HODChecklistPage() {
                                 />
                             </div>
 
+                            {/* Camera Upload Section */}
+                            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                                <label className="block text-sm font-bold text-gray-700 mb-4">Bukti Foto (Evidence):</label>
+                                
+                                <div className="flex flex-col sm:flex-row items-center gap-4">
+                                    {!photoUrl ? (
+                                        <div className="flex flex-wrap gap-3 w-full">
+                                            <label className="flex-1 flex items-center justify-center gap-2 py-4 px-6 border-2 border-dashed border-gray-200 rounded-2xl cursor-pointer hover:border-[#0F4D39] hover:bg-[#0F4D39]/5 transition-all text-gray-500 hover:text-[#0F4D39]">
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*" 
+                                                    capture="environment" 
+                                                    onChange={handlePhotoUpload}
+                                                    className="hidden"
+                                                    disabled={uploading}
+                                                />
+                                                <Camera className="w-6 h-6" />
+                                                <span className="font-bold">Ambil Foto (Camera)</span>
+                                            </label>
+                                            
+                                            <label className="flex-1 flex items-center justify-center gap-2 py-4 px-6 border-2 border-dashed border-gray-200 rounded-2xl cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all text-gray-500 hover:text-blue-500">
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*" 
+                                                    onChange={handlePhotoUpload}
+                                                    className="hidden"
+                                                    disabled={uploading}
+                                                />
+                                                <ImageIcon className="w-6 h-6" />
+                                                <span className="font-bold">Pilih dari Galeri</span>
+                                            </label>
+                                        </div>
+                                    ) : (
+                                        <div className="relative w-full max-w-sm">
+                                            <img 
+                                                src={getFullUrl(photoUrl)} 
+                                                alt="Evidence" 
+                                                className="w-full h-48 object-cover rounded-2xl shadow-md"
+                                            />
+                                            <button 
+                                                type="button"
+                                                onClick={() => setPhotoUrl("")}
+                                                className="absolute -top-2 -right-2 p-1.5 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-colors"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {uploading && (
+                                        <div className="flex items-center gap-2 text-[#0F4D39] font-bold animate-pulse">
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                            <span>Sedang mengupload...</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
                             <button 
                                 type="submit"
-                                disabled={loading}
+                                disabled={loading || uploading}
                                 className="w-full py-5 bg-[#0F4D39] text-white rounded-2xl font-bold text-lg hover:bg-[#0a3628] shadow-xl hover:shadow-2xl transition-all flex items-center justify-center gap-3 disabled:bg-gray-400"
                             >
                                 {loading ? "Mengirim..." : <><Send className="w-6 h-6" /> Kirim Checklist Harian</>}
@@ -461,6 +554,27 @@ export default function HODChecklistPage() {
                                             <div className="bg-white p-4 rounded-xl border border-gray-100">
                                                 <p className="text-xs font-bold text-gray-400 uppercase mb-2">Kesimpulan:</p>
                                                 <p className="text-gray-700">{sub.notes}</p>
+                                            </div>
+                                        )}
+
+                                        {sub.photoUrl && (
+                                            <div className="bg-white p-4 rounded-xl border border-gray-100">
+                                                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Bukti Foto:</p>
+                                                <a 
+                                                    href={getFullUrl(sub.photoUrl)} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="inline-block relative group"
+                                                >
+                                                    <img 
+                                                        src={getFullUrl(sub.photoUrl)} 
+                                                        alt="Evidence" 
+                                                        className="w-full max-w-sm h-48 object-cover rounded-xl shadow-sm group-hover:shadow-md transition-all"
+                                                    />
+                                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 rounded-xl transition-all flex items-center justify-center">
+                                                        <span className="text-white text-xs font-bold">Klik untuk Memperbesar</span>
+                                                    </div>
+                                                </a>
                                             </div>
                                         )}
 

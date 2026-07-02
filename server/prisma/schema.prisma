@@ -802,6 +802,7 @@ model ChecklistSubmission {
   date        DateTime @default(now())
   status      ChecklistSubmissionStatus @default(SUBMITTED)
   notes       String?  @db.Text
+  photoUrl    String?  // Evidence photo
   
   // Signatures
   hodSigned   Boolean  @default(false)

@@ -37,7 +37,7 @@ exports.getTemplates = async (req, res) => {
 
 exports.submitChecklist = async (req, res) => {
     try {
-        const { templateId, answers, notes, date } = req.body;
+        const { templateId, answers, notes, date, photoUrl } = req.body;
         const userId = req.userId;
         const user = await prisma.user.findUnique({ where: { id: userId } });
 
@@ -79,6 +79,7 @@ exports.submitChecklist = async (req, res) => {
                 userId: parseInt(userId),
                 date: new Date(date || new Date()),
                 notes,
+                photoUrl,
                 answers: {
                     create: answers.map(a => ({
                         questionId: parseInt(a.questionId),
