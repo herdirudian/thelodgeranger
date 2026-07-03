@@ -588,11 +588,11 @@ exports.generateChecklistExportPDF = async (submissions, options = {}) => {
             let qIndex = 1;
             for (const question of category.questions) {
                 const answer = answerMap.get(question.id);
-                if (!answer) continue;
-
-                const val = answer.value;
-                const displayVal = typeof val === 'boolean' ? (val ? 'YES' : 'NO') : (val || '-');
-                const remarks = answer.remarks || '-';
+                 if (!answer) continue;
+ 
+                 const val = answer.value;
+                 const displayVal = (val === 'true' || val === true) ? 'Yes' : ((val === 'false' || val === false) ? 'No' : (val || '-'));
+                 const remarks = answer.remarks || '-';
                 
                 const qLines = wrapText(question.question, colWidths[1] - 5, font, 9);
                 const rLines = wrapText(remarks, colWidths[3] - 5, font, 9);

@@ -388,7 +388,7 @@ exports.exportChecklistCsv = async (req, res) => {
                         submission.gmSigned ? 'YA' : 'BELUM',
                         category.name,
                         question.question,
-                        answer.value,
+                        answer.value === 'true' ? 'Yes' : (answer.value === 'false' ? 'No' : answer.value),
                         answer.remarks || '',
                         photoUrl,
                         photoImageFormula,
