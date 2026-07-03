@@ -17,6 +17,7 @@ interface User {
   whatsappNumber?: string | null;
   whatsappVerifiedAt?: string | null;
   publicSurveyAccesses?: { id: number; type: string | null }[];
+  assignedChecklists?: { id: number; name: string }[];
 }
 
 interface AuthContextType {

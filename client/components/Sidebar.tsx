@@ -52,8 +52,15 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
   links.push({ name: 'IDP', href: '/idp', icon: Target });
   links.push({ name: 'Penilaian 360', href: '/review-360', icon: Users });
 
-  // Daily Checklist for HOD and Management
-  const canSeeChecklist = user.role.includes('HOD') || user.role.includes('SPV') || user.role === 'SUPERVISOR' || user.role === 'GM' || user.role === 'ADMIN' || user.role === 'HR';
+  // Daily Checklist for HOD, Management, and Assigned Staff
+  const canSeeChecklist = user.role.includes('HOD') || 
+                         user.role.includes('SPV') || 
+                         user.role === 'SUPERVISOR' || 
+                         user.role === 'GM' || 
+                         user.role === 'ADMIN' || 
+                         user.role === 'HR' ||
+                         (user.assignedChecklists && user.assignedChecklists.length > 0);
+  
   if (canSeeChecklist) {
       links.push({ name: 'Daily Checklist', href: '/hod-checklist', icon: ClipboardCheck });
   }

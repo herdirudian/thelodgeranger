@@ -55,6 +55,12 @@ exports.me = async (req, res) => {
                         id: true,
                         type: true
                     }
+                },
+                assignedChecklists: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
                 }
             }
         });
@@ -143,6 +149,11 @@ exports.signin = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { email },
+      include: {
+        assignedChecklists: {
+          select: { id: true, name: true }
+        }
+      }
     });
 
     if (!user) {
@@ -177,6 +188,7 @@ exports.signin = async (req, res) => {
       pdo: user.pdo,
       whatsappNumber: user.whatsappNumber,
       whatsappVerifiedAt: user.whatsappVerifiedAt,
+      assignedChecklists: user.assignedChecklists,
       accessToken: token,
     });
   } catch (error) {
