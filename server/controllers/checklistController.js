@@ -491,25 +491,47 @@ exports.adminGetTemplates = async (req, res) => {
         const where = {};
         if (department) where.department = department;
 
-        const templates = await prisma.checklistTemplate.findMany({
-            where,
-            include: {
-                categories: {
-                    include: {
-                        questions: {
-                            orderBy: { order: 'asc' }
+        let templates;
+        try {
+            // Coba ambil dengan urutan (order)
+            templates = await prisma.checklistTemplate.findMany({
+                where,
+                include: {
+                    categories: {
+                        orderBy: { order: 'asc' },
+                        include: {
+                            questions: {
+                                orderBy: { order: 'asc' }
+                            }
                         }
                     },
-                    orderBy: { order: 'asc' }
+                    assignedUsers: {
+                        select: { id: true, name: true, department: true }
+                    }
                 },
-                assignedUsers: {
-                    select: { id: true, name: true, department: true }
-                }
-            },
-            orderBy: { order: 'asc' }
-        });
+                orderBy: { order: 'asc' }
+            });
+        } catch (dbError) {
+            console.warn("Falling back to default sort because 'order' column might be missing:", dbError.message);
+            // Fallback jika kolom 'order' belum dikenali oleh Prisma Client
+            templates = await prisma.checklistTemplate.findMany({
+                where,
+                include: {
+                    categories: {
+                        include: {
+                            questions: true
+                        }
+                    },
+                    assignedUsers: {
+                        select: { id: true, name: true, department: true }
+                    }
+                },
+                orderBy: { name: 'asc' }
+            });
+        }
         res.json(templates);
     } catch (error) {
+        console.error("Admin Get Templates Error:", error);
         res.status(500).json({ message: 'Error fetching templates', error: error.message });
     }
 };
