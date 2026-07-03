@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { 
   Plus, Edit2, Trash2, ChevronDown, ChevronRight, 
   Settings, ClipboardCheck, List, Save, X, 
-  GripVertical, Loader2, ArrowLeft 
+  GripVertical, Loader2, ArrowLeft, Copy
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
@@ -100,6 +100,18 @@ export default function ChecklistManagerPage() {
       fetchData();
     } catch (err) {
       alert("Error deleting template");
+    }
+  };
+
+  const handleDuplicateTemplate = async (id: number) => {
+    if (!confirm("Duplikat template ini beserta semua kategori dan pertanyaannya?")) return;
+    try {
+      setLoading(true);
+      await api.post(`/checklist/admin/templates/${id}/duplicate`);
+      fetchData();
+    } catch (err) {
+      alert("Error duplicating template");
+      setLoading(false);
     }
   };
 
@@ -237,6 +249,13 @@ export default function ChecklistManagerPage() {
                     title="Add Category"
                   >
                     <Plus size={18} />
+                  </button>
+                  <button 
+                    onClick={() => handleDuplicateTemplate(template.id)}
+                    className="p-2 text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all"
+                    title="Duplicate Template"
+                  >
+                    <Copy size={18} />
                   </button>
                   <button 
                     onClick={() => {

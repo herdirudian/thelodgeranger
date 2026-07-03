@@ -11,6 +11,7 @@ router.put('/submissions/:id/sign', [verifyToken], checklistController.signCheck
 // Admin Routes
 router.get('/admin/templates', [verifyToken], checklistController.adminGetTemplates);
 router.post('/admin/templates', [verifyToken], checklistController.createTemplate);
+router.post('/admin/templates/:id/duplicate', [verifyToken], checklistController.duplicateTemplate);
 router.put('/admin/templates/:id', [verifyToken], checklistController.updateTemplate);
 router.delete('/admin/templates/:id', [verifyToken], checklistController.deleteTemplate);
 

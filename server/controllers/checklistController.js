@@ -240,6 +240,52 @@ exports.deleteTemplate = async (req, res) => {
     }
 };
 
+exports.duplicateTemplate = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const original = await prisma.checklistTemplate.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                categories: {
+                    include: {
+                        questions: true
+                    }
+                }
+            }
+        });
+
+        if (!original) return res.status(404).json({ message: 'Original template not found' });
+
+        // Create new template with " (Copy)" suffix
+        const duplicated = await prisma.checklistTemplate.create({
+            data: {
+                name: `${original.name} (Copy)`,
+                department: original.department,
+                dayOfWeek: original.dayOfWeek,
+                isActive: original.isActive,
+                categories: {
+                    create: original.categories.map(cat => ({
+                        name: cat.name,
+                        order: cat.order,
+                        questions: {
+                            create: cat.questions.map(q => ({
+                                question: q.question,
+                                type: q.type,
+                                order: q.order,
+                                isRequired: q.isRequired
+                            }))
+                        }
+                    }))
+                }
+            }
+        });
+
+        res.status(201).json(duplicated);
+    } catch (error) {
+        res.status(500).json({ message: 'Error duplicating template', error: error.message });
+    }
+};
+
 exports.createCategory = async (req, res) => {
     try {
         const { templateId, name, order } = req.body;
