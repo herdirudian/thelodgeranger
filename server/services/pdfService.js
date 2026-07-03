@@ -563,7 +563,7 @@ exports.generateChecklistExportPDF = async (submissions, options = {}) => {
                 height: 20,
                 color: rgb(0.94, 0.96, 0.95)
             });
-            page.drawText(cleanText(category.name), {
+            page.drawText(cleanText(category.name.toUpperCase()), {
                 x: margin + 8,
                 y: y - 13,
                 size: 10,
@@ -572,50 +572,75 @@ exports.generateChecklistExportPDF = async (submissions, options = {}) => {
             });
             y -= 30;
 
+            // Table Header
+            const colWidths = [30, 200, 60, 100, 90];
+            const colStarts = [margin, margin + 35, margin + 240, margin + 305, margin + 410];
+            
+            page.drawText('No', { x: colStarts[0], y, size: 9, font: boldFont });
+            page.drawText('Pertanyaan', { x: colStarts[1], y, size: 9, font: boldFont });
+            page.drawText('Jawaban', { x: colStarts[2], y, size: 9, font: boldFont });
+            page.drawText('Catatan', { x: colStarts[3], y, size: 9, font: boldFont });
+            page.drawText('Foto Bukti', { x: colStarts[4], y, size: 9, font: boldFont });
+            y -= 12;
+            page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+            y -= 15;
+
+            let qIndex = 1;
             for (const question of category.questions) {
                 const answer = answerMap.get(question.id);
                 if (!answer) continue;
 
-                ensureSpace(90);
-                page.drawText(cleanText(`• ${question.question}`), {
-                    x: margin,
-                    y,
-                    size: 10,
-                    font: boldFont,
-                    color: rgb(0.12, 0.12, 0.12)
-                });
-                y -= 16;
-
-                drawWrappedText(`Jawaban: ${answer.value || '-'}`, margin + 12, width - (margin * 2) - 12, 10, font);
-
-                if (answer.remarks) {
-                    drawWrappedText(`Catatan: ${answer.remarks}`, margin + 12, width - (margin * 2) - 12, 9, font, rgb(0.35, 0.35, 0.35));
-                }
-
+                const val = answer.value;
+                const displayVal = typeof val === 'boolean' ? (val ? 'YES' : 'NO') : (val || '-');
+                const remarks = answer.remarks || '-';
+                
+                const qLines = wrapText(question.question, colWidths[1] - 5, font, 9);
+                const rLines = wrapText(remarks, colWidths[3] - 5, font, 9);
+                
+                let maxContentHeight = Math.max(qLines.length * 11, rLines.length * 11, 20);
+                
+                let image = null;
+                let dims = null;
                 if (answer.photoUrl) {
-                    const image = await embedChecklistImage(answer.photoUrl);
+                    image = await embedChecklistImage(answer.photoUrl);
                     if (image) {
-                        const maxWidth = 140;
-                        const maxHeight = 100;
-                        const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
-                        const dims = image.scale(scale);
-                        ensureSpace(dims.height + 20);
-                        page.drawImage(image, {
-                            x: margin + 12,
-                            y: y - dims.height,
-                            width: dims.width,
-                            height: dims.height
-                        });
-                        y -= dims.height + 10;
-                    } else {
-                        drawWrappedText('Foto bukti tersedia tetapi gagal dimuat ke PDF.', margin + 12, width - (margin * 2) - 12, 9, font, rgb(0.65, 0.2, 0.2));
+                        const scale = Math.min(80 / image.width, 60 / image.height, 1);
+                        dims = image.scale(scale);
+                        maxContentHeight = Math.max(maxContentHeight, dims.height + 5);
                     }
-                } else {
-                    drawWrappedText('Foto bukti: -', margin + 12, width - (margin * 2) - 12, 9, font, rgb(0.4, 0.4, 0.4));
                 }
 
-                y -= 8;
+                ensureSpace(maxContentHeight + 15);
+                const rowTopY = y;
+
+                page.drawText(String(qIndex++), { x: colStarts[0], y: rowTopY - 10, size: 9, font });
+                
+                qLines.forEach((line, i) => {
+                    page.drawText(line, { x: colStarts[1], y: rowTopY - 10 - (i * 11), size: 9, font });
+                });
+
+                page.drawText(cleanText(displayVal), { x: colStarts[2], y: rowTopY - 10, size: 9, font });
+
+                rLines.forEach((line, i) => {
+                    page.drawText(line, { x: colStarts[3], y: rowTopY - 10 - (i * 11), size: 9, font });
+                });
+
+                if (image && dims) {
+                    page.drawImage(image, {
+                        x: colStarts[4],
+                        y: rowTopY - 10 - dims.height,
+                        width: dims.width,
+                        height: dims.height
+                    });
+                } else {
+                    page.drawText(answer.photoUrl ? '(Error Photo)' : '-', { x: colStarts[4], y: rowTopY - 10, size: 9, font });
+                }
+
+                y -= maxContentHeight + 5;
+                page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: rgb(0.9, 0.9, 0.9) });
+                y -= 10;
             }
+            y -= 10;
         }
 
         if (submission.notes) {
