@@ -520,14 +520,17 @@ export default function HODChecklistPage() {
                                 {loading ? "Mengirim..." : <><Send className="w-6 h-6" /> Kirim Checklist Harian</>}
                             </button>
                         </form>
-                    ) : (
-                        <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-                            <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                            <h3 className="text-xl font-bold text-gray-400">Belum ada template checklist untuk departemen Anda.</h3>
-                        </div>
-                    )}
-                </div>
-            )}
+                    </div>
+                )}
+
+                {!selectedTemplate && (
+                    <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
+                        <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-xl font-bold text-gray-400">Belum ada template checklist untuk departemen Anda.</h3>
+                    </div>
+                )}
+            </div>
+        )}
 
             {activeTab === 'history' && (
                 <div className="space-y-4">
