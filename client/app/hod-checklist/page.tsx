@@ -20,7 +20,8 @@ import {
     Camera,
     ImageIcon,
     X,
-    Loader2
+    Loader2,
+    ArrowLeft
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -44,6 +45,7 @@ export default function HODChecklistPage() {
     const [photoUrl, setPhotoUrl] = useState("");
     const [uploading, setUploading] = useState(false);
     const [historyFilter, setHistoryFilter] = useState<'ALL' | 'PENDING_MY_APPROVAL'>('ALL');
+    const [showUnitSelector, setShowUnitSelector] = useState(true);
 
     useEffect(() => {
         fetchTemplates();
@@ -299,8 +301,9 @@ export default function HODChecklistPage() {
 
             {activeTab === 'form' && (
                 <div className="space-y-6">
-                    {templates.length > 1 && (
-                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                    {/* UNIT SELECTION GRID */}
+                    {showUnitSelector && templates.length > 1 && (
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 animate-in fade-in slide-in-from-top-4 duration-300">
                             <label className="block text-sm font-bold text-gray-700 mb-4">Pilih Kamar / Unit yang Akan Di-cek:</label>
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                                 {templates.map(t => {
@@ -320,6 +323,7 @@ export default function HODChecklistPage() {
                                                     });
                                                 });
                                                 setAnswers(initialAnswers);
+                                                setShowUnitSelector(false); // Hide selector after picking
                                             }}
                                             className={clsx(
                                                 "relative p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-2 text-center",
@@ -339,7 +343,7 @@ export default function HODChecklistPage() {
                                                 "text-xs font-bold break-words",
                                                 isSelected ? "text-[#0F4D39]" : "text-gray-600"
                                             )}>
-                                                {t.name.replace('Room - ', '')}
+                                                {t.name.replace('Room - ', '').replace('Parkir - ', '').replace('Cashier - ', '')}
                                             </span>
                                             {isSubmitted && (
                                                 <span className="absolute -top-2 -right-2 bg-green-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
@@ -353,8 +357,24 @@ export default function HODChecklistPage() {
                         </div>
                     )}
 
-                    {selectedTemplate ? (
-                        <form onSubmit={handleSubmit} className="space-y-8">
+                    {selectedTemplate && (
+                        <div className={clsx("space-y-8 animate-in fade-in duration-500", showUnitSelector && templates.length > 1 && "hidden")}>
+                            <div className="flex items-center justify-between bg-[#0F4D39] text-white p-6 rounded-3xl shadow-lg">
+                                <div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Sedang Mengisi:</span>
+                                    <h2 className="text-xl font-bold">{selectedTemplate.name}</h2>
+                                </div>
+                                {templates.length > 1 && (
+                                    <button 
+                                        onClick={() => setShowUnitSelector(true)}
+                                        className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/20"
+                                    >
+                                        <ArrowLeft size={16} /> Ganti Unit
+                                    </button>
+                                )}
+                            </div>
+
+                            <form onSubmit={handleSubmit} className="space-y-8">
                             {selectedTemplate.categories
                                 .filter((cat: any) => {
                                     // Hide categories that only contain signature rows
