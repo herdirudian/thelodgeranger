@@ -96,17 +96,26 @@ exports.getTemplates = async (req, res) => {
             include: {
                 categories: {
                     include: {
-                        questions: {
-                            orderBy: { order: 'asc' }
-                        }
-                    },
-                    orderBy: { order: 'asc' }
+                        questions: true
+                    }
                 }
-            },
-            orderBy: { order: 'asc' }
+            }
         });
-        res.json(templates);
+
+        // Manual sorting fallback to prevent "Unknown field order" errors on VPS
+        const sortedTemplates = templates.sort((a, b) => (a.order || 0) - (b.order || 0))
+            .map(t => ({
+                ...t,
+                categories: (t.categories || []).sort((a, b) => (a.order || 0) - (b.order || 0))
+                    .map(c => ({
+                        ...c,
+                        questions: (c.questions || []).sort((a, b) => (a.order || 0) - (b.order || 0))
+                    }))
+            }));
+
+        res.json(sortedTemplates);
     } catch (error) {
+        console.error("Get Templates Error:", error);
         res.status(500).json({ message: 'Error fetching templates', error: error.message });
     }
 };
@@ -321,11 +330,8 @@ exports.exportChecklistCsv = async (req, res) => {
                     include: {
                         categories: {
                             include: {
-                                questions: {
-                                    orderBy: { order: 'asc' }
-                                }
-                            },
-                            orderBy: { order: 'asc' }
+                                questions: true
+                            }
                         }
                     }
                 },
@@ -438,11 +444,8 @@ exports.exportChecklistPdf = async (req, res) => {
                     include: {
                         categories: {
                             include: {
-                                questions: {
-                                    orderBy: { order: 'asc' }
-                                }
-                            },
-                            orderBy: { order: 'asc' }
+                                questions: true
+                            }
                         }
                     }
                 },
