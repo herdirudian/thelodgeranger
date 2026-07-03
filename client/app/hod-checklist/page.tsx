@@ -49,15 +49,49 @@ export default function HODChecklistPage() {
     const [showUnitSelector, setShowUnitSelector] = useState(true);
     const [draftStatus, setDraftStatus] = useState<string>("");
 
+    const getDraftKey = (templateId: number) => {
+        if (!user?.id) return null;
+        return `checklist_draft_${user.id}_${templateId}`;
+    };
+
+    const getLastTemplateKey = () => {
+        if (!user?.id) return null;
+        return `checklist_last_template_${user.id}`;
+    };
+
+    const initializeAnswersForTemplate = (template: any) => {
+        const initialAnswers: Record<number, AnswerData> = {};
+        template.categories.forEach((cat: any) => {
+            cat.questions.forEach((q: any) => {
+                initialAnswers[q.id] = {
+                    value: q.type === 'BOOLEAN' ? false : q.type === 'NUMBER' ? 0 : "",
+                    remarks: "",
+                    photoUrl: ""
+                };
+            });
+        });
+        setAnswers(initialAnswers);
+        setNotes("");
+        setPhotoUrl("");
+    };
+
+    const persistLastSelectedTemplate = (templateId: number) => {
+        const lastTemplateKey = getLastTemplateKey();
+        if (!lastTemplateKey) return;
+        localStorage.setItem(lastTemplateKey, String(templateId));
+    };
+
     // --- AUTO-SAVE DRAFT LOGIC ---
     const loadDraft = (templateId: number) => {
-        const draftKey = `checklist_draft_${user?.id}_${templateId}`;
+        const draftKey = getDraftKey(templateId);
+        if (!draftKey) return false;
         const savedDraft = localStorage.getItem(draftKey);
         if (savedDraft) {
             try {
                 const parsed = JSON.parse(savedDraft);
                 setAnswers(parsed.answers || {});
                 setNotes(parsed.notes || "");
+                setPhotoUrl(parsed.photoUrl || "");
                 setDraftStatus("Draft dimuat otomatis");
                 setTimeout(() => setDraftStatus(""), 3000);
                 return true;
@@ -71,25 +105,30 @@ export default function HODChecklistPage() {
     // Save draft whenever answers or notes change
     useEffect(() => {
         if (!selectedTemplate || Object.keys(answers).length === 0) return;
-        const draftKey = `checklist_draft_${user?.id}_${selectedTemplate.id}`;
+        const draftKey = getDraftKey(selectedTemplate.id);
+        if (!draftKey) return;
         const draftData = {
             answers,
             notes,
+            photoUrl,
             timestamp: new Date().getTime()
         };
         localStorage.setItem(draftKey, JSON.stringify(draftData));
-    }, [answers, notes, selectedTemplate, user?.id]);
+        persistLastSelectedTemplate(selectedTemplate.id);
+    }, [answers, notes, photoUrl, selectedTemplate, user?.id]);
 
     const clearDraft = () => {
         if (!selectedTemplate) return;
-        const draftKey = `checklist_draft_${user?.id}_${selectedTemplate.id}`;
+        const draftKey = getDraftKey(selectedTemplate.id);
+        if (!draftKey) return;
         localStorage.removeItem(draftKey);
     };
 
     useEffect(() => {
+        if (!user?.id) return;
         fetchTemplates();
         fetchSubmissions();
-    }, []);
+    }, [user?.id, user?.role, user?.department]);
 
     useEffect(() => {
         // Calculate which templates are already submitted today
@@ -131,22 +170,25 @@ export default function HODChecklistPage() {
 
             setTemplates(filteredTemplates);
             if (filteredTemplates.length > 0) {
-                const firstTemplate = filteredTemplates[0];
-                setSelectedTemplate(firstTemplate);
-                
-                // Try to load draft first
-                const draftLoaded = loadDraft(firstTemplate.id);
-                
+                const lastTemplateKey = getLastTemplateKey();
+                const savedTemplateId = lastTemplateKey ? Number(localStorage.getItem(lastTemplateKey)) : null;
+                const restoredTemplate = filteredTemplates.find((t: any) => t.id === savedTemplateId) || filteredTemplates[0];
+
+                setSelectedTemplate(restoredTemplate);
+                persistLastSelectedTemplate(restoredTemplate.id);
+
+                const draftLoaded = loadDraft(restoredTemplate.id);
                 if (!draftLoaded) {
-                    // Initialize answers only if no draft was loaded
-                    const initialAnswers: any = {};
-                    firstTemplate.categories.forEach((cat: any) => {
-                        cat.questions.forEach((q: any) => {
-                            initialAnswers[q.id] = { value: q.type === 'BOOLEAN' ? false : q.type === 'NUMBER' ? 0 : "", remarks: "", photoUrl: "" };
-                        });
-                    });
-                    setAnswers(initialAnswers);
+                    initializeAnswersForTemplate(restoredTemplate);
                 }
+
+                setShowUnitSelector(filteredTemplates.length > 1 ? !draftLoaded : false);
+            } else {
+                setSelectedTemplate(null);
+                setAnswers({});
+                setNotes("");
+                setPhotoUrl("");
+                setShowUnitSelector(true);
             }
         } catch (error) {
             console.error(error);
@@ -361,20 +403,13 @@ export default function HODChecklistPage() {
                                             key={t.id}
                                             onClick={() => {
                                                 setSelectedTemplate(t);
+                                                persistLastSelectedTemplate(t.id);
                                                 
                                                 // Try to load draft first
                                                 const draftLoaded = loadDraft(t.id);
                                                 
                                                 if (!draftLoaded) {
-                                                    // Initialize answers only if no draft was loaded
-                                                    const initialAnswers: any = {};
-                                                    t.categories.forEach((cat: any) => {
-                                                        cat.questions.forEach((q: any) => {
-                                                            initialAnswers[q.id] = { value: q.type === 'BOOLEAN' ? false : q.type === 'NUMBER' ? 0 : "", remarks: "", photoUrl: "" };
-                                                        });
-                                                    });
-                                                    setAnswers(initialAnswers);
-                                                    setNotes(""); // Reset notes if no draft
+                                                    initializeAnswersForTemplate(t);
                                                 }
                                                 setShowUnitSelector(false); // Hide selector after picking
                                             }}
@@ -568,6 +603,25 @@ export default function HODChecklistPage() {
                                     className="w-full p-4 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-[#0F4D39] outline-none min-h-[120px]"
                                     placeholder="Tuliskan catatan atau kendala operasional hari ini..."
                                 />
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-[#0F4D39]/20 bg-[#0F4D39]/5 px-4 py-3">
+                                <div className="flex items-center gap-2 text-xs font-bold text-[#0F4D39]">
+                                    <Save className="w-4 h-4" />
+                                    Draft tersimpan otomatis di perangkat ini dan akan dimuat lagi setelah refresh atau login ulang.
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (!selectedTemplate) return;
+                                        persistLastSelectedTemplate(selectedTemplate.id);
+                                        setDraftStatus("Draft tersimpan");
+                                        setTimeout(() => setDraftStatus(""), 3000);
+                                    }}
+                                    className="shrink-0 rounded-xl border border-[#0F4D39]/20 bg-white px-3 py-2 text-xs font-bold text-[#0F4D39] hover:bg-[#0F4D39]/5"
+                                >
+                                    Simpan Draft
+                                </button>
                             </div>
 
                             <button 
