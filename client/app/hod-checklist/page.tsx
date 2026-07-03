@@ -21,7 +21,8 @@ import {
     ImageIcon,
     X,
     Loader2,
-    ArrowLeft
+    ArrowLeft,
+    Save
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -46,6 +47,44 @@ export default function HODChecklistPage() {
     const [uploading, setUploading] = useState(false);
     const [historyFilter, setHistoryFilter] = useState<'ALL' | 'PENDING_MY_APPROVAL'>('ALL');
     const [showUnitSelector, setShowUnitSelector] = useState(true);
+    const [draftStatus, setDraftStatus] = useState<string>("");
+
+    // --- AUTO-SAVE DRAFT LOGIC ---
+    // Load draft on mount or template change
+    useEffect(() => {
+        if (!selectedTemplate) return;
+        const draftKey = `checklist_draft_${user?.id}_${selectedTemplate.id}`;
+        const savedDraft = localStorage.getItem(draftKey);
+        if (savedDraft) {
+            try {
+                const parsed = JSON.parse(savedDraft);
+                setAnswers(parsed.answers || {});
+                setNotes(parsed.notes || "");
+                setDraftStatus("Draft dimuat otomatis");
+                setTimeout(() => setDraftStatus(""), 3000);
+            } catch (e) {
+                console.error("Failed to load draft", e);
+            }
+        }
+    }, [selectedTemplate, user?.id]);
+
+    // Save draft whenever answers or notes change
+    useEffect(() => {
+        if (!selectedTemplate || Object.keys(answers).length === 0) return;
+        const draftKey = `checklist_draft_${user?.id}_${selectedTemplate.id}`;
+        const draftData = {
+            answers,
+            notes,
+            timestamp: new Date().getTime()
+        };
+        localStorage.setItem(draftKey, JSON.stringify(draftData));
+    }, [answers, notes, selectedTemplate, user?.id]);
+
+    const clearDraft = () => {
+        if (!selectedTemplate) return;
+        const draftKey = `checklist_draft_${user?.id}_${selectedTemplate.id}`;
+        localStorage.removeItem(draftKey);
+    };
 
     useEffect(() => {
         fetchTemplates();
@@ -231,6 +270,7 @@ export default function HODChecklistPage() {
             });
 
             alert("Checklist berhasil dikirim!");
+            clearDraft(); // Clear local storage after successful submit
             setNotes("");
             setPhotoUrl("");
             fetchSubmissions();
@@ -363,6 +403,11 @@ export default function HODChecklistPage() {
                                 <div>
                                     <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Sedang Mengisi:</span>
                                     <h2 className="text-xl font-bold">{selectedTemplate.name}</h2>
+                                    {draftStatus && (
+                                        <p className="text-[10px] text-green-300 font-bold animate-pulse mt-0.5 flex items-center gap-1">
+                                            <Save size={10} /> {draftStatus}
+                                        </p>
+                                    )}
                                 </div>
                                 {templates.length > 1 && (
                                     <button 
