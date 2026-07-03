@@ -50,10 +50,8 @@ export default function HODChecklistPage() {
     const [draftStatus, setDraftStatus] = useState<string>("");
 
     // --- AUTO-SAVE DRAFT LOGIC ---
-    // Load draft on mount or template change
-    useEffect(() => {
-        if (!selectedTemplate) return;
-        const draftKey = `checklist_draft_${user?.id}_${selectedTemplate.id}`;
+    const loadDraft = (templateId: number) => {
+        const draftKey = `checklist_draft_${user?.id}_${templateId}`;
         const savedDraft = localStorage.getItem(draftKey);
         if (savedDraft) {
             try {
@@ -62,11 +60,13 @@ export default function HODChecklistPage() {
                 setNotes(parsed.notes || "");
                 setDraftStatus("Draft dimuat otomatis");
                 setTimeout(() => setDraftStatus(""), 3000);
+                return true;
             } catch (e) {
                 console.error("Failed to load draft", e);
             }
         }
-    }, [selectedTemplate, user?.id]);
+        return false;
+    };
 
     // Save draft whenever answers or notes change
     useEffect(() => {
@@ -131,16 +131,22 @@ export default function HODChecklistPage() {
 
             setTemplates(filteredTemplates);
             if (filteredTemplates.length > 0) {
-                // Default to first template found
-                setSelectedTemplate(filteredTemplates[0]);
-                // Initialize answers
-                const initialAnswers: any = {};
-                filteredTemplates[0].categories.forEach((cat: any) => {
-                    cat.questions.forEach((q: any) => {
-                        initialAnswers[q.id] = { value: q.type === 'BOOLEAN' ? false : q.type === 'NUMBER' ? 0 : "", remarks: "", photoUrl: "" };
+                const firstTemplate = filteredTemplates[0];
+                setSelectedTemplate(firstTemplate);
+                
+                // Try to load draft first
+                const draftLoaded = loadDraft(firstTemplate.id);
+                
+                if (!draftLoaded) {
+                    // Initialize answers only if no draft was loaded
+                    const initialAnswers: any = {};
+                    firstTemplate.categories.forEach((cat: any) => {
+                        cat.questions.forEach((q: any) => {
+                            initialAnswers[q.id] = { value: q.type === 'BOOLEAN' ? false : q.type === 'NUMBER' ? 0 : "", remarks: "", photoUrl: "" };
+                        });
                     });
-                });
-                setAnswers(initialAnswers);
+                    setAnswers(initialAnswers);
+                }
             }
         } catch (error) {
             console.error(error);
@@ -355,14 +361,21 @@ export default function HODChecklistPage() {
                                             key={t.id}
                                             onClick={() => {
                                                 setSelectedTemplate(t);
-                                                // Initialize answers
-                                                const initialAnswers: any = {};
-                                                t.categories.forEach((cat: any) => {
-                                                    cat.questions.forEach((q: any) => {
-                                                        initialAnswers[q.id] = { value: q.type === 'BOOLEAN' ? false : q.type === 'NUMBER' ? 0 : "", remarks: "", photoUrl: "" };
+                                                
+                                                // Try to load draft first
+                                                const draftLoaded = loadDraft(t.id);
+                                                
+                                                if (!draftLoaded) {
+                                                    // Initialize answers only if no draft was loaded
+                                                    const initialAnswers: any = {};
+                                                    t.categories.forEach((cat: any) => {
+                                                        cat.questions.forEach((q: any) => {
+                                                            initialAnswers[q.id] = { value: q.type === 'BOOLEAN' ? false : q.type === 'NUMBER' ? 0 : "", remarks: "", photoUrl: "" };
+                                                        });
                                                     });
-                                                });
-                                                setAnswers(initialAnswers);
+                                                    setAnswers(initialAnswers);
+                                                    setNotes(""); // Reset notes if no draft
+                                                }
                                                 setShowUnitSelector(false); // Hide selector after picking
                                             }}
                                             className={clsx(
