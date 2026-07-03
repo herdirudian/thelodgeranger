@@ -59,6 +59,11 @@ export default function HODChecklistPage() {
         return `checklist_last_template_${user.id}`;
     };
 
+    const isSignatureQuestion = (questionText: string) => {
+        const lowerQuestion = questionText.toLowerCase();
+        return lowerQuestion.includes('signature') || lowerQuestion.includes('tanda tangan');
+    };
+
     const initializeAnswersForTemplate = (template: any) => {
         const initialAnswers: Record<number, AnswerData> = {};
         template.categories.forEach((cat: any) => {
@@ -301,6 +306,16 @@ export default function HODChecklistPage() {
         e.preventDefault();
         if (!selectedTemplate) return;
 
+        const questionsWithoutPhoto = selectedTemplate.categories.flatMap((category: any) =>
+            category.questions.filter((q: any) => !isSignatureQuestion(q.question) && !answers[q.id]?.photoUrl)
+        );
+
+        if (questionsWithoutPhoto.length > 0) {
+            const firstMissingQuestion = questionsWithoutPhoto[0]?.question || 'pertanyaan checklist';
+            alert(`Semua pertanyaan wajib difoto. Masih ada ${questionsWithoutPhoto.length} foto yang belum diisi.\n\nContoh yang belum difoto:\n${firstMissingQuestion}`);
+            return;
+        }
+
         setLoading(true);
         try {
             const formattedAnswers = Object.entries(answers).map(([qId, data]) => ({
@@ -472,8 +487,7 @@ export default function HODChecklistPage() {
                                 .filter((cat: any) => {
                                     // Hide categories that only contain signature rows
                                     return cat.questions.some((q: any) => {
-                                        const lowerQ = q.question.toLowerCase();
-                                        return !lowerQ.includes('signature') && !lowerQ.includes('tanda tangan');
+                                        return !isSignatureQuestion(q.question);
                                     });
                                 })
                                 .map((category: any) => (
@@ -484,8 +498,7 @@ export default function HODChecklistPage() {
                                     <div className="divide-y divide-gray-50">
                                         {category.questions
                                             .filter((q: any) => {
-                                                const lowerQ = q.question.toLowerCase();
-                                                return !lowerQ.includes('signature') && !lowerQ.includes('tanda tangan');
+                                                return !isSignatureQuestion(q.question);
                                             })
                                             .map((q: any) => (
                                             <div key={q.id} className="p-6 flex flex-col gap-4 hover:bg-gray-50 transition-colors">
@@ -558,7 +571,7 @@ export default function HODChecklistPage() {
                                                                     disabled={uploading}
                                                                 />
                                                                 <Camera className="w-4 h-4 text-[#0F4D39]" />
-                                                                Ambil Foto Bukti (Kamera)
+                                                                Ambil Foto Bukti (Wajib)
                                                             </label>
                                                         </div>
                                                     ) : (
@@ -586,6 +599,11 @@ export default function HODChecklistPage() {
                                                         <div className="flex items-center gap-2 text-xs text-[#0F4D39] font-bold animate-pulse">
                                                             <Loader2 className="w-4 h-4 animate-spin" />
                                                             Mengupload foto...
+                                                        </div>
+                                                    )}
+                                                    {!answers[q.id]?.photoUrl && !uploading && (
+                                                        <div className="text-xs font-bold text-red-500">
+                                                            Foto wajib diisi sebelum checklist bisa dikirim.
                                                         </div>
                                                     )}
                                                 </div>

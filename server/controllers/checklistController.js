@@ -50,7 +50,16 @@ exports.submitChecklist = async (req, res) => {
         });
 
         // Security check: Ensure user only submits for their assigned template or department
-        const template = await prisma.checklistTemplate.findUnique({ where: { id: parseInt(templateId) } });
+        const template = await prisma.checklistTemplate.findUnique({
+            where: { id: parseInt(templateId) },
+            include: {
+                categories: {
+                    include: {
+                        questions: true
+                    }
+                }
+            }
+        });
         if (!template) return res.status(404).json({ message: 'Template not found' });
 
         const isAssignedManually = user.assignedChecklists.some(c => c.id === template.id);
@@ -79,6 +88,27 @@ exports.submitChecklist = async (req, res) => {
 
         if (existing) {
             return res.status(400).json({ message: 'Anda sudah mengisi checklist untuk hari ini.' });
+        }
+
+        const isSignatureQuestion = (questionText) => {
+            const lowerQuestion = String(questionText || '').toLowerCase();
+            return lowerQuestion.includes('signature') || lowerQuestion.includes('tanda tangan');
+        };
+
+        const answerMap = new Map((answers || []).map(answer => [parseInt(answer.questionId), answer]));
+        const questionsWithoutPhoto = template.categories
+            .flatMap(category => category.questions)
+            .filter(question => !isSignatureQuestion(question.question))
+            .filter(question => {
+                const answer = answerMap.get(question.id);
+                return !answer || !String(answer.photoUrl || '').trim();
+            });
+
+        if (questionsWithoutPhoto.length > 0) {
+            return res.status(400).json({
+                message: `Semua pertanyaan wajib difoto. Masih ada ${questionsWithoutPhoto.length} foto bukti yang kosong.`,
+                missingQuestion: questionsWithoutPhoto[0].question
+            });
         }
 
         const submission = await prisma.checklistSubmission.create({
@@ -413,4 +443,3 @@ exports.deleteQuestion = async (req, res) => {
         res.status(500).json({ message: 'Error deleting question', error: error.message });
     }
 };
-
