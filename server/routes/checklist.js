@@ -13,6 +13,7 @@ router.post('/export/pdf', [verifyToken], checklistController.exportChecklistPdf
 // Admin Routes
 router.get('/admin/templates', [verifyToken], checklistController.adminGetTemplates);
 router.post('/admin/templates', [verifyToken], checklistController.createTemplate);
+router.put('/admin/templates/reorder', [verifyToken], checklistController.reorderTemplates);
 router.post('/admin/templates/:id/duplicate', [verifyToken], checklistController.duplicateTemplate);
 router.post('/admin/templates/:id/assign', [verifyToken], checklistController.assignUsers);
 router.put('/admin/templates/:id', [verifyToken], checklistController.updateTemplate);

@@ -31,7 +31,8 @@ export default function ChecklistManagerPage() {
   const [templateForm, setTemplateForm] = useState({
     name: "",
     department: "",
-    dayOfWeek: ""
+    dayOfWeek: "",
+    order: 0
   });
 
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -120,7 +121,7 @@ export default function ChecklistManagerPage() {
       }
       setShowTemplateModal(false);
       setEditingTemplate(null);
-      setTemplateForm({ name: "", department: "", dayOfWeek: "" });
+      setTemplateForm({ name: "", department: "", dayOfWeek: "", order: 0 });
       fetchData();
     } catch (err) {
       alert("Error saving template");
@@ -211,6 +212,29 @@ export default function ChecklistManagerPage() {
     }
   };
 
+  const handleReorderTemplate = async (template: any, direction: 'up' | 'down') => {
+    const sortedTemplates = [...templates].sort((a, b) => a.order - b.order);
+    const index = sortedTemplates.findIndex(t => t.id === template.id);
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === sortedTemplates.length - 1) return;
+
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    const temp = sortedTemplates[index].order;
+    sortedTemplates[index].order = sortedTemplates[newIndex].order;
+    sortedTemplates[newIndex].order = temp;
+
+    try {
+      setLoading(true);
+      await api.put('/checklist/admin/templates/reorder', {
+        templates: sortedTemplates.map(t => ({ id: t.id, order: t.order }))
+      });
+      fetchData();
+    } catch (err) {
+      alert("Error reordering templates");
+      setLoading(false);
+    }
+  };
+
   const handleReorderCategory = async (template: any, category: any, direction: 'up' | 'down') => {
     const categories = [...template.categories].sort((a, b) => a.order - b.order);
     const index = categories.findIndex(c => c.id === category.id);
@@ -274,7 +298,7 @@ export default function ChecklistManagerPage() {
         <button 
           onClick={() => {
             setEditingTemplate(null);
-            setTemplateForm({ name: "", department: "", dayOfWeek: "" });
+            setTemplateForm({ name: "", department: "", dayOfWeek: "", order: templates.length + 1 });
             setShowTemplateModal(true);
           }}
           className="bg-[#0F4D39] text-white px-5 py-2.5 rounded-lg flex items-center justify-center space-x-2 hover:bg-[#0a3a2b] transition-colors shadow-sm"
@@ -313,6 +337,7 @@ export default function ChecklistManagerPage() {
                     <div className="text-sm text-gray-500 flex items-center gap-3">
                       <span>{template.department}</span>
                       {template.dayOfWeek && <span className="px-1.5 py-0.5 bg-[#0F4D39]/10 text-[#0F4D39] text-[10px] rounded">{template.dayOfWeek}</span>}
+                      <span className="text-[10px] text-gray-400">Order: {template.order}</span>
                       <span>• {(template.categories || []).length} Categories</span>
                       {template.assignedUsers?.length > 0 && (
                         <span className="flex items-center gap-1 text-[#0F4D39]">
@@ -324,6 +349,20 @@ export default function ChecklistManagerPage() {
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
+                  <button 
+                    onClick={() => handleReorderTemplate(template, 'up')}
+                    className="p-2 text-gray-500 hover:text-[#0F4D39] hover:bg-[#0F4D39]/5 rounded-lg transition-all"
+                    title="Move Up"
+                  >
+                    <ArrowUp size={18} />
+                  </button>
+                  <button 
+                    onClick={() => handleReorderTemplate(template, 'down')}
+                    className="p-2 text-gray-500 hover:text-[#0F4D39] hover:bg-[#0F4D39]/5 rounded-lg transition-all"
+                    title="Move Down"
+                  >
+                    <ArrowDown size={18} />
+                  </button>
                   <button 
                     onClick={() => {
                       setCurrentTemplateId(template.id);
@@ -361,7 +400,8 @@ export default function ChecklistManagerPage() {
                       setTemplateForm({ 
                         name: template.name, 
                         department: template.department, 
-                        dayOfWeek: template.dayOfWeek || "" 
+                        dayOfWeek: template.dayOfWeek || "",
+                        order: template.order || 0
                       });
                       setShowTemplateModal(true);
                     }}
@@ -582,6 +622,16 @@ export default function ChecklistManagerPage() {
                   <option value="Sabtu">Sabtu</option>
                   <option value="Minggu">Minggu</option>
                 </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">Display Order</label>
+                <input 
+                  type="number" 
+                  className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-[#0F4D39] focus:border-transparent transition-all"
+                  value={templateForm.order}
+                  onChange={e => setTemplateForm({...templateForm, order: parseInt(e.target.value) || 0})}
+                  required
+                />
               </div>
               <div className="pt-4 flex gap-3">
                 <button 

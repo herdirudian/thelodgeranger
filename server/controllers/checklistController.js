@@ -102,7 +102,8 @@ exports.getTemplates = async (req, res) => {
                     },
                     orderBy: { order: 'asc' }
                 }
-            }
+            },
+            orderBy: { order: 'asc' }
         });
         res.json(templates);
     } catch (error) {
@@ -505,7 +506,7 @@ exports.adminGetTemplates = async (req, res) => {
                     select: { id: true, name: true, department: true }
                 }
             },
-            orderBy: { name: 'asc' }
+            orderBy: { order: 'asc' }
         });
         res.json(templates);
     } catch (error) {
@@ -684,6 +685,23 @@ exports.updateQuestion = async (req, res) => {
         res.json(q);
     } catch (error) {
         res.status(500).json({ message: 'Error updating question', error: error.message });
+    }
+};
+
+exports.reorderTemplates = async (req, res) => {
+    try {
+        const { templates } = req.body; // Array of { id: number, order: number }
+        
+        await Promise.all(templates.map(t => 
+            prisma.checklistTemplate.update({
+                where: { id: parseInt(t.id) },
+                data: { order: parseInt(t.order) }
+            })
+        ));
+        
+        res.json({ message: 'Templates reordered successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error reordering templates', error: error.message });
     }
 };
 
