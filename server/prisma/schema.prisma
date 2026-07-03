@@ -763,6 +763,7 @@ model ChecklistTemplate {
   name        String
   department  String
   dayOfWeek   String?  // Optional: "Senin", "Selasa", etc.
+  order       Int      @default(0)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
