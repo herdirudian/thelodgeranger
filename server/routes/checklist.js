@@ -19,10 +19,12 @@ router.put('/admin/templates/:id', [verifyToken], checklistController.updateTemp
 router.delete('/admin/templates/:id', [verifyToken], checklistController.deleteTemplate);
 
 router.post('/admin/categories', [verifyToken], checklistController.createCategory);
+router.put('/admin/categories/reorder', [verifyToken], checklistController.reorderCategories);
 router.put('/admin/categories/:id', [verifyToken], checklistController.updateCategory);
 router.delete('/admin/categories/:id', [verifyToken], checklistController.deleteCategory);
 
 router.post('/admin/questions', [verifyToken], checklistController.createQuestion);
+router.put('/admin/questions/reorder', [verifyToken], checklistController.reorderQuestions);
 router.put('/admin/questions/:id', [verifyToken], checklistController.updateQuestion);
 router.delete('/admin/questions/:id', [verifyToken], checklistController.deleteQuestion);
 

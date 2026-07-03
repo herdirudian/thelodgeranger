@@ -6,7 +6,8 @@ import { useAuth } from "@/context/AuthContext";
 import { 
   Plus, Edit2, Trash2, ChevronDown, ChevronRight, 
   Settings, ClipboardCheck, List, Save, X, 
-  GripVertical, Loader2, ArrowLeft, Copy, UserPlus, Users
+  GripVertical, Loader2, ArrowLeft, Copy, UserPlus, Users,
+  ArrowUp, ArrowDown
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
@@ -210,6 +211,52 @@ export default function ChecklistManagerPage() {
     }
   };
 
+  const handleReorderCategory = async (template: any, category: any, direction: 'up' | 'down') => {
+    const categories = [...template.categories].sort((a, b) => a.order - b.order);
+    const index = categories.findIndex(c => c.id === category.id);
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === categories.length - 1) return;
+
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    const temp = categories[index].order;
+    categories[index].order = categories[newIndex].order;
+    categories[newIndex].order = temp;
+
+    try {
+      setLoading(true);
+      await api.put('/checklist/admin/categories/reorder', {
+        categories: categories.map(c => ({ id: c.id, order: c.order }))
+      });
+      fetchData();
+    } catch (err) {
+      alert("Error reordering categories");
+      setLoading(false);
+    }
+  };
+
+  const handleReorderQuestion = async (category: any, question: any, direction: 'up' | 'down') => {
+    const questions = [...category.questions].sort((a, b) => a.order - b.order);
+    const index = questions.findIndex(q => q.id === question.id);
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === questions.length - 1) return;
+
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    const temp = questions[index].order;
+    questions[index].order = questions[newIndex].order;
+    questions[newIndex].order = temp;
+
+    try {
+      setLoading(true);
+      await api.put('/checklist/admin/questions/reorder', {
+        questions: questions.map(q => ({ id: q.id, order: q.order }))
+      });
+      fetchData();
+    } catch (err) {
+      alert("Error reordering questions");
+      setLoading(false);
+    }
+  };
+
   if (!user || (user.role !== 'ADMIN' && user.role !== 'GM' && user.role !== 'HR')) {
     return <div className="p-8 text-center">Access Denied</div>;
   }
@@ -355,6 +402,26 @@ export default function ChecklistManagerPage() {
                           </div>
                           <div className="flex items-center space-x-1">
                             <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleReorderCategory(template, category, 'up');
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-[#0F4D39] hover:bg-white rounded transition-all disabled:opacity-30"
+                              title="Move Up"
+                            >
+                              <ArrowUp size={16} />
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleReorderCategory(template, category, 'down');
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-[#0F4D39] hover:bg-white rounded transition-all"
+                              title="Move Down"
+                            >
+                              <ArrowDown size={16} />
+                            </button>
+                            <button 
                               onClick={() => {
                                 setCurrentCategoryId(category.id);
                                 setEditingQuestion(null);
@@ -405,6 +472,20 @@ export default function ChecklistManagerPage() {
                                     </div>
                                   </div>
                                   <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button 
+                                      onClick={() => handleReorderQuestion(category, q, 'up')}
+                                      className="p-1 text-gray-400 hover:text-[#0F4D39] hover:bg-[#0F4D39]/5 rounded transition-all"
+                                      title="Move Up"
+                                    >
+                                      <ArrowUp size={14} />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleReorderQuestion(category, q, 'down')}
+                                      className="p-1 text-gray-400 hover:text-[#0F4D39] hover:bg-[#0F4D39]/5 rounded transition-all"
+                                      title="Move Down"
+                                    >
+                                      <ArrowDown size={14} />
+                                    </button>
                                     <button 
                                       onClick={() => {
                                         setEditingQuestion(q);

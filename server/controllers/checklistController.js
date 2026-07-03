@@ -687,6 +687,40 @@ exports.updateQuestion = async (req, res) => {
     }
 };
 
+exports.reorderQuestions = async (req, res) => {
+    try {
+        const { questions } = req.body; // Array of { id: number, order: number }
+        
+        await Promise.all(questions.map(q => 
+            prisma.checklistQuestionTemplate.update({
+                where: { id: parseInt(q.id) },
+                data: { order: parseInt(q.order) }
+            })
+        ));
+        
+        res.json({ message: 'Questions reordered successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error reordering questions', error: error.message });
+    }
+};
+
+exports.reorderCategories = async (req, res) => {
+    try {
+        const { categories } = req.body; // Array of { id: number, order: number }
+        
+        await Promise.all(categories.map(cat => 
+            prisma.checklistCategoryTemplate.update({
+                where: { id: parseInt(cat.id) },
+                data: { order: parseInt(cat.order) }
+            })
+        ));
+        
+        res.json({ message: 'Categories reordered successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error reordering categories', error: error.message });
+    }
+};
+
 exports.deleteQuestion = async (req, res) => {
     try {
         const { id } = req.params;
