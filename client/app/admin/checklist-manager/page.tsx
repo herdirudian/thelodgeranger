@@ -58,10 +58,11 @@ export default function ChecklistManagerPage() {
         api.get("/checklist/admin/templates"),
         api.get("/users")
       ]);
-      setTemplates(templateRes.data);
-      setAllUsers(userRes.data);
-    } catch (err) {
+      setTemplates(templateRes.data || []);
+      setAllUsers(userRes.data || []);
+    } catch (err: any) {
       console.error("Error fetching data:", err);
+      alert("Gagal memuat data: " + (err.response?.data?.message || "Pastikan database sudah di-update di VPS (prisma db push)"));
     } finally {
       setLoading(false);
     }
