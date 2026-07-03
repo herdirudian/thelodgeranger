@@ -512,7 +512,18 @@ function AdminContent() {
           }
           setShowUserModal(false);
           setEditingUser(null);
-          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", employmentType: "CONTRACT", leaveQuota: 12, pdo: 0, contractStartDate: "", contractEndDate: "" });
+          setFormDataUser({ 
+            name: "", 
+            email: "", 
+            password: "", 
+            role: "STAFF", 
+            department: "", 
+            employmentType: "CONTRACT", 
+            leaveQuota: 12, 
+            pdo: 0, 
+            contractStartDate: "", 
+            contractEndDate: "" 
+          });
           fetchUsers();
       } catch (err: any) {
           alert(err.response?.data?.message || "Error saving user");
