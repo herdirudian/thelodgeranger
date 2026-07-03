@@ -1,5 +1,75 @@
 const { PrismaClient } = require('@prisma/client');
+const { format } = require('date-fns');
+const pdfService = require('../services/pdfService');
 const prisma = new PrismaClient();
+
+const isSignatureQuestion = (questionText) => {
+    const lowerQuestion = String(questionText || '').toLowerCase();
+    return lowerQuestion.includes('signature') || lowerQuestion.includes('tanda tangan');
+};
+
+const csvEscape = (value) => {
+    if (value == null) return '""';
+    return `"${String(value).replace(/"/g, '""')}"`;
+};
+
+const getChecklistAccessWhere = (user) => {
+    const assignedIds = (user.assignedChecklists || []).map(c => c.id);
+
+    if (assignedIds.length > 0) {
+        return { templateId: { in: assignedIds } };
+    }
+
+    if (user.role === 'ADMIN' || user.role === 'GM' || user.role === 'HR') {
+        return {};
+    }
+
+    if (user.role.includes('HOD') || user.role.includes('SPV') || user.role === 'SUPERVISOR') {
+        return {
+            template: {
+                department: user.department
+            }
+        };
+    }
+
+    return {
+        userId: user.id
+    };
+};
+
+const buildPublicFileUrl = (req, photoUrl) => {
+    if (!photoUrl) return '';
+    if (String(photoUrl).startsWith('http')) return photoUrl;
+    const normalizedPath = String(photoUrl).startsWith('/') ? String(photoUrl) : `/${photoUrl}`;
+    return `${req.protocol}://${req.get('host')}${normalizedPath}`;
+};
+
+const getOrderedCategoryExports = (submission) => {
+    const answerMap = new Map((submission.answers || []).map(answer => [answer.questionId, answer]));
+    const categories = (submission.template?.categories || [])
+        .sort((a, b) => a.order - b.order)
+        .map(category => {
+            const items = (category.questions || [])
+                .sort((a, b) => a.order - b.order)
+                .filter(question => !isSignatureQuestion(question.question))
+                .map(question => {
+                    const answer = answerMap.get(question.id);
+                    return {
+                        question,
+                        answer
+                    };
+                })
+                .filter(item => item.answer);
+
+            return {
+                category,
+                items
+            };
+        })
+        .filter(categoryGroup => categoryGroup.items.length > 0);
+
+    return categories;
+};
 
 exports.getTemplates = async (req, res) => {
     try {
@@ -89,11 +159,6 @@ exports.submitChecklist = async (req, res) => {
         if (existing) {
             return res.status(400).json({ message: 'Anda sudah mengisi checklist untuk hari ini.' });
         }
-
-        const isSignatureQuestion = (questionText) => {
-            const lowerQuestion = String(questionText || '').toLowerCase();
-            return lowerQuestion.includes('signature') || lowerQuestion.includes('tanda tangan');
-        };
 
         const answerMap = new Map((answers || []).map(answer => [parseInt(answer.questionId), answer]));
         const questionsWithoutPhoto = template.categories
@@ -226,6 +291,194 @@ exports.signChecklist = async (req, res) => {
         res.json({ message: 'Checklist berhasil disetujui', updated });
     } catch (error) {
         res.status(500).json({ message: 'Error signing checklist', error: error.message });
+    }
+};
+
+exports.exportChecklistCsv = async (req, res) => {
+    try {
+        const { submissionIds = [], scope = 'filtered', exportDate } = req.body || {};
+        const normalizedIds = Array.isArray(submissionIds)
+            ? submissionIds.map(id => parseInt(id)).filter(id => !Number.isNaN(id))
+            : [];
+
+        if (normalizedIds.length === 0) {
+            return res.status(400).json({ message: 'Tidak ada data checklist yang dipilih untuk diexport.' });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: req.userId },
+            include: { assignedChecklists: { select: { id: true } } }
+        });
+
+        const submissions = await prisma.checklistSubmission.findMany({
+            where: {
+                id: { in: normalizedIds },
+                ...getChecklistAccessWhere(user)
+            },
+            include: {
+                template: {
+                    include: {
+                        categories: {
+                            include: {
+                                questions: {
+                                    orderBy: { order: 'asc' }
+                                }
+                            },
+                            orderBy: { order: 'asc' }
+                        }
+                    }
+                },
+                user: { select: { name: true, department: true } },
+                answers: {
+                    include: {
+                        question: {
+                            include: {
+                                category: true
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: [
+                { date: 'desc' },
+                { id: 'desc' }
+            ]
+        });
+
+        if (submissions.length === 0) {
+            return res.status(404).json({ message: 'Data checklist tidak ditemukan atau tidak dapat diakses.' });
+        }
+
+        const headers = [
+            'Submission ID',
+            'Tanggal',
+            'Template',
+            'Departemen',
+            'Staff',
+            'Status',
+            'SPV Signed',
+            'GM Signed',
+            'Kategori',
+            'Pertanyaan',
+            'Jawaban',
+            'Catatan Jawaban',
+            'Foto Bukti URL',
+            'Foto Bukti Preview Excel',
+            'Foto Bukti Link Excel',
+            'Notes Submission'
+        ];
+
+        const rows = [];
+        submissions.forEach(submission => {
+            const orderedCategories = getOrderedCategoryExports(submission);
+            orderedCategories.forEach(({ category, items }) => {
+                items.forEach(({ question, answer }) => {
+                    const photoUrl = buildPublicFileUrl(req, answer.photoUrl);
+                    const photoImageFormula = photoUrl ? `=IMAGE("${photoUrl}")` : '';
+                    const photoLinkFormula = photoUrl ? `=HYPERLINK("${photoUrl}","Lihat Foto")` : '';
+
+                    rows.push([
+                        submission.id,
+                        format(new Date(submission.date), 'yyyy-MM-dd'),
+                        submission.template.name,
+                        submission.template.department,
+                        submission.user.name,
+                        submission.status,
+                        submission.spvSigned ? 'YA' : 'BELUM',
+                        submission.gmSigned ? 'YA' : 'BELUM',
+                        category.name,
+                        question.question,
+                        answer.value,
+                        answer.remarks || '',
+                        photoUrl,
+                        photoImageFormula,
+                        photoLinkFormula,
+                        submission.notes || ''
+                    ]);
+                });
+            });
+        });
+
+        const csvContent = [headers.map(csvEscape).join(','), ...rows.map(row => row.map(csvEscape).join(','))].join('\n');
+        const fileLabel = scope === 'daily' ? `daily_${exportDate || format(new Date(), 'yyyy-MM-dd')}` : 'history';
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="checklist_export_${fileLabel}.csv"`);
+        res.status(200).send(csvContent);
+    } catch (error) {
+        console.error('Checklist CSV Export Error:', error);
+        res.status(500).json({ message: 'Error exporting checklist CSV', error: error.message });
+    }
+};
+
+exports.exportChecklistPdf = async (req, res) => {
+    try {
+        const { submissionIds = [], scope = 'filtered', exportDate } = req.body || {};
+        const normalizedIds = Array.isArray(submissionIds)
+            ? submissionIds.map(id => parseInt(id)).filter(id => !Number.isNaN(id))
+            : [];
+
+        if (normalizedIds.length === 0) {
+            return res.status(400).json({ message: 'Tidak ada data checklist yang dipilih untuk diexport.' });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: req.userId },
+            include: { assignedChecklists: { select: { id: true } } }
+        });
+
+        const submissions = await prisma.checklistSubmission.findMany({
+            where: {
+                id: { in: normalizedIds },
+                ...getChecklistAccessWhere(user)
+            },
+            include: {
+                template: {
+                    include: {
+                        categories: {
+                            include: {
+                                questions: {
+                                    orderBy: { order: 'asc' }
+                                }
+                            },
+                            orderBy: { order: 'asc' }
+                        }
+                    }
+                },
+                user: { select: { name: true, department: true } },
+                answers: {
+                    include: {
+                        question: {
+                            include: {
+                                category: true
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: [
+                { date: 'desc' },
+                { id: 'desc' }
+            ]
+        });
+
+        if (submissions.length === 0) {
+            return res.status(404).json({ message: 'Data checklist tidak ditemukan atau tidak dapat diakses.' });
+        }
+
+        const pdfBytes = await pdfService.generateChecklistExportPDF(submissions, {
+            scope,
+            exportDate
+        });
+
+        const fileLabel = scope === 'daily' ? `daily_${exportDate || format(new Date(), 'yyyy-MM-dd')}` : 'history';
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="checklist_export_${fileLabel}.pdf"`);
+        res.send(Buffer.from(pdfBytes));
+    } catch (error) {
+        console.error('Checklist PDF Export Error:', error);
+        res.status(500).json({ message: 'Error exporting checklist PDF', error: error.message });
     }
 };
 

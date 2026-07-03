@@ -48,6 +48,8 @@ export default function HODChecklistPage() {
     const [historyFilter, setHistoryFilter] = useState<'ALL' | 'PENDING_MY_APPROVAL'>('ALL');
     const [showUnitSelector, setShowUnitSelector] = useState(true);
     const [draftStatus, setDraftStatus] = useState<string>("");
+    const [exportDate, setExportDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+    const [exporting, setExporting] = useState<string>("");
 
     const getDraftKey = (templateId: number) => {
         if (!user?.id) return null;
@@ -216,32 +218,82 @@ export default function HODChecklistPage() {
         return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
     };
 
-    const exportToCSV = () => {
-        if (submissions.length === 0) return;
+    const getFilteredHistorySubmissions = () => {
+        return submissions.filter(sub => {
+            if (historyFilter === 'ALL') return true;
+            if (historyFilter === 'PENDING_MY_APPROVAL') {
+                if (sub.status === 'PENDING_SUPERVISOR' && (user?.role === 'SUPERVISOR' || user?.role?.includes('SPV') || user?.role === 'ADMIN')) return true;
+                if (sub.status === 'PENDING_GM' && (user?.role === 'GM' || user?.role === 'ADMIN')) return true;
+                return false;
+            }
+            return true;
+        });
+    };
 
-        const headers = ["ID", "Template", "Department", "Staff", "Date", "Status", "HOD Sign", "SPV Sign", "GM Sign", "Notes"];
-        const rows = submissions.map(sub => [
-            sub.id,
-            sub.template.name,
-            sub.template.department,
-            sub.user.name,
-            format(new Date(sub.date), 'yyyy-MM-dd'),
-            sub.status,
-            sub.hodSigned ? 'YES' : 'NO',
-            sub.spvSigned ? 'YES' : 'NO',
-            sub.gmSigned ? 'YES' : 'NO',
-            `"${(sub.notes || '').replace(/"/g, '""')}"`
-        ]);
+    const getDailySubmissions = () => {
+        return submissions.filter(sub => format(new Date(sub.date), 'yyyy-MM-dd') === exportDate);
+    };
 
-        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `checklist_report_${format(new Date(), 'yyyyMMdd')}.csv`);
+    const downloadBlobResponse = (blob: Blob, filename: string) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
         document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    };
+
+    const extractFilename = (contentDisposition?: string, fallback = 'checklist-export') => {
+        if (!contentDisposition) return fallback;
+        const utfMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+        if (utfMatch?.[1]) return decodeURIComponent(utfMatch[1]);
+        const plainMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+        return plainMatch?.[1] || fallback;
+    };
+
+    const handleExportChecklist = async (formatType: 'csv' | 'pdf', scope: 'filtered' | 'daily') => {
+        const sourceSubmissions = scope === 'daily' ? getDailySubmissions() : getFilteredHistorySubmissions();
+        if (sourceSubmissions.length === 0) {
+            alert(scope === 'daily'
+                ? `Belum ada data checklist pada tanggal ${exportDate} untuk diexport.`
+                : 'Belum ada data checklist pada riwayat yang sedang ditampilkan.');
+            return;
+        }
+
+        const exportKey = `${formatType}-${scope}`;
+        setExporting(exportKey);
+
+        try {
+            const response = await api.post(`/checklist/export/${formatType}`, {
+                submissionIds: sourceSubmissions.map(sub => sub.id),
+                scope,
+                exportDate,
+                historyFilter
+            }, {
+                responseType: 'blob'
+            });
+
+            const defaultFilename = `checklist_${scope}_${exportDate}.${formatType}`;
+            const filename = extractFilename(response.headers['content-disposition'], defaultFilename);
+            const blobType = formatType === 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8;';
+            downloadBlobResponse(new Blob([response.data], { type: blobType }), filename);
+        } catch (error: any) {
+            if (error.response?.data instanceof Blob) {
+                try {
+                    const text = await error.response.data.text();
+                    const parsed = JSON.parse(text);
+                    alert(parsed.message || 'Gagal export checklist');
+                    return;
+                } catch {
+                    // ignore and fallback below
+                }
+            }
+            alert(error.response?.data?.message || 'Gagal export checklist');
+        } finally {
+            setExporting("");
+        }
     };
 
     const handleAnswerChange = (questionId: number, value: any) => {
@@ -391,14 +443,6 @@ export default function HODChecklistPage() {
                             Riwayat
                         </button>
                     </div>
-                    {activeTab === 'history' && (
-                        <button 
-                            onClick={exportToCSV}
-                            className="px-4 py-2 border border-[#0F4D39] text-[#0F4D39] rounded-lg text-sm font-bold hover:bg-[#0F4D39]/5 flex items-center gap-2"
-                        >
-                            <Download className="w-4 h-4" /> Export Report
-                        </button>
-                    )}
                 </div>
             </div>
 
@@ -685,25 +729,46 @@ export default function HODChecklistPage() {
                                 Perlu Approval Saya
                             </button>
                         </div>
-                        <button 
-                            onClick={exportToCSV}
-                            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all shadow-sm"
-                        >
-                            <Download className="w-4 h-4" /> Export CSV
-                        </button>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                            <input
+                                type="date"
+                                value={exportDate}
+                                onChange={(e) => setExportDate(e.target.value)}
+                                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm outline-none focus:border-[#0F4D39]"
+                            />
+                            <button
+                                onClick={() => handleExportChecklist('csv', 'filtered')}
+                                disabled={!!exporting}
+                                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all shadow-sm disabled:opacity-50"
+                            >
+                                <Download className="w-4 h-4" /> {exporting === 'csv-filtered' ? 'Exporting...' : 'CSV Riwayat'}
+                            </button>
+                            <button
+                                onClick={() => handleExportChecklist('pdf', 'filtered')}
+                                disabled={!!exporting}
+                                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all shadow-sm disabled:opacity-50"
+                            >
+                                <Download className="w-4 h-4" /> {exporting === 'pdf-filtered' ? 'Exporting...' : 'PDF Riwayat'}
+                            </button>
+                            <button
+                                onClick={() => handleExportChecklist('csv', 'daily')}
+                                disabled={!!exporting}
+                                className="flex items-center gap-2 px-4 py-2 bg-[#0F4D39]/5 border border-[#0F4D39]/20 rounded-xl text-xs font-bold text-[#0F4D39] hover:bg-[#0F4D39]/10 transition-all shadow-sm disabled:opacity-50"
+                            >
+                                <Download className="w-4 h-4" /> {exporting === 'csv-daily' ? 'Exporting...' : 'CSV 1 File Harian'}
+                            </button>
+                            <button
+                                onClick={() => handleExportChecklist('pdf', 'daily')}
+                                disabled={!!exporting}
+                                className="flex items-center gap-2 px-4 py-2 bg-[#0F4D39] rounded-xl text-xs font-bold text-white hover:bg-[#0a3628] transition-all shadow-sm disabled:opacity-50"
+                            >
+                                <Download className="w-4 h-4" /> {exporting === 'pdf-daily' ? 'Exporting...' : 'PDF 1 File Harian'}
+                            </button>
+                        </div>
                     </div>
 
                     {submissions.length > 0 ? (
-                        submissions
-                            .filter(sub => {
-                                if (historyFilter === 'ALL') return true;
-                                if (historyFilter === 'PENDING_MY_APPROVAL') {
-                                    if (sub.status === 'PENDING_SUPERVISOR' && (user?.role === 'SUPERVISOR' || user?.role?.includes('SPV') || user?.role === 'ADMIN')) return true;
-                                    if (sub.status === 'PENDING_GM' && (user?.role === 'GM' || user?.role === 'ADMIN')) return true;
-                                    return false;
-                                }
-                                return true;
-                            })
+                        getFilteredHistorySubmissions()
                             .map((sub) => (
                             <div key={sub.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                                 <div 

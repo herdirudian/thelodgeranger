@@ -1,7 +1,9 @@
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const { format } = require('date-fns');
+const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 const {
   formatWibPrintStamp,
   formatWibLongDate,
@@ -339,6 +341,336 @@ exports.generateRequestPDF = async (request, attendanceInfo = null) => {
 
   const pdfBytes = await pdfDoc.save();
   return pdfBytes;
+};
+
+const isChecklistSignatureQuestion = (questionText) => {
+    const lowerQuestion = String(questionText || '').toLowerCase();
+    return lowerQuestion.includes('signature') || lowerQuestion.includes('tanda tangan');
+};
+
+const normalizeChecklistImage = async (imageBytes, sourceHint = '') => {
+    const lowerHint = String(sourceHint || '').toLowerCase();
+    const metadata = await sharp(imageBytes).metadata().catch(() => null);
+
+    if (lowerHint.endsWith('.png') || metadata?.format === 'png') {
+        return { bytes: imageBytes, type: 'png' };
+    }
+
+    if (lowerHint.endsWith('.jpg') || lowerHint.endsWith('.jpeg') || metadata?.format === 'jpeg') {
+        return { bytes: imageBytes, type: 'jpg' };
+    }
+
+    const pngBuffer = await sharp(imageBytes).png().toBuffer();
+    return { bytes: pngBuffer, type: 'png' };
+};
+
+const readChecklistImageBytes = async (photoUrl) => {
+    if (!photoUrl) return null;
+
+    const source = String(photoUrl);
+    if (source.startsWith('http://') || source.startsWith('https://')) {
+        const response = await axios.get(source, { responseType: 'arraybuffer', timeout: 15000 });
+        return Buffer.from(response.data);
+    }
+
+    const rawName = source.split('?')[0].split('/').pop() || '';
+    const safeFileName = path.basename(rawName).replace(/[^a-zA-Z0-9._-]/g, '');
+    if (!safeFileName || safeFileName.includes('..')) {
+        return null;
+    }
+
+    const localPath = path.join(__dirname, '../uploads', safeFileName);
+    if (!fs.existsSync(localPath)) {
+        return null;
+    }
+
+    return fs.readFileSync(localPath);
+};
+
+exports.generateChecklistExportPDF = async (submissions, options = {}) => {
+    const pdfDoc = await PDFDocument.create();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    const pageSize = [595.28, 841.89];
+    const margin = 36;
+    const lineGap = 4;
+    let page;
+    let width;
+    let height;
+    let y;
+
+    const addPage = () => {
+        page = pdfDoc.addPage(pageSize);
+        ({ width, height } = page.getSize());
+        y = height - margin;
+    };
+
+    const ensureSpace = (requiredHeight = 40) => {
+        if (!page || y - requiredHeight < margin) {
+            addPage();
+        }
+    };
+
+    const wrapText = (text, maxWidth, activeFont, size) => {
+        const safeText = cleanText(text || '');
+        if (!safeText) return ['-'];
+
+        const paragraphs = safeText.split(/\r?\n/);
+        const lines = [];
+
+        paragraphs.forEach(paragraph => {
+            const words = paragraph.split(/\s+/).filter(Boolean);
+            if (words.length === 0) {
+                lines.push('');
+                return;
+            }
+
+            let currentLine = words[0];
+            for (let i = 1; i < words.length; i += 1) {
+                const testLine = `${currentLine} ${words[i]}`;
+                if (activeFont.widthOfTextAtSize(testLine, size) <= maxWidth) {
+                    currentLine = testLine;
+                } else {
+                    lines.push(currentLine);
+                    currentLine = words[i];
+                }
+            }
+            lines.push(currentLine);
+        });
+
+        return lines.length > 0 ? lines : ['-'];
+    };
+
+    const drawWrappedText = (text, x, maxWidth, size = 10, activeFont = font, color = rgb(0, 0, 0)) => {
+        const lines = wrapText(text, maxWidth, activeFont, size);
+        lines.forEach(line => {
+            ensureSpace(size + 6);
+            page.drawText(line, { x, y, size, font: activeFont, color });
+            y -= size + lineGap;
+        });
+        return lines;
+    };
+
+    const embedChecklistImage = async (photoUrl) => {
+        try {
+            const imageBytes = await readChecklistImageBytes(photoUrl);
+            if (!imageBytes) return null;
+            const normalized = await normalizeChecklistImage(imageBytes, photoUrl);
+
+            if (normalized.type === 'png') {
+                return pdfDoc.embedPng(normalized.bytes);
+            }
+
+            return pdfDoc.embedJpg(normalized.bytes);
+        } catch (error) {
+            console.error('Checklist export image error:', error);
+            return null;
+        }
+    };
+
+    const drawHeader = () => {
+        ensureSpace(90);
+        page.drawText('Daily Checklist Export', {
+            x: margin,
+            y,
+            size: 18,
+            font: boldFont,
+            color: rgb(0.06, 0.3, 0.22)
+        });
+        y -= 22;
+
+        const scopeLabel = options.scope === 'daily' ? 'Export Semua Checklist Harian' : 'Export Riwayat / Approval Checklist';
+        page.drawText(cleanText(scopeLabel), {
+            x: margin,
+            y,
+            size: 11,
+            font,
+            color: rgb(0.35, 0.35, 0.35)
+        });
+        y -= 16;
+
+        page.drawText(`Tanggal Export: ${cleanText(options.exportDate || format(new Date(), 'yyyy-MM-dd'))}`, {
+            x: margin,
+            y,
+            size: 10,
+            font,
+            color: rgb(0.35, 0.35, 0.35)
+        });
+        y -= 14;
+
+        page.drawText(`Total Submission: ${submissions.length}`, {
+            x: margin,
+            y,
+            size: 10,
+            font,
+            color: rgb(0.35, 0.35, 0.35)
+        });
+        y -= 24;
+    };
+
+    addPage();
+    drawHeader();
+
+    for (const [submissionIndex, submission] of submissions.entries()) {
+        ensureSpace(120);
+
+        page.drawRectangle({
+            x: margin,
+            y: y - 28,
+            width: width - (margin * 2),
+            height: 28,
+            color: rgb(0.06, 0.3, 0.22)
+        });
+        page.drawText(cleanText(`${submissionIndex + 1}. ${submission.template.name}`), {
+            x: margin + 10,
+            y: y - 18,
+            size: 12,
+            font: boldFont,
+            color: rgb(1, 1, 1)
+        });
+        y -= 42;
+
+        const metaLines = [
+            `Departemen: ${submission.template.department}`,
+            `Tanggal: ${format(new Date(submission.date), 'dd MMM yyyy')}`,
+            `Staff: ${submission.user.name}`,
+            `Status: ${submission.status}`,
+            `Approval: STAFF=Submitted | SPV=${submission.spvSigned ? 'Signed' : 'Pending'} | GM=${submission.gmSigned ? 'Signed' : 'Pending'}`
+        ];
+
+        metaLines.forEach(line => {
+            drawWrappedText(line, margin, width - (margin * 2), 10, font, rgb(0.25, 0.25, 0.25));
+        });
+
+        const answerMap = new Map((submission.answers || []).map(answer => [answer.questionId, answer]));
+        const orderedCategories = (submission.template.categories || [])
+            .sort((a, b) => a.order - b.order)
+            .map(category => ({
+                ...category,
+                questions: (category.questions || [])
+                    .sort((a, b) => a.order - b.order)
+                    .filter(question => !isChecklistSignatureQuestion(question.question))
+            }))
+            .filter(category => category.questions.some(question => answerMap.has(question.id)));
+
+        for (const category of orderedCategories) {
+            ensureSpace(50);
+            page.drawRectangle({
+                x: margin,
+                y: y - 20,
+                width: width - (margin * 2),
+                height: 20,
+                color: rgb(0.94, 0.96, 0.95)
+            });
+            page.drawText(cleanText(category.name), {
+                x: margin + 8,
+                y: y - 13,
+                size: 10,
+                font: boldFont,
+                color: rgb(0.06, 0.3, 0.22)
+            });
+            y -= 30;
+
+            for (const question of category.questions) {
+                const answer = answerMap.get(question.id);
+                if (!answer) continue;
+
+                ensureSpace(90);
+                page.drawText(cleanText(`• ${question.question}`), {
+                    x: margin,
+                    y,
+                    size: 10,
+                    font: boldFont,
+                    color: rgb(0.12, 0.12, 0.12)
+                });
+                y -= 16;
+
+                drawWrappedText(`Jawaban: ${answer.value || '-'}`, margin + 12, width - (margin * 2) - 12, 10, font);
+
+                if (answer.remarks) {
+                    drawWrappedText(`Catatan: ${answer.remarks}`, margin + 12, width - (margin * 2) - 12, 9, font, rgb(0.35, 0.35, 0.35));
+                }
+
+                if (answer.photoUrl) {
+                    const image = await embedChecklistImage(answer.photoUrl);
+                    if (image) {
+                        const maxWidth = 140;
+                        const maxHeight = 100;
+                        const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
+                        const dims = image.scale(scale);
+                        ensureSpace(dims.height + 20);
+                        page.drawImage(image, {
+                            x: margin + 12,
+                            y: y - dims.height,
+                            width: dims.width,
+                            height: dims.height
+                        });
+                        y -= dims.height + 10;
+                    } else {
+                        drawWrappedText('Foto bukti tersedia tetapi gagal dimuat ke PDF.', margin + 12, width - (margin * 2) - 12, 9, font, rgb(0.65, 0.2, 0.2));
+                    }
+                } else {
+                    drawWrappedText('Foto bukti: -', margin + 12, width - (margin * 2) - 12, 9, font, rgb(0.4, 0.4, 0.4));
+                }
+
+                y -= 8;
+            }
+        }
+
+        if (submission.notes) {
+            ensureSpace(60);
+            page.drawText('Kesimpulan / Notes', {
+                x: margin,
+                y,
+                size: 10,
+                font: boldFont,
+                color: rgb(0.06, 0.3, 0.22)
+            });
+            y -= 16;
+            drawWrappedText(submission.notes, margin, width - (margin * 2), 10, font);
+        }
+
+        if (submission.photoUrl) {
+            ensureSpace(40);
+            page.drawText('Foto Bukti Submission', {
+                x: margin,
+                y,
+                size: 10,
+                font: boldFont,
+                color: rgb(0.06, 0.3, 0.22)
+            });
+            y -= 16;
+
+            const submissionImage = await embedChecklistImage(submission.photoUrl);
+            if (submissionImage) {
+                const maxWidth = 180;
+                const maxHeight = 120;
+                const scale = Math.min(maxWidth / submissionImage.width, maxHeight / submissionImage.height, 1);
+                const dims = submissionImage.scale(scale);
+                ensureSpace(dims.height + 10);
+                page.drawImage(submissionImage, {
+                    x: margin,
+                    y: y - dims.height,
+                    width: dims.width,
+                    height: dims.height
+                });
+                y -= dims.height + 8;
+            }
+        }
+
+        y -= 10;
+        ensureSpace(18);
+        page.drawLine({
+            start: { x: margin, y },
+            end: { x: width - margin, y },
+            thickness: 1,
+            color: rgb(0.86, 0.88, 0.87)
+        });
+        y -= 20;
+    }
+
+    return pdfDoc.save();
 };
 
 exports.generateMonthlySchedulePDF = async (schedule, staffList) => {

@@ -7,6 +7,8 @@ router.get('/templates', [verifyToken], checklistController.getTemplates);
 router.post('/submit', [verifyToken], checklistController.submitChecklist);
 router.get('/submissions', [verifyToken], checklistController.getSubmissions);
 router.put('/submissions/:id/sign', [verifyToken], checklistController.signChecklist);
+router.post('/export/csv', [verifyToken], checklistController.exportChecklistCsv);
+router.post('/export/pdf', [verifyToken], checklistController.exportChecklistPdf);
 
 // Admin Routes
 router.get('/admin/templates', [verifyToken], checklistController.adminGetTemplates);
