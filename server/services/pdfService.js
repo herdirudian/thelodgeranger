@@ -602,13 +602,14 @@ exports.generateChecklistExportPDF = async (submissions, options = {}) => {
                 let image = null;
                 let dims = null;
                 if (answer.photoUrl) {
-                    image = await embedChecklistImage(answer.photoUrl);
-                    if (image) {
-                        const scale = Math.min(80 / image.width, 60 / image.height, 1);
-                        dims = image.scale(scale);
-                        maxContentHeight = Math.max(maxContentHeight, dims.height + 5);
-                    }
-                }
+                     image = await embedChecklistImage(answer.photoUrl);
+                     if (image) {
+                         // Increased height limit for portrait view (from 60 to 100)
+                         const scale = Math.min(80 / image.width, 100 / image.height, 1);
+                         dims = image.scale(scale);
+                         maxContentHeight = Math.max(maxContentHeight, dims.height + 5);
+                     }
+                 }
 
                 ensureSpace(maxContentHeight + 15);
                 const rowTopY = y;
@@ -666,11 +667,12 @@ exports.generateChecklistExportPDF = async (submissions, options = {}) => {
                 color: rgb(0.06, 0.3, 0.22)
             });
             y -= 16;
-
+ 
             const submissionImage = await embedChecklistImage(submission.photoUrl);
             if (submissionImage) {
-                const maxWidth = 180;
-                const maxHeight = 120;
+                // Increased height limit for portrait view (from 120 to 250)
+                const maxWidth = 200;
+                const maxHeight = 250;
                 const scale = Math.min(maxWidth / submissionImage.width, maxHeight / submissionImage.height, 1);
                 const dims = submissionImage.scale(scale);
                 ensureSpace(dims.height + 10);
