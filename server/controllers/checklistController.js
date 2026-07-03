@@ -80,12 +80,13 @@ exports.submitChecklist = async (req, res) => {
                 date: new Date(date || new Date()),
                 notes,
                 photoUrl,
+                status: 'PENDING_SUPERVISOR', // Start workflow
                 answers: {
                     create: answers.map(a => ({
                         questionId: parseInt(a.questionId),
                         value: String(a.value),
                         remarks: a.remarks,
-                        photoUrl: a.photoUrl // Added this
+                        photoUrl: a.photoUrl
                     }))
                 }
             }
@@ -140,7 +141,7 @@ exports.getSubmissions = async (req, res) => {
 exports.signChecklist = async (req, res) => {
     try {
         const { id } = req.params;
-        const { type } = req.body; // 'HOD', 'SPV', or 'GM'
+        const { type } = req.body; // 'SPV' or 'GM'
         const user = await prisma.user.findUnique({ where: { id: req.userId } });
 
         const submission = await prisma.checklistSubmission.findUnique({
@@ -151,18 +152,28 @@ exports.signChecklist = async (req, res) => {
         if (!submission) return res.status(404).json({ message: 'Submission not found' });
 
         const updateData = {};
-        const isSameDept = user.department?.toLowerCase() === submission.template.department?.toLowerCase();
-        const isAssignedManually = user.checklistTemplateId === submission.templateId;
-
-        if (type === 'HOD' && (user.role.includes('HOD') || user.role.includes('SPV')) && (isSameDept || isAssignedManually)) {
-            updateData.hodSigned = true;
-        } else if (type === 'SPV' && (user.role === 'SUPERVISOR' || user.role.includes('SPV')) && (isSameDept || isAssignedManually || user.role === 'SUPERVISOR')) {
+        
+        // Supervisor Approval
+        if (type === 'SPV') {
+            const canSign = user.role === 'ADMIN' || user.role === 'GM' || user.role === 'SUPERVISOR' || user.role.includes('SPV');
+            if (!canSign) return res.status(403).json({ message: 'Hanya Supervisor atau Admin yang bisa menyetujui tahap ini.' });
+            
             updateData.spvSigned = true;
-        } else if (type === 'GM' && (user.role === 'GM' || user.role === 'ADMIN')) {
+            updateData.status = 'PENDING_GM';
+        } 
+        // GM Approval
+        else if (type === 'GM') {
+            const canSign = user.role === 'ADMIN' || user.role === 'GM';
+            if (!canSign) return res.status(403).json({ message: 'Hanya GM atau Admin yang bisa menyetujui tahap akhir.' });
+            
+            if (!submission.spvSigned && user.role !== 'ADMIN') {
+                return res.status(400).json({ message: 'Harus disetujui Supervisor terlebih dahulu.' });
+            }
+
             updateData.gmSigned = true;
             updateData.status = 'APPROVED';
         } else {
-            return res.status(403).json({ message: 'Unauthorized to sign this checklist' });
+            return res.status(400).json({ message: 'Tipe tanda tangan tidak valid.' });
         }
 
         const updated = await prisma.checklistSubmission.update({
@@ -170,7 +181,7 @@ exports.signChecklist = async (req, res) => {
             data: updateData
         });
 
-        res.json({ message: 'Checklist signed successfully', updated });
+        res.json({ message: 'Checklist berhasil disetujui', updated });
     } catch (error) {
         res.status(500).json({ message: 'Error signing checklist', error: error.message });
     }

@@ -753,6 +753,8 @@ enum ChecklistType {
 enum ChecklistSubmissionStatus {
   DRAFT
   SUBMITTED
+  PENDING_SUPERVISOR
+  PENDING_GM
   APPROVED
   REJECTED
 }

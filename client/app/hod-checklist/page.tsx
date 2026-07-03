@@ -43,6 +43,7 @@ export default function HODChecklistPage() {
     const [todaySubmissions, setTodaySubmissions] = useState<Record<number, boolean>>({});
     const [photoUrl, setPhotoUrl] = useState("");
     const [uploading, setUploading] = useState(false);
+    const [historyFilter, setHistoryFilter] = useState<'ALL' | 'PENDING_MY_APPROVAL'>('ALL');
 
     useEffect(() => {
         fetchTemplates();
@@ -521,8 +522,47 @@ export default function HODChecklistPage() {
 
             {activeTab === 'history' && (
                 <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-4 mb-2">
+                        <div className="flex bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
+                            <button 
+                                onClick={() => setHistoryFilter('ALL')}
+                                className={clsx(
+                                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                                    historyFilter === 'ALL' ? "bg-[#0F4D39] text-white" : "text-gray-500 hover:bg-gray-50"
+                                )}
+                            >
+                                Semua Riwayat
+                            </button>
+                            <button 
+                                onClick={() => setHistoryFilter('PENDING_MY_APPROVAL')}
+                                className={clsx(
+                                    "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                                    historyFilter === 'PENDING_MY_APPROVAL' ? "bg-orange-600 text-white" : "text-gray-500 hover:bg-gray-50"
+                                )}
+                            >
+                                Perlu Approval Saya
+                            </button>
+                        </div>
+                        <button 
+                            onClick={exportToCSV}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all shadow-sm"
+                        >
+                            <Download className="w-4 h-4" /> Export CSV
+                        </button>
+                    </div>
+
                     {submissions.length > 0 ? (
-                        submissions.map((sub) => (
+                        submissions
+                            .filter(sub => {
+                                if (historyFilter === 'ALL') return true;
+                                if (historyFilter === 'PENDING_MY_APPROVAL') {
+                                    if (sub.status === 'PENDING_SUPERVISOR' && (user?.role === 'SUPERVISOR' || user?.role?.includes('SPV') || user?.role === 'ADMIN')) return true;
+                                    if (sub.status === 'PENDING_GM' && (user?.role === 'GM' || user?.role === 'ADMIN')) return true;
+                                    return false;
+                                }
+                                return true;
+                            })
+                            .map((sub) => (
                             <div key={sub.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                                 <div 
                                     className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer hover:bg-gray-50 transition-colors"
@@ -544,14 +584,26 @@ export default function HODChecklistPage() {
                                         <div className="flex flex-col items-end gap-1">
                                             <span className={clsx(
                                                 "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                                                sub.status === 'APPROVED' ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
+                                                sub.status === 'APPROVED' ? "bg-green-100 text-green-700" : 
+                                                sub.status === 'PENDING_GM' ? "bg-blue-100 text-blue-700" :
+                                                sub.status === 'PENDING_SUPERVISOR' ? "bg-orange-100 text-orange-700" :
+                                                "bg-gray-100 text-gray-700"
                                             )}>
-                                                {sub.status}
+                                                {sub.status.replace('_', ' ')}
                                             </span>
                                             <div className="flex gap-2">
-                                                {sub.hodSigned ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Clock className="w-4 h-4 text-gray-300" />}
-                                                {sub.spvSigned ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Clock className="w-4 h-4 text-gray-300" />}
-                                                {sub.gmSigned ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Clock className="w-4 h-4 text-gray-300" />}
+                                                <div className="flex items-center gap-1" title="Staff Submitted">
+                                                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                                                    <span className="text-[8px] text-gray-400">STAFF</span>
+                                                </div>
+                                                <div className="flex items-center gap-1" title="Supervisor Approval">
+                                                    {sub.spvSigned ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Clock className="w-3.5 h-3.5 text-gray-300" />}
+                                                    <span className="text-[8px] text-gray-400">SPV</span>
+                                                </div>
+                                                <div className="flex items-center gap-1" title="GM Approval">
+                                                    {sub.gmSigned ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Clock className="w-3.5 h-3.5 text-gray-300" />}
+                                                    <span className="text-[8px] text-gray-400">GM</span>
+                                                </div>
                                             </div>
                                         </div>
                                         {expandedSubmission === sub.id ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
@@ -632,30 +684,31 @@ export default function HODChecklistPage() {
                                             </div>
                                         )}
 
-                                        <div className="flex flex-wrap gap-3">
-                                            {!sub.hodSigned && (user?.role === 'HOD' || user?.role?.includes('HOD')) && (user?.department?.toLowerCase() === sub.template.department?.toLowerCase() || user?.checklistTemplateId === sub.template.id) && (
-                                                <button 
-                                                    onClick={() => handleSign(sub.id, 'HOD')}
-                                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 flex items-center gap-2"
-                                                >
-                                                    <Signature className="w-4 h-4" /> Tanda Tangan HOD
-                                                </button>
-                                            )}
-                                            {!sub.spvSigned && (user?.role === 'SUPERVISOR' || user?.role?.includes('SPV')) && (
+                                        <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+                                            {/* Supervisor Action */}
+                                            {!sub.spvSigned && sub.status === 'PENDING_SUPERVISOR' && (user?.role === 'SUPERVISOR' || user?.role?.includes('SPV') || user?.role === 'ADMIN') && (
                                                 <button 
                                                     onClick={() => handleSign(sub.id, 'SPV')}
-                                                    className="px-6 py-2 bg-orange-600 text-white rounded-lg font-bold text-sm hover:bg-orange-700 flex items-center gap-2"
+                                                    className="px-6 py-2.5 bg-orange-600 text-white rounded-xl font-bold text-sm hover:bg-orange-700 flex items-center gap-2 shadow-md transition-all active:scale-95"
                                                 >
-                                                    <Signature className="w-4 h-4" /> Tanda Tangan SPV
+                                                    <Signature className="w-4 h-4" /> Setujui sebagai Supervisor
                                                 </button>
                                             )}
-                                            {!sub.gmSigned && (user?.role === 'GM' || user?.role === 'ADMIN') && (
+
+                                            {/* GM Action */}
+                                            {!sub.gmSigned && sub.status === 'PENDING_GM' && (user?.role === 'GM' || user?.role === 'ADMIN') && (
                                                 <button 
                                                     onClick={() => handleSign(sub.id, 'GM')}
-                                                    className="px-6 py-2 bg-[#0F4D39] text-white rounded-lg font-bold text-sm hover:bg-[#0a3628] flex items-center gap-2"
+                                                    className="px-6 py-2.5 bg-[#0F4D39] text-white rounded-xl font-bold text-sm hover:bg-[#0a3628] flex items-center gap-2 shadow-md transition-all active:scale-95"
                                                 >
                                                     <Signature className="w-4 h-4" /> Approve & Sign (GM)
                                                 </button>
+                                            )}
+
+                                            {sub.status === 'APPROVED' && (
+                                                <div className="flex items-center gap-2 text-green-600 font-bold text-sm bg-green-50 px-4 py-2 rounded-lg border border-green-100">
+                                                    <CheckCircle2 className="w-5 h-5" /> Checklist Selesai & Disetujui GM
+                                                </div>
                                             )}
                                         </div>
                                     </div>
