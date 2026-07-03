@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { 
   Plus, Edit2, Trash2, ChevronDown, ChevronRight, 
   Settings, ClipboardCheck, List, Save, X, 
-  GripVertical, Loader2, ArrowLeft, Copy
+  GripVertical, Loader2, ArrowLeft, Copy, UserPlus, Users
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
@@ -14,11 +14,17 @@ import clsx from "clsx";
 export default function ChecklistManagerPage() {
   const { user } = useAuth();
   const [templates, setTemplates] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedTemplates, setExpandedTemplates] = useState<number[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<number[]>([]);
 
   // Form states
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assigningTemplate, setAssigningTemplate] = useState<any>(null);
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+  const [userSearch, setUserSearch] = useState("");
+
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [templateForm, setTemplateForm] = useState({
@@ -48,10 +54,14 @@ export default function ChecklistManagerPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/checklist/admin/templates");
-      setTemplates(res.data);
+      const [templateRes, userRes] = await Promise.all([
+        api.get("/checklist/admin/templates"),
+        api.get("/users")
+      ]);
+      setTemplates(templateRes.data);
+      setAllUsers(userRes.data);
     } catch (err) {
-      console.error("Error fetching templates:", err);
+      console.error("Error fetching data:", err);
     } finally {
       setLoading(false);
     }
@@ -62,6 +72,28 @@ export default function ChecklistManagerPage() {
       fetchData();
     }
   }, [user]);
+
+  const handleAssignSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assigningTemplate) return;
+    try {
+      setLoading(true);
+      await api.post(`/checklist/admin/templates/${assigningTemplate.id}/assign`, {
+        userIds: selectedUserIds
+      });
+      setShowAssignModal(false);
+      fetchData();
+    } catch (err) {
+      alert("Error assigning users");
+      setLoading(false);
+    }
+  };
+
+  const toggleUserSelection = (userId: number) => {
+    setSelectedUserIds(prev => 
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    );
+  };
 
   const toggleTemplate = (id: number) => {
     setExpandedTemplates(prev => 
@@ -234,6 +266,12 @@ export default function ChecklistManagerPage() {
                       <span>{template.department}</span>
                       {template.dayOfWeek && <span className="px-1.5 py-0.5 bg-[#0F4D39]/10 text-[#0F4D39] text-[10px] rounded">{template.dayOfWeek}</span>}
                       <span>• {(template.categories || []).length} Categories</span>
+                      {template.assignedUsers?.length > 0 && (
+                        <span className="flex items-center gap-1 text-[#0F4D39]">
+                          <Users size={12} />
+                          <span>{template.assignedUsers.length} Staff Assigned</span>
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -256,6 +294,18 @@ export default function ChecklistManagerPage() {
                     title="Duplicate Template"
                   >
                     <Copy size={18} />
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setAssigningTemplate(template);
+                      setSelectedUserIds(template.assignedUsers?.map((u: any) => u.id) || []);
+                      setUserSearch("");
+                      setShowAssignModal(true);
+                    }}
+                    className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                    title="Assign Staff"
+                  >
+                    <UserPlus size={18} />
                   </button>
                   <button 
                     onClick={() => {
@@ -594,6 +644,81 @@ export default function ChecklistManagerPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Users Modal */}
+      {showAssignModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Assign Staff</h2>
+                <p className="text-xs text-gray-500 mt-1">{assigningTemplate?.name}</p>
+              </div>
+              <button onClick={() => setShowAssignModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="relative">
+                <input 
+                  type="text" 
+                  className="w-full border border-gray-300 rounded-lg p-2.5 pl-9 focus:ring-2 focus:ring-[#0F4D39] focus:border-transparent transition-all text-sm"
+                  placeholder="Cari nama atau departemen..."
+                  value={userSearch}
+                  onChange={e => setUserSearch(e.target.value)}
+                />
+                <Users size={16} className="absolute left-3 top-3.5 text-gray-400" />
+              </div>
+              
+              <div className="max-h-[300px] overflow-y-auto space-y-1 border rounded-lg p-2">
+                {allUsers
+                  .filter(u => {
+                    const search = userSearch.toLowerCase();
+                    return u.name.toLowerCase().includes(search) || (u.department || "").toLowerCase().includes(search);
+                  })
+                  .map(u => (
+                    <label 
+                      key={u.id} 
+                      className={clsx(
+                        "flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors",
+                        selectedUserIds.includes(u.id) ? "bg-[#0F4D39]/5 border border-[#0F4D39]/20" : "hover:bg-gray-50 border border-transparent"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="checkbox" 
+                          className="w-4 h-4 text-[#0F4D39] rounded border-gray-300 focus:ring-[#0F4D39]"
+                          checked={selectedUserIds.includes(u.id)}
+                          onChange={() => toggleUserSelection(u.id)}
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{u.name}</p>
+                          <p className="text-[10px] text-gray-500">{u.department || 'No Department'} • {u.role}</p>
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setShowAssignModal(false)}
+                  className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleAssignSubmit}
+                  className="flex-1 px-4 py-2.5 bg-[#0F4D39] text-white rounded-lg hover:bg-[#0a3a2b] transition-colors shadow-sm font-bold flex items-center justify-center gap-2"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Assignments"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

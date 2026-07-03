@@ -157,8 +157,7 @@ model User {
   voteCandidateMedia VoteCandidateMedia[]
   votingFinalized Boolean @default(false)
   checklistSubmissions ChecklistSubmission[]
-  checklistTemplateId  Int?
-  checklistTemplate    ChecklistTemplate? @relation("UserChecklistTemplate", fields: [checklistTemplateId], references: [id])
+  assignedChecklists   ChecklistTemplate[] @relation("UserChecklistTemplates")
 }
 
 model IndividualDevelopmentPlan {
@@ -770,7 +769,7 @@ model ChecklistTemplate {
 
   categories  ChecklistCategoryTemplate[]
   submissions ChecklistSubmission[]
-  assignedUsers User[] @relation("UserChecklistTemplate")
+  assignedUsers User[] @relation("UserChecklistTemplates")
 }
 
 model ChecklistCategoryTemplate {

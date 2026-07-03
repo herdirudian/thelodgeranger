@@ -3,13 +3,18 @@ const prisma = new PrismaClient();
 
 exports.getTemplates = async (req, res) => {
     try {
-        const user = await prisma.user.findUnique({ where: { id: req.userId } });
+        const user = await prisma.user.findUnique({ 
+            where: { id: req.userId },
+            include: { assignedChecklists: { select: { id: true } } }
+        });
+        
+        const assignedIds = user.assignedChecklists.map(c => c.id);
         const where = { isActive: true };
         
-        // Priority 1: Check manual mapping (checklistTemplateId)
-        // Priority 2: Fallback to department mapping for HOD/SPV
-        if (user.checklistTemplateId) {
-            where.id = user.checklistTemplateId;
+        // If user has specific assigned checklists, use those.
+        // Otherwise fallback to department logic for HOD/SPV
+        if (assignedIds.length > 0) {
+            where.id = { in: assignedIds };
         } else if (user.role.includes('HOD') || user.role.includes('SPV')) {
             where.department = user.department;
         } else if (req.query.department) {
@@ -39,13 +44,16 @@ exports.submitChecklist = async (req, res) => {
     try {
         const { templateId, answers, notes, date, photoUrl } = req.body;
         const userId = req.userId;
-        const user = await prisma.user.findUnique({ where: { id: userId } });
+        const user = await prisma.user.findUnique({ 
+            where: { id: userId },
+            include: { assignedChecklists: { select: { id: true } } }
+        });
 
         // Security check: Ensure user only submits for their assigned template or department
         const template = await prisma.checklistTemplate.findUnique({ where: { id: parseInt(templateId) } });
         if (!template) return res.status(404).json({ message: 'Template not found' });
 
-        const isAssignedManually = user.checklistTemplateId === template.id;
+        const isAssignedManually = user.assignedChecklists.some(c => c.id === template.id);
         const isAssignedByDept = (user.role.includes('HOD') || user.role.includes('SPV')) && user.department === template.department;
 
         if (!isAssignedManually && !isAssignedByDept && user.role !== 'ADMIN' && user.role !== 'GM') {
@@ -101,11 +109,15 @@ exports.submitChecklist = async (req, res) => {
 exports.getSubmissions = async (req, res) => {
     try {
         const { startDate, endDate, department } = req.query;
-        const user = await prisma.user.findUnique({ where: { id: req.userId } });
+        const user = await prisma.user.findUnique({ 
+            where: { id: req.userId },
+            include: { assignedChecklists: { select: { id: true } } }
+        });
 
+        const assignedIds = user.assignedChecklists.map(c => c.id);
         const where = {};
-        if (user.checklistTemplateId) {
-            where.templateId = user.checklistTemplateId;
+        if (assignedIds.length > 0) {
+            where.templateId = { in: assignedIds };
         } else if (user.role.includes('HOD') || user.role.includes('SPV')) {
             where.template = { department: user.department };
         } else if (department) {
@@ -205,6 +217,9 @@ exports.adminGetTemplates = async (req, res) => {
                         }
                     },
                     orderBy: { order: 'asc' }
+                },
+                assignedUsers: {
+                    select: { id: true, name: true, department: true }
                 }
             },
             orderBy: { name: 'asc' }
@@ -212,6 +227,30 @@ exports.adminGetTemplates = async (req, res) => {
         res.json(templates);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching templates', error: error.message });
+    }
+};
+
+exports.assignUsers = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { userIds } = req.body; // Array of user IDs
+
+        const template = await prisma.checklistTemplate.update({
+            where: { id: parseInt(id) },
+            data: {
+                assignedUsers: {
+                    set: userIds.map(uid => ({ id: parseInt(uid) }))
+                }
+            },
+            include: {
+                assignedUsers: {
+                    select: { id: true, name: true, department: true }
+                }
+            }
+        });
+        res.json(template);
+    } catch (error) {
+        res.status(500).json({ message: 'Error assigning users', error: error.message });
     }
 };
 

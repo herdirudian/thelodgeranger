@@ -124,7 +124,6 @@ function AdminContent() {
     role: "STAFF",
     department: "",
     employmentType: "CONTRACT",
-    checklistTemplateId: "" as string | number,
     leaveQuota: 12,
     pdo: 0,
     contractStartDate: "",
@@ -513,7 +512,7 @@ function AdminContent() {
           }
           setShowUserModal(false);
           setEditingUser(null);
-          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", employmentType: "CONTRACT", checklistTemplateId: "", leaveQuota: 12, pdo: 0, contractStartDate: "", contractEndDate: "" });
+          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", employmentType: "CONTRACT", leaveQuota: 12, pdo: 0, contractStartDate: "", contractEndDate: "" });
           fetchUsers();
       } catch (err: any) {
           alert(err.response?.data?.message || "Error saving user");
@@ -541,7 +540,6 @@ function AdminContent() {
           employmentType: user.employmentType || "CONTRACT",
           leaveQuota: typeof user.leaveQuota === "number" ? user.leaveQuota : 12,
           pdo: typeof user.pdo === "number" ? user.pdo : 0,
-          checklistTemplateId: user.checklistTemplateId || "",
           contractStartDate: user.contractStartDate ? new Date(user.contractStartDate).toISOString().split('T')[0] : "",
           contractEndDate: user.contractEndDate ? new Date(user.contractEndDate).toISOString().split('T')[0] : ""
       });
@@ -1895,18 +1893,6 @@ function AdminContent() {
                                 value={formDataUser.contractEndDate} onChange={e => setFormDataUser({...formDataUser, contractEndDate: e.target.value})}
                             />
                         </div>
-                      </div>
-                      <div>
-                          <label className="block text-sm font-medium">Daily Checklist Access</label>
-                          <select className="w-full border p-2 rounded" 
-                              value={formDataUser.checklistTemplateId} onChange={e => setFormDataUser({...formDataUser, checklistTemplateId: e.target.value})}
-                          >
-                              <option value="">Auto (Berdasarkan Departemen)</option>
-                              {checklistTemplates.map(t => (
-                                  <option key={t.id} value={t.id}>{t.name} ({t.department})</option>
-                              ))}
-                          </select>
-                          <p className="text-[10px] text-gray-500 mt-1 italic">Pilih manual jika user ini perlu mengisi checklist departemen lain.</p>
                       </div>
                       <div className="flex justify-end space-x-2 mt-4">
                           <button type="button" onClick={() => setShowUserModal(false)} className="px-4 py-2 text-gray-600">Cancel</button>
