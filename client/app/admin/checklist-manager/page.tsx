@@ -213,19 +213,26 @@ export default function ChecklistManagerPage() {
   };
 
   const handleReorderTemplate = async (template: any, direction: 'up' | 'down') => {
-    const sortedTemplates = [...templates].sort((a, b) => a.order - b.order);
+    const sortedTemplates = [...templates].sort((a, b) => (a.order || 0) - (b.order || 0));
     const index = sortedTemplates.findIndex(t => t.id === template.id);
     if (direction === 'up' && index === 0) return;
     if (direction === 'down' && index === sortedTemplates.length - 1) return;
 
     const newIndex = direction === 'up' ? index - 1 : index + 1;
-    const temp = sortedTemplates[index].order;
-    sortedTemplates[index].order = sortedTemplates[newIndex].order;
-    sortedTemplates[newIndex].order = temp;
+    
+    // Swap positions in array
+    const item = sortedTemplates.splice(index, 1)[0];
+    sortedTemplates.splice(newIndex, 0, item);
+
+    // Re-assign order values based on new indices to ensure uniqueness and stability
+    const reorderedTemplates = sortedTemplates.map((t, i) => ({
+      id: t.id,
+      order: i + 1
+    }));
 
     try {
       await api.put('/checklist/admin/templates/reorder', {
-        templates: sortedTemplates.map(t => ({ id: t.id, order: t.order }))
+        templates: reorderedTemplates
       });
       fetchData(true);
     } catch (err) {
@@ -236,19 +243,26 @@ export default function ChecklistManagerPage() {
   };
 
   const handleReorderCategory = async (template: any, category: any, direction: 'up' | 'down') => {
-    const categories = [...template.categories].sort((a, b) => a.order - b.order);
+    const categories = [...(template.categories || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
     const index = categories.findIndex(c => c.id === category.id);
     if (direction === 'up' && index === 0) return;
     if (direction === 'down' && index === categories.length - 1) return;
 
     const newIndex = direction === 'up' ? index - 1 : index + 1;
-    const temp = categories[index].order;
-    categories[index].order = categories[newIndex].order;
-    categories[newIndex].order = temp;
+    
+    // Swap positions in array
+    const item = categories.splice(index, 1)[0];
+    categories.splice(newIndex, 0, item);
+
+    // Re-assign order values based on new indices
+    const reorderedCategories = categories.map((c, i) => ({
+      id: c.id,
+      order: i + 1
+    }));
 
     try {
       await api.put('/checklist/admin/categories/reorder', {
-        categories: categories.map(c => ({ id: c.id, order: c.order }))
+        categories: reorderedCategories
       });
       fetchData(true);
     } catch (err) {
@@ -259,19 +273,26 @@ export default function ChecklistManagerPage() {
   };
 
   const handleReorderQuestion = async (category: any, question: any, direction: 'up' | 'down') => {
-    const questions = [...category.questions].sort((a, b) => a.order - b.order);
+    const questions = [...(category.questions || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
     const index = questions.findIndex(q => q.id === question.id);
     if (direction === 'up' && index === 0) return;
     if (direction === 'down' && index === questions.length - 1) return;
 
     const newIndex = direction === 'up' ? index - 1 : index + 1;
-    const temp = questions[index].order;
-    questions[index].order = questions[newIndex].order;
-    questions[newIndex].order = temp;
+    
+    // Swap positions in array
+    const item = questions.splice(index, 1)[0];
+    questions.splice(newIndex, 0, item);
+
+    // Re-assign order values based on new indices
+    const reorderedQuestions = questions.map((q, i) => ({
+      id: q.id,
+      order: i + 1
+    }));
 
     try {
       await api.put('/checklist/admin/questions/reorder', {
-        questions: questions.map(q => ({ id: q.id, order: q.order }))
+        questions: reorderedQuestions
       });
       fetchData(true);
     } catch (err) {
