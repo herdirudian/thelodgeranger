@@ -53,9 +53,9 @@ export default function ChecklistManagerPage() {
     isRequired: true
   });
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [templateRes, userRes] = await Promise.all([
         api.get("/checklist/admin/templates"),
         api.get("/users")
@@ -66,7 +66,7 @@ export default function ChecklistManagerPage() {
       console.error("Error fetching data:", err);
       alert("Gagal memuat data: " + (err.response?.data?.message || "Pastikan database sudah di-update di VPS (prisma db push)"));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -80,14 +80,14 @@ export default function ChecklistManagerPage() {
     e.preventDefault();
     if (!assigningTemplate) return;
     try {
-      setLoading(true);
       await api.post(`/checklist/admin/templates/${assigningTemplate.id}/assign`, {
         userIds: selectedUserIds
       });
       setShowAssignModal(false);
-      fetchData();
+      fetchData(true);
     } catch (err) {
       alert("Error assigning users");
+    } finally {
       setLoading(false);
     }
   };
@@ -122,7 +122,7 @@ export default function ChecklistManagerPage() {
       setShowTemplateModal(false);
       setEditingTemplate(null);
       setTemplateForm({ name: "", department: "", dayOfWeek: "", order: 0 });
-      fetchData();
+      fetchData(true);
     } catch (err) {
       alert("Error saving template");
     }
@@ -132,7 +132,7 @@ export default function ChecklistManagerPage() {
     if (!confirm("Hapus template ini? Semua kategori dan pertanyaan di dalamnya juga akan terhapus.")) return;
     try {
       await api.delete(`/checklist/admin/templates/${id}`);
-      fetchData();
+      fetchData(true);
     } catch (err) {
       alert("Error deleting template");
     }
@@ -141,11 +141,11 @@ export default function ChecklistManagerPage() {
   const handleDuplicateTemplate = async (id: number) => {
     if (!confirm("Duplikat template ini beserta semua kategori dan pertanyaannya?")) return;
     try {
-      setLoading(true);
       await api.post(`/checklist/admin/templates/${id}/duplicate`);
-      fetchData();
+      fetchData(true);
     } catch (err) {
       alert("Error duplicating template");
+    } finally {
       setLoading(false);
     }
   };
@@ -165,7 +165,7 @@ export default function ChecklistManagerPage() {
       setShowCategoryModal(false);
       setEditingCategory(null);
       setCategoryForm({ name: "", order: 0 });
-      fetchData();
+      fetchData(true);
     } catch (err) {
       alert("Error saving category");
     }
@@ -175,7 +175,7 @@ export default function ChecklistManagerPage() {
     if (!confirm("Hapus kategori ini? Semua pertanyaan di dalamnya juga akan terhapus.")) return;
     try {
       await api.delete(`/checklist/admin/categories/${id}`);
-      fetchData();
+      fetchData(true);
     } catch (err) {
       alert("Error deleting category");
     }
@@ -196,7 +196,7 @@ export default function ChecklistManagerPage() {
       setShowQuestionModal(false);
       setEditingQuestion(null);
       setQuestionForm({ question: "", type: "BOOLEAN", order: 0, isRequired: true });
-      fetchData();
+      fetchData(true);
     } catch (err) {
       alert("Error saving question");
     }
@@ -206,7 +206,7 @@ export default function ChecklistManagerPage() {
     if (!confirm("Hapus pertanyaan ini?")) return;
     try {
       await api.delete(`/checklist/admin/questions/${id}`);
-      fetchData();
+      fetchData(true);
     } catch (err) {
       alert("Error deleting question");
     }
@@ -224,13 +224,13 @@ export default function ChecklistManagerPage() {
     sortedTemplates[newIndex].order = temp;
 
     try {
-      setLoading(true);
       await api.put('/checklist/admin/templates/reorder', {
         templates: sortedTemplates.map(t => ({ id: t.id, order: t.order }))
       });
-      fetchData();
+      fetchData(true);
     } catch (err) {
       alert("Error reordering templates");
+    } finally {
       setLoading(false);
     }
   };
@@ -247,13 +247,13 @@ export default function ChecklistManagerPage() {
     categories[newIndex].order = temp;
 
     try {
-      setLoading(true);
       await api.put('/checklist/admin/categories/reorder', {
         categories: categories.map(c => ({ id: c.id, order: c.order }))
       });
-      fetchData();
+      fetchData(true);
     } catch (err) {
       alert("Error reordering categories");
+    } finally {
       setLoading(false);
     }
   };
@@ -270,13 +270,13 @@ export default function ChecklistManagerPage() {
     questions[newIndex].order = temp;
 
     try {
-      setLoading(true);
       await api.put('/checklist/admin/questions/reorder', {
         questions: questions.map(q => ({ id: q.id, order: q.order }))
       });
-      fetchData();
+      fetchData(true);
     } catch (err) {
       alert("Error reordering questions");
+    } finally {
       setLoading(false);
     }
   };
