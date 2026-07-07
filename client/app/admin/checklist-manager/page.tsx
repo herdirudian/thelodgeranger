@@ -272,6 +272,36 @@ export default function ChecklistManagerPage() {
     }
   };
 
+  const handleReorderQuestion = async (category: any, question: any, direction: 'up' | 'down') => {
+    const questions = [...(category.questions || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+    const index = questions.findIndex(q => q.id === question.id);
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === questions.length - 1) return;
+
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    
+    // Swap positions in array
+    const item = questions.splice(index, 1)[0];
+    questions.splice(newIndex, 0, item);
+
+    // Re-assign order values based on new indices
+    const reorderedQuestions = questions.map((q, i) => ({
+      id: q.id,
+      order: i + 1
+    }));
+
+    try {
+      await api.put('/checklist/admin/questions/reorder', {
+        questions: reorderedQuestions
+      });
+      fetchData(true);
+    } catch (err) {
+      alert("Error reordering questions");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const [draggedItem, setDraggedItem] = useState<any>(null);
   const [dragType, setDragType] = useState<'template' | 'category' | 'question' | null>(null);
 
