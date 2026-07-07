@@ -272,34 +272,94 @@ export default function ChecklistManagerPage() {
     }
   };
 
-  const handleReorderQuestion = async (category: any, question: any, direction: 'up' | 'down') => {
-    const questions = [...(category.questions || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
-    const index = questions.findIndex(q => q.id === question.id);
-    if (direction === 'up' && index === 0) return;
-    if (direction === 'down' && index === questions.length - 1) return;
+  const [draggedItem, setDraggedItem] = useState<any>(null);
+  const [dragType, setDragType] = useState<'template' | 'category' | 'question' | null>(null);
 
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
+  const handleManualOrder = async (type: 'template' | 'category' | 'question', item: any, parent?: any) => {
+    const newOrderStr = prompt(`Pindahkan ke urutan nomor berapa? (Saat ini: ${item.order})`, item.order.toString());
+    if (!newOrderStr) return;
     
-    // Swap positions in array
-    const item = questions.splice(index, 1)[0];
-    questions.splice(newIndex, 0, item);
+    const newOrder = parseInt(newOrderStr);
+    if (isNaN(newOrder) || newOrder === item.order) return;
 
-    // Re-assign order values based on new indices
-    const reorderedQuestions = questions.map((q, i) => ({
-      id: q.id,
-      order: i + 1
-    }));
+    let items = [];
+    if (type === 'template') items = [...templates];
+    else if (type === 'category') items = [...parent.categories];
+    else items = [...parent.questions];
+
+    items = items.sort((a, b) => (a.order || 0) - (b.order || 0));
+    const index = items.findIndex(i => i.id === item.id);
+    const targetIndex = Math.max(0, Math.min(items.length - 1, newOrder - 1));
+
+    if (index === targetIndex) return;
+
+    // Reorder logic
+    const [movedItem] = items.splice(index, 1);
+    items.splice(targetIndex, 0, movedItem);
+
+    const reordered = items.map((it, i) => ({ id: it.id, order: i + 1 }));
 
     try {
-      await api.put('/checklist/admin/questions/reorder', {
-        questions: reorderedQuestions
-      });
+      setLoading(true);
+      const endpoint = type === 'template' ? '/checklist/admin/templates/reorder' : 
+                       type === 'category' ? '/checklist/admin/categories/reorder' : 
+                       '/checklist/admin/questions/reorder';
+      
+      await api.put(endpoint, { [type + 's']: reordered });
       fetchData(true);
     } catch (err) {
-      alert("Error reordering questions");
+      alert("Gagal merubah urutan");
     } finally {
       setLoading(false);
     }
+  };
+
+  const onDragStart = (e: React.DragEvent, type: any, item: any, parent?: any) => {
+    setDraggedItem({ item, parent });
+    setDragType(type);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const onDrop = async (e: React.DragEvent, targetItem: any) => {
+    e.preventDefault();
+    if (!draggedItem || draggedItem.item.id === targetItem.id) return;
+
+    let items = [];
+    if (dragType === 'template') items = [...templates];
+    else if (dragType === 'category') {
+      if (draggedItem.parent.id !== targetItem.templateId) return; // Must be same template
+      items = [...draggedItem.parent.categories];
+    } else {
+      if (draggedItem.parent.id !== targetItem.categoryId) return; // Must be same category
+      items = [...draggedItem.parent.questions];
+    }
+
+    items = items.sort((a, b) => (a.order || 0) - (b.order || 0));
+    const dragIndex = items.findIndex(i => i.id === draggedItem.item.id);
+    const dropIndex = items.findIndex(i => i.id === targetItem.id);
+
+    const [movedItem] = items.splice(dragIndex, 1);
+    items.splice(dropIndex, 0, movedItem);
+
+    const reordered = items.map((it, i) => ({ id: it.id, order: i + 1 }));
+
+    try {
+      const endpoint = dragType === 'template' ? '/checklist/admin/templates/reorder' : 
+                       dragType === 'category' ? '/checklist/admin/categories/reorder' : 
+                       '/checklist/admin/questions/reorder';
+      
+      await api.put(endpoint, { [dragType + 's']: reordered });
+      fetchData(true);
+    } catch (err) {
+      console.error("Reorder error");
+    }
+    
+    setDraggedItem(null);
+    setDragType(null);
   };
 
   if (!user || (user.role !== 'ADMIN' && user.role !== 'GM' && user.role !== 'HR')) {
@@ -341,13 +401,24 @@ export default function ChecklistManagerPage() {
       ) : (
         <div className="space-y-4">
           {templates.map(template => (
-            <div key={template.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition-all">
+            <div 
+              key={template.id} 
+              className={clsx(
+                "bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition-all",
+                dragType === 'template' && draggedItem?.item.id === template.id ? "opacity-40" : "opacity-100"
+              )}
+              draggable={!loading}
+              onDragStart={(e) => onDragStart(e, 'template', template)}
+              onDragOver={onDragOver}
+              onDrop={(e) => onDrop(e, template)}
+            >
               <div className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                 <div 
                   className="flex items-center flex-1 cursor-pointer"
                   onClick={() => toggleTemplate(template.id)}
                 >
-                  <div className="mr-3 text-gray-400">
+                  <div className="mr-3 text-gray-400 flex items-center gap-2">
+                    <GripVertical size={18} className="cursor-grab active:cursor-grabbing text-gray-300" />
                     {expandedTemplates.includes(template.id) ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                   </div>
                   <div>
@@ -358,7 +429,16 @@ export default function ChecklistManagerPage() {
                     <div className="text-sm text-gray-500 flex items-center gap-3">
                       <span>{template.department}</span>
                       {template.dayOfWeek && <span className="px-1.5 py-0.5 bg-[#0F4D39]/10 text-[#0F4D39] text-[10px] rounded">{template.dayOfWeek}</span>}
-                      <span className="text-[10px] text-gray-400">Order: {template.order}</span>
+                      <span 
+                        className="text-[10px] text-gray-400 hover:text-[#0F4D39] hover:bg-[#0F4D39]/5 px-1 rounded transition-colors cursor-pointer"
+                        title="Klik untuk pindah posisi cepat"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleManualOrder('template', template);
+                        }}
+                      >
+                        Order: {template.order}
+                      </span>
                       <span>• {(template.categories || []).length} Categories</span>
                       {template.assignedUsers?.length > 0 && (
                         <span className="flex items-center gap-1 text-[#0F4D39]">
@@ -447,18 +527,38 @@ export default function ChecklistManagerPage() {
                     </div>
                   ) : (
                     template.categories.map((category: any) => (
-                      <div key={category.id} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                      <div 
+                        key={category.id} 
+                        className={clsx(
+                          "bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden",
+                          dragType === 'category' && draggedItem?.item.id === category.id ? "opacity-40" : "opacity-100"
+                        )}
+                        draggable={!loading}
+                        onDragStart={(e) => onDragStart(e, 'category', category, template)}
+                        onDragOver={onDragOver}
+                        onDrop={(e) => onDrop(e, category)}
+                      >
                         <div className="p-3 flex items-center justify-between bg-gray-50/50">
                           <div 
                             className="flex items-center flex-1 cursor-pointer"
                             onClick={() => toggleCategory(category.id)}
                           >
-                            <div className="mr-2 text-gray-400">
+                            <div className="mr-2 text-gray-400 flex items-center gap-1">
+                              <GripVertical size={14} className="cursor-grab active:cursor-grabbing text-gray-300" />
                               {expandedCategories.includes(category.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                             </div>
                             <span className="font-semibold text-gray-800 text-sm">
                               {category.name}
-                              <span className="ml-2 text-[10px] text-gray-400 font-normal">Order: {category.order}</span>
+                              <span 
+                                className="ml-2 text-[10px] text-gray-400 font-normal hover:text-[#0F4D39] hover:bg-white px-1 rounded transition-colors"
+                                title="Klik untuk pindah posisi cepat"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleManualOrder('category', category, template);
+                                }}
+                              >
+                                Order: {category.order}
+                              </span>
                             </span>
                           </div>
                           <div className="flex items-center space-x-1">
@@ -521,9 +621,31 @@ export default function ChecklistManagerPage() {
                               </div>
                             ) : (
                               category.questions.map((q: any) => (
-                                <div key={q.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded group transition-colors">
+                                <div 
+                                  key={q.id} 
+                                  className={clsx(
+                                    "flex items-center justify-between p-2 hover:bg-gray-50 rounded group transition-colors",
+                                    dragType === 'question' && draggedItem?.item.id === q.id ? "opacity-40" : "opacity-100"
+                                  )}
+                                  draggable={!loading}
+                                  onDragStart={(e) => onDragStart(e, 'question', q, category)}
+                                  onDragOver={onDragOver}
+                                  onDrop={(e) => onDrop(e, q)}
+                                >
                                   <div className="flex items-center min-w-0 flex-1 mr-4">
-                                    <span className="text-xs text-gray-400 mr-2 w-4">{q.order}.</span>
+                                    <div className="mr-2 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <GripVertical size={14} className="cursor-grab active:cursor-grabbing" />
+                                    </div>
+                                    <span 
+                                      className="text-xs text-gray-400 mr-2 w-4 hover:text-[#0F4D39] hover:bg-white px-1 rounded transition-colors cursor-pointer"
+                                      title="Klik untuk pindah posisi cepat"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleManualOrder('question', q, category);
+                                      }}
+                                    >
+                                      {q.order}.
+                                    </span>
                                     <div className="min-w-0">
                                       <p className="text-sm text-gray-700 truncate">{q.question}</p>
                                       <div className="flex items-center gap-2 mt-0.5">
