@@ -34,3 +34,21 @@ exports.updateSettings = async (req, res) => {
         res.status(500).json({ message: 'Error updating settings', error: error.message });
     }
 };
+
+exports.testWhatsApp = async (req, res) => {
+    try {
+        const { phone } = req.body;
+        if (!phone) {
+            return res.status(400).json({ message: 'Phone number is required' });
+        }
+
+        const { sendWhatsAppMessage } = require('../services/watzapService');
+        const message = `Halo! Ini adalah pesan tes dari sistem Lodge Ranger. Jika Anda menerima ini, berarti integrasi WhatsApp Anda sudah berhasil terhubung.`;
+        
+        const result = await sendWhatsAppMessage({ to: phone, message });
+        res.status(200).json({ message: 'Pesan tes berhasil dikirim!', result });
+    } catch (error) {
+        console.error("Test WA Error:", error);
+        res.status(500).json({ message: 'Gagal mengirim pesan tes: ' + error.message });
+    }
+};

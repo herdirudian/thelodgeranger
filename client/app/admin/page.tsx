@@ -71,6 +71,8 @@ function AdminContent() {
     WATZAP_FAKE_SEND: "0"
   });
   const [isSavingWaSettings, setIsSavingWaSettings] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
+  const [isTestingWa, setIsTestingWa] = useState(false);
   
   const [votingSearch, setVotingSearch] = useState("");
   const [selectedVotingCategory, setSelectedVotingCategory] = useState("");
@@ -204,6 +206,19 @@ function AdminContent() {
       alert(err.response?.data?.message || "Error saving settings");
     } finally {
       setIsSavingWaSettings(false);
+    }
+  };
+
+  const handleTestWa = async () => {
+    if (!testPhone) return alert("Masukkan nomor HP untuk tes");
+    setIsTestingWa(true);
+    try {
+      const res = await api.post("/settings/test-wa", { phone: testPhone });
+      alert(res.data.message);
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Gagal mengirim pesan tes");
+    } finally {
+      setIsTestingWa(false);
     }
   };
 
@@ -1144,6 +1159,28 @@ function AdminContent() {
               </button>
             </div>
           </form>
+
+          <div className="mt-10 pt-10 border-t border-gray-100">
+            <h3 className="text-lg font-bold mb-4">Tes Koneksi WhatsApp</h3>
+            <p className="text-sm text-gray-500 mb-4">Pastikan Anda sudah klik "Simpan Pengaturan" di atas sebelum melakukan tes.</p>
+            <div className="flex gap-2 max-w-md">
+              <input 
+                type="text" 
+                className="flex-1 border border-gray-300 p-2 rounded focus:ring-[#0F4D39] focus:border-[#0F4D39]" 
+                placeholder="Contoh: 08123456789"
+                value={testPhone}
+                onChange={e => setTestPhone(e.target.value)}
+              />
+              <button 
+                onClick={handleTestWa}
+                disabled={isTestingWa}
+                className="bg-gray-800 text-white px-4 py-2 rounded font-bold hover:bg-black transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                {isTestingWa ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare size={16} />}
+                Kirim Pesan Tes
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
