@@ -28,7 +28,7 @@ function AdminContent() {
   useEffect(() => {
     const tab = searchParams.get('tab');
     // 'voting' removed from allowed tabs as it is completed
-    if (tab && ['staff', 'schedule', 'contracts', 'approval', 'whatsapp', 'bugs'].includes(tab)) {
+    if (tab && ['staff', 'schedule', 'contracts', 'approval', 'whatsapp', 'wa-settings', 'bugs'].includes(tab)) {
       setActiveTab(tab);
     }
   }, [searchParams]);
@@ -63,6 +63,14 @@ function AdminContent() {
   const [rookieUploading, setRookieUploading] = useState(false);
   const [isResettingVoting, setIsResettingVoting] = useState(false);
   const [rookieSearch, setRookieSearch] = useState('');
+  
+  const [waSettings, setWaSettings] = useState({
+    WATZAP_BASE_URL: "",
+    WATZAP_API_KEY: "",
+    WATZAP_NUMBER_KEY: "",
+    WATZAP_FAKE_SEND: "0"
+  });
+  const [isSavingWaSettings, setIsSavingWaSettings] = useState(false);
   
   const [votingSearch, setVotingSearch] = useState("");
   const [selectedVotingCategory, setSelectedVotingCategory] = useState("");
@@ -161,6 +169,41 @@ function AdminContent() {
       setWaUsers(res.data);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchWaSettings = async () => {
+    try {
+      const res = await api.get("/settings?group=WHATSAPP");
+      const settings = res.data;
+      const newSettings = { ...waSettings };
+      settings.forEach((s: any) => {
+        if (s.key in newSettings) {
+          // @ts-ignore
+          newSettings[s.key] = s.value;
+        }
+      });
+      setWaSettings(newSettings);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleWaSettingsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingWaSettings(true);
+    try {
+      const settingsArray = Object.entries(waSettings).map(([key, value]) => ({
+        key,
+        value,
+        group: "WHATSAPP"
+      }));
+      await api.post("/settings", { settings: settingsArray });
+      alert("WhatsApp settings saved successfully");
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Error saving settings");
+    } finally {
+      setIsSavingWaSettings(false);
     }
   };
 
@@ -392,6 +435,8 @@ function AdminContent() {
         fetchApprovalConfigs();
       } else if (activeTab === 'whatsapp') {
         fetchWhatsAppStatus();
+      } else if (activeTab === 'wa-settings') {
+        fetchWaSettings();
       } else if (activeTab === 'voting') {
         fetchUsers();
         fetchVotingResults();
@@ -792,6 +837,13 @@ function AdminContent() {
             WhatsApp Status
         </button>
         <button 
+            className={`pb-2 px-4 flex items-center gap-2 ${activeTab === 'wa-settings' ? 'border-b-2 border-[#0F4D39] font-bold text-[#0F4D39]' : 'text-gray-700'}`}
+            onClick={() => setActiveTab('wa-settings')}
+        >
+            <Settings size={16} />
+            WhatsApp Integration
+        </button>
+        <button 
             className={`pb-2 px-4 flex items-center gap-2 ${activeTab === 'checklists' ? 'border-b-2 border-[#0F4D39] font-bold text-[#0F4D39]' : 'text-gray-700'}`}
             onClick={() => setActiveTab('checklists')}
         >
@@ -1007,6 +1059,91 @@ function AdminContent() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* WHATSAPP SETTINGS TAB */}
+      {activeTab === 'wa-settings' && (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-2 mb-6">
+            <Settings className="text-[#0F4D39]" />
+            <h2 className="text-xl font-bold">WhatsApp Integration Settings (Watzap.id)</h2>
+          </div>
+          
+          <form onSubmit={handleWaSettingsSubmit} className="max-w-2xl space-y-6">
+            <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <Info className="h-5 w-5 text-blue-400" aria-hidden="true" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-blue-700">
+                    Pengaturan ini akan menimpa (override) nilai yang ada di file .env. Pastikan data yang dimasukkan valid agar integrasi WhatsApp berjalan lancar.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Watzap Base URL</label>
+                <input 
+                  type="text" 
+                  className="w-full border border-gray-300 p-2 rounded focus:ring-[#0F4D39] focus:border-[#0F4D39]" 
+                  placeholder="https://api.watzap.id/v1"
+                  value={waSettings.WATZAP_BASE_URL} 
+                  onChange={e => setWaSettings({...waSettings, WATZAP_BASE_URL: e.target.value})}
+                />
+                <p className="mt-1 text-xs text-gray-500">Contoh: https://api.watzap.id/v1</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                <input 
+                  type="password" 
+                  className="w-full border border-gray-300 p-2 rounded focus:ring-[#0F4D39] focus:border-[#0F4D39]" 
+                  placeholder="Masukkan API Key dari Watzap"
+                  value={waSettings.WATZAP_API_KEY} 
+                  onChange={e => setWaSettings({...waSettings, WATZAP_API_KEY: e.target.value})}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Number Key</label>
+                <input 
+                  type="text" 
+                  className="w-full border border-gray-300 p-2 rounded focus:ring-[#0F4D39] focus:border-[#0F4D39]" 
+                  placeholder="Masukkan Number Key dari Watzap"
+                  value={waSettings.WATZAP_NUMBER_KEY} 
+                  onChange={e => setWaSettings({...waSettings, WATZAP_NUMBER_KEY: e.target.value})}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mode Simulasi (Fake Send)</label>
+                <select 
+                  className="w-full border border-gray-300 p-2 rounded focus:ring-[#0F4D39] focus:border-[#0F4D39]"
+                  value={waSettings.WATZAP_FAKE_SEND}
+                  onChange={e => setWaSettings({...waSettings, WATZAP_FAKE_SEND: e.target.value})}
+                >
+                  <option value="0">OFF (Kirim beneran ke WA)</option>
+                  <option value="1">ON (Hanya simulasi, tidak kirim beneran)</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">Aktifkan mode simulasi jika ingin mencoba sistem tanpa mengurangi kuota Watzap.</p>
+              </div>
+            </div>
+
+            <div className="pt-4">
+              <button 
+                type="submit" 
+                disabled={isSavingWaSettings}
+                className="flex items-center gap-2 bg-[#0F4D39] text-white px-6 py-2 rounded font-bold hover:bg-[#0a3a2b] transition-all disabled:opacity-50"
+              >
+                {isSavingWaSettings ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save size={18} />}
+                Simpan Pengaturan
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
