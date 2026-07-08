@@ -35,6 +35,30 @@ const { PrismaClient } = require('@prisma/client');
 const { sendWhatsAppMessage } = require('./services/watzapService');
 const { formatWibTime } = require('./utils/wibDate');
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+function generateShiftReminderMessage(user, shift, type) {
+  const greetings = ['Halo', 'Selamat pagi', 'Semangat pagi', 'Halo rekan', 'Hai'];
+  const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+  const timeRange = `${formatWibTime(shift.shiftStart)}–${formatWibTime(shift.shiftEnd)}`;
+  
+  if (type === 'IN') {
+    const templates = [
+      `${greeting} ${user.name}, pengingat 10 menit lagi waktu check-in Anda (Shift ${shift.shiftName || ''} ${timeRange}). Semangat bekerja!`,
+      `${greeting} ${user.name}, jangan lupa 10 menit lagi masuk Shift ${shift.shiftName || ''} ya (${timeRange}). Have a great day!`,
+      `${greeting} ${user.name}, yuk bersiap! 10 menit lagi waktu mulai Shift ${shift.shiftName || ''} (${timeRange}).`
+    ];
+    return templates[Math.floor(Math.random() * templates.length)];
+  } else {
+    const templates = [
+      `${greeting} ${user.name}, pengingat 10 menit lagi waktu check-out Anda (Shift ${shift.shiftName || ''} berakhir ${formatWibTime(shift.shiftEnd)}). Terima kasih atas kerja kerasnya hari ini!`,
+      `${greeting} ${user.name}, 10 menit lagi waktu selesai Shift ${shift.shiftName || ''} (${formatWibTime(shift.shiftEnd)}). Jangan lupa melakukan check-out ya.`,
+      `${greeting} ${user.name}, bersiap pulang! 10 menit lagi Shift ${shift.shiftName || ''} Anda berakhir.`
+    ];
+    return templates[Math.floor(Math.random() * templates.length)];
+  }
+}
+
 const app = express();
 
 // Security Headers
@@ -158,6 +182,7 @@ async function runAttendanceReminders() {
     try {
       await sendWhatsAppMessage({ to: t.whatsappNumber, message: msg });
       reminderState.sentAttendance.set(key, nowMs);
+      await sleep(1000 + Math.random() * 2000);
     } catch (e) {}
   }
 }
@@ -196,10 +221,6 @@ async function runShiftReminders() {
     const user = s.user;
     if (!user || !user.whatsappVerifiedAt || !user.whatsappNumber) continue;
 
-    const startTarget = new Date(s.shiftStart.getTime() - 10 * 60 * 1000);
-    const endTarget = new Date(s.shiftEnd.getTime() - 10 * 60 * 1000);
-
-    const within = (t) => t.getTime() >= windowStart.getTime() && t.getTime() < windowEnd.getTime();
     const makeKey = (type, t) => {
       const pad = (n) => String(n).padStart(2, '0');
       const k = `${t.getUTCFullYear()}-${pad(t.getUTCMonth()+1)}-${pad(t.getUTCDate())}T${pad(t.getUTCHours())}:${pad(t.getUTCMinutes())}`;
@@ -207,25 +228,27 @@ async function runShiftReminders() {
     };
 
     // Check-in reminder
-    if (within(startTarget)) {
-      const key = makeKey('IN', startTarget);
+    if (s.shiftStart >= windowStart && s.shiftStart < windowEnd) {
+      const key = makeKey('IN', s.shiftStart);
       if (!reminderState.sentShift.get(key)) {
-        const msg = `Pengingat: 10 menit lagi waktu check-in Anda (Shift ${s.shiftName || ''} ${formatWibTime(s.shiftStart)}–${formatWibTime(s.shiftEnd)}).`;
+        const msg = generateShiftReminderMessage(user, s, 'IN');
         try {
           await sendWhatsAppMessage({ to: user.whatsappNumber, message: msg });
           reminderState.sentShift.set(key, Date.now());
+          await sleep(2000 + Math.random() * 3000); // Random delay 2-5s to avoid WA blocking
         } catch (e) {}
       }
     }
 
     // Check-out reminder
-    if (within(endTarget)) {
-      const key = makeKey('OUT', endTarget);
+    if (s.shiftEnd >= windowStart && s.shiftEnd < windowEnd) {
+      const key = makeKey('OUT', s.shiftEnd);
       if (!reminderState.sentShift.get(key)) {
-        const msg = `Pengingat: 10 menit lagi waktu check-out Anda (Shift ${s.shiftName || ''} berakhir ${formatWibTime(s.shiftEnd)}).`;
+        const msg = generateShiftReminderMessage(user, s, 'OUT');
         try {
           await sendWhatsAppMessage({ to: user.whatsappNumber, message: msg });
           reminderState.sentShift.set(key, Date.now());
+          await sleep(2000 + Math.random() * 3000); // Random delay 2-5s to avoid WA blocking
         } catch (e) {}
       }
     }
@@ -252,6 +275,7 @@ async function runApprovalReminders() {
       try {
         await sendWhatsAppMessage({ to: u.whatsappNumber, message: msg });
         reminderState.sentApproval.set(key, nowMs);
+        await sleep(1000 + Math.random() * 2000);
       } catch (e) {}
     }
   }
@@ -271,6 +295,7 @@ async function runApprovalReminders() {
       try {
         await sendWhatsAppMessage({ to: u.whatsappNumber, message: msg });
         reminderState.sentApproval.set(key, nowMs);
+        await sleep(1000 + Math.random() * 2000);
       } catch (e) {}
     }
   }
@@ -292,6 +317,7 @@ async function runApprovalReminders() {
       try {
         await sendWhatsAppMessage({ to: u.whatsappNumber, message: msg });
         reminderState.sentApproval.set(key, nowMs);
+        await sleep(1000 + Math.random() * 2000);
       } catch (e) {}
     }
   }
@@ -313,6 +339,7 @@ async function runApprovalReminders() {
       try {
         await sendWhatsAppMessage({ to: u.whatsappNumber, message: msg });
         reminderState.sentApproval.set(key, nowMs);
+        await sleep(1000 + Math.random() * 2000);
       } catch (e) {}
     }
   }
