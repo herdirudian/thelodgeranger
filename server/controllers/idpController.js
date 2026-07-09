@@ -285,10 +285,27 @@ exports.submitIDP = async (req, res) => {
     if (existing.userId !== userId) return res.status(403).json({ message: 'Unauthorized' });
     if (existing.status === 'APPROVED') return res.status(400).json({ message: 'IDP already approved' });
 
+    // Allow updating data during submission
+    const data = { status: 'SUBMITTED' };
+    if (req.body?.items && Array.isArray(req.body.items)) data.items = req.body.items;
+    if (typeof req.body?.generalNotes === 'string') data.generalNotes = req.body.generalNotes;
+    if (typeof req.body?.objectiveSetting !== 'undefined') data.objectiveSetting = req.body.objectiveSetting;
+    if (typeof req.body?.performanceReview !== 'undefined') data.performanceReview = req.body.performanceReview;
+    if (typeof req.body?.careerPreference !== 'undefined') data.careerPreference = req.body.careerPreference;
+
     const updated = await IDP.update({
       where: { id },
-      data: { status: 'SUBMITTED' },
-      select: { id: true, status: true, updatedAt: true },
+      data,
+      select: {
+        id: true,
+        status: true,
+        items: true,
+        generalNotes: true,
+        objectiveSetting: true,
+        performanceReview: true,
+        careerPreference: true,
+        updatedAt: true
+      },
     });
 
     res.json(updated);

@@ -620,6 +620,7 @@ export default function IDPPage() {
 
       setEditorSeed((prev) => ({
         ...prev,
+        key: prev.key + 1, // Increment key to force remount and show saved data
         items: savedItems,
         generalNotes: savedNotes,
         objectiveSetting: savedObjective,
@@ -650,7 +651,14 @@ export default function IDPPage() {
     if (!selectedIdp?.id) return;
     try {
       setSubmitting(true);
-      await api.post(`/idp/${selectedIdp.id}/submit`);
+      // Ensure data is saved along with submission
+      await api.post(`/idp/${selectedIdp.id}/submit`, {
+        items: draftRef.current.items,
+        generalNotes: draftRef.current.generalNotes,
+        objectiveSetting: draftRef.current.objectiveSetting,
+        performanceReview: draftRef.current.performanceReview,
+        careerPreference: draftRef.current.careerPreference,
+      });
       await openIDP(selectedIdp.id);
       await fetchMy();
       if (canManage) await fetchManage();
