@@ -38,8 +38,13 @@ const { formatWibTime } = require('./utils/wibDate');
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function generateShiftReminderMessage(user, shift, type) {
-  const greetings = ['Halo', 'Selamat pagi', 'Semangat pagi', 'Halo rekan', 'Hai'];
-  const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+  const hour = new Date().getHours();
+  let greeting = 'Halo';
+  if (hour >= 5 && hour < 11) greeting = 'Selamat pagi';
+  else if (hour >= 11 && hour < 15) greeting = 'Selamat siang';
+  else if (hour >= 15 && hour < 18) greeting = 'Selamat sore';
+  else greeting = 'Selamat malam';
+
   const timeRange = `${formatWibTime(shift.shiftStart)}–${formatWibTime(shift.shiftEnd)}`;
   
   if (type === 'IN') {
@@ -56,6 +61,40 @@ function generateShiftReminderMessage(user, shift, type) {
       `${greeting} ${user.name}, bersiap pulang! 10 menit lagi Shift ${shift.shiftName || ''} Anda berakhir.`
     ];
     return templates[Math.floor(Math.random() * templates.length)];
+  }
+}
+
+async function checkAndMarkSent(key, ttlMinutes = 60) {
+  const fullKey = `reminder_sent_${key}`;
+  try {
+    const now = new Date();
+    // Use an atomic operation if possible, but prisma.systemSetting.create with unique key is a good lock
+    await prisma.systemSetting.create({
+      data: { 
+        key: fullKey, 
+        value: String(now.getTime()), 
+        group: 'REMINDER_LOG' 
+      }
+    });
+    return true;
+  } catch (e) {
+    // If it already exists, check if it's expired
+    try {
+      const existing = await prisma.systemSetting.findUnique({ where: { key: fullKey } });
+      if (existing) {
+        const lastSent = parseInt(existing.value, 10);
+        const now = Date.now();
+        if (now - lastSent > ttlMinutes * 60 * 1000) {
+          // Expired, update it
+          await prisma.systemSetting.update({
+            where: { key: fullKey },
+            data: { value: String(now) }
+          });
+          return true;
+        }
+      }
+    } catch (err) {}
+    return false;
   }
 }
 
@@ -174,23 +213,20 @@ async function runAttendanceReminders() {
   });
   for (const t of targets) {
     if (!t.whatsappNumber) continue;
-    const key = `${t.id}:${dayStart.toISOString().slice(0, 10)}`;
-    const last = reminderState.sentAttendance.get(key);
-    const nowMs = Date.now();
-    if (last) continue;
+    const key = `ATT:${t.id}:${dayStart.toISOString().slice(0, 10)}`;
+    if (!(await checkAndMarkSent(key, 1440))) continue;
+    
     const msg = `Reminder absensi hari ini untuk ${t.name}. Silakan melakukan check-in.`;
     try {
       await sendWhatsAppMessage({ to: t.whatsappNumber, message: msg });
-      reminderState.sentAttendance.set(key, nowMs);
       await sleep(1000 + Math.random() * 2000);
     } catch (e) {}
   }
 }
 async function runShiftReminders() {
-  // Send WA 10 minutes before shiftStart and 10 minutes before shiftEnd
   const now = new Date();
-  const windowStart = new Date(now.getTime() + 9 * 60 * 1000);
-  const windowEnd = new Date(now.getTime() + 11 * 60 * 1000);
+  const windowStart = new Date(now.getTime() + 9 * 60 * 1000 + 30 * 1000); // 9.5 mins
+  const windowEnd = new Date(now.getTime() + 10 * 60 * 1000 + 30 * 1000); // 10.5 mins
 
   const schedules = await prisma.schedule.findMany({
     where: {
@@ -212,7 +248,7 @@ async function runShiftReminders() {
   if (schedules.length === 0) return;
 
   const isWorking = (s) => {
-    const special = ['OFF', 'Cuti', 'Sakit', 'Izin', 'Dinas Luar', 'Extra Manpower', 'Pending Day Off'];
+    const special = ['OFF', 'Off Day', 'LIBUR', 'C', 'S', 'I', 'D', 'Cuti', 'Sakit', 'Izin', 'Dinas Luar', 'Extra Manpower', 'Pending Day Off'];
     return s.shiftStart && s.shiftEnd && s.shiftStart.getTime() !== s.shiftEnd.getTime() && !special.includes(s.shiftName || '');
   };
 
@@ -230,12 +266,11 @@ async function runShiftReminders() {
     // Check-in reminder
     if (s.shiftStart >= windowStart && s.shiftStart < windowEnd) {
       const key = makeKey('IN', s.shiftStart);
-      if (!reminderState.sentShift.get(key)) {
+      if (await checkAndMarkSent(key, 60)) {
         const msg = generateShiftReminderMessage(user, s, 'IN');
         try {
           await sendWhatsAppMessage({ to: user.whatsappNumber, message: msg });
-          reminderState.sentShift.set(key, Date.now());
-          await sleep(2000 + Math.random() * 3000); // Random delay 2-5s to avoid WA blocking
+          await sleep(2000 + Math.random() * 3000);
         } catch (e) {}
       }
     }
@@ -243,12 +278,11 @@ async function runShiftReminders() {
     // Check-out reminder
     if (s.shiftEnd >= windowStart && s.shiftEnd < windowEnd) {
       const key = makeKey('OUT', s.shiftEnd);
-      if (!reminderState.sentShift.get(key)) {
+      if (await checkAndMarkSent(key, 60)) {
         const msg = generateShiftReminderMessage(user, s, 'OUT');
         try {
           await sendWhatsAppMessage({ to: user.whatsappNumber, message: msg });
-          reminderState.sentShift.set(key, Date.now());
-          await sleep(2000 + Math.random() * 3000); // Random delay 2-5s to avoid WA blocking
+          await sleep(2000 + Math.random() * 3000);
         } catch (e) {}
       }
     }
@@ -257,96 +291,67 @@ async function runShiftReminders() {
 async function runApprovalReminders() {
   const dayStart = new Date();
   dayStart.setHours(0, 0, 0, 0);
-  const hods = await prisma.user.findMany({
-    where: { role: 'HOD', whatsappVerifiedAt: { not: null } },
-    select: { id: true, name: true, department: true, whatsappNumber: true }
-  });
-  for (const u of hods) {
-    if (!u.whatsappNumber) continue;
-    const rc = await prisma.request.count({ where: { status: 'PENDING_HOD', user: { department: u.department } } });
-    const ac = await prisma.attendance.count({ where: { status: 'PENDING_HOD', user: { department: u.department } } });
-    const total = rc + ac;
-    if (total > 0) {
-      const key = `HOD:${u.id}:${dayStart.toISOString().slice(0, 10)}`;
-      const last = reminderState.sentApproval.get(key);
-      const nowMs = Date.now();
-      if (last) continue;
-      const msg = `Reminder approval ${u.name}: ${total} pending (${rc} request, ${ac} absensi).`;
-      try {
-        await sendWhatsAppMessage({ to: u.whatsappNumber, message: msg });
-        reminderState.sentApproval.set(key, nowMs);
-        await sleep(1000 + Math.random() * 2000);
-      } catch (e) {}
-    }
-  }
-  const spvs = await prisma.user.findMany({
-    where: { role: 'SUPERVISOR', whatsappVerifiedAt: { not: null } },
-    select: { id: true, name: true, whatsappNumber: true }
-  });
-  for (const u of spvs) {
-    if (!u.whatsappNumber) continue;
-    const rc = await prisma.request.count({ where: { status: 'PENDING_SUPERVISOR' } });
-    if (rc > 0) {
-      const key = `SPV:${u.id}:${dayStart.toISOString().slice(0, 10)}`;
-      const last = reminderState.sentApproval.get(key);
-      const nowMs = Date.now();
-      if (last) continue;
-      const msg = `Reminder approval ${u.name}: ${rc} request pending.`;
-      try {
-        await sendWhatsAppMessage({ to: u.whatsappNumber, message: msg });
-        reminderState.sentApproval.set(key, nowMs);
-        await sleep(1000 + Math.random() * 2000);
-      } catch (e) {}
-    }
-  }
-  const hrs = await prisma.user.findMany({
-    where: { role: 'HR', whatsappVerifiedAt: { not: null } },
-    select: { id: true, name: true, whatsappNumber: true }
-  });
-  for (const u of hrs) {
-    if (!u.whatsappNumber) continue;
-    const rc = await prisma.request.count({ where: { status: 'PENDING_HR' } });
-    const ac = await prisma.attendance.count({ where: { status: 'PENDING_HR' } });
-    const total = rc + ac;
-    if (total > 0) {
-      const key = `HR:${u.id}:${dayStart.toISOString().slice(0, 10)}`;
-      const last = reminderState.sentApproval.get(key);
-      const nowMs = Date.now();
-      if (last) continue;
-      const msg = `Reminder approval ${u.name}: ${total} pending (${rc} request, ${ac} absensi).`;
-      try {
-        await sendWhatsAppMessage({ to: u.whatsappNumber, message: msg });
-        reminderState.sentApproval.set(key, nowMs);
-        await sleep(1000 + Math.random() * 2000);
-      } catch (e) {}
-    }
-  }
-  const gms = await prisma.user.findMany({
-    where: { role: 'GM', whatsappVerifiedAt: { not: null } },
-    select: { id: true, name: true, whatsappNumber: true }
-  });
-  for (const u of gms) {
-    if (!u.whatsappNumber) continue;
-    const rc = await prisma.request.count({ where: { status: 'PENDING_GM' } });
-    const ac = await prisma.attendance.count({ where: { status: 'PENDING_GM' } });
-    const total = rc + ac;
-    if (total > 0) {
-      const key = `GM:${u.id}:${dayStart.toISOString().slice(0, 10)}`;
-      const last = reminderState.sentApproval.get(key);
-      const nowMs = Date.now();
-      if (last && nowMs - last < 60 * 60 * 1000) continue;
-      const msg = `Reminder approval ${u.name}: ${total} pending (${rc} request, ${ac} absensi).`;
-      try {
-        await sendWhatsAppMessage({ to: u.whatsappNumber, message: msg });
-        reminderState.sentApproval.set(key, nowMs);
-        await sleep(1000 + Math.random() * 2000);
-      } catch (e) {}
+  const nowMs = Date.now();
+
+  // Roles to check
+  const roles = ['HOD', 'SUPERVISOR', 'HR', 'GM'];
+  for (const role of roles) {
+    const users = await prisma.user.findMany({
+      where: { role, whatsappVerifiedAt: { not: null } },
+      select: { id: true, name: true, department: true, whatsappNumber: true }
+    });
+
+    for (const u of users) {
+      if (!u.whatsappNumber) continue;
+
+      let rc = 0, ac = 0;
+      if (role === 'HOD') {
+        rc = await prisma.request.count({ where: { status: 'PENDING_HOD', user: { department: u.department } } });
+        ac = await prisma.attendance.count({ where: { status: 'PENDING_HOD', user: { department: u.department } } });
+      } else if (role === 'SUPERVISOR') {
+        rc = await prisma.request.count({ where: { status: 'PENDING_SUPERVISOR' } });
+      } else if (role === 'HR') {
+        rc = await prisma.request.count({ where: { status: 'PENDING_HR' } });
+        ac = await prisma.attendance.count({ where: { status: 'PENDING_HR' } });
+      } else if (role === 'GM') {
+        rc = await prisma.request.count({ where: { status: 'PENDING_GM' } });
+        ac = await prisma.attendance.count({ where: { status: 'PENDING_GM' } });
+      }
+
+      const total = rc + ac;
+      if (total > 0) {
+        const key = `APPROVAL:${role}:${u.id}:${dayStart.toISOString().slice(0, 10)}`;
+        // For GM, maybe every 4 hours? For others, once a day (1440 mins).
+        const ttl = (role === 'GM') ? 240 : 1440;
+        
+        if (await checkAndMarkSent(key, ttl)) {
+          const msg = `Reminder approval ${u.name}: ${total} pending (${rc} request, ${ac} absensi).`;
+          try {
+            await sendWhatsAppMessage({ to: u.whatsappNumber, message: msg });
+            await sleep(1000 + Math.random() * 2000);
+          } catch (e) {}
+        }
+      }
     }
   }
 }
-function startReminders() {
+async function startReminders() {
   if ((process.env.REMINDERS_ENABLED || '1') !== '1') return;
   const intervalMs = parseInt(process.env.REMINDER_INTERVAL_MS || '60000', 10);
+  
+  // Cleanup old reminder logs every hour
+  setInterval(async () => {
+    try {
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      await prisma.systemSetting.deleteMany({
+        where: {
+          group: 'REMINDER_LOG',
+          createdAt: { lt: oneDayAgo }
+        }
+      });
+    } catch (e) {}
+  }, 60 * 60 * 1000);
+
   setInterval(async () => {
     try {
       await runAttendanceReminders();
