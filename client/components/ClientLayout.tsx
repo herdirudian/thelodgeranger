@@ -10,7 +10,7 @@ import { Menu, X, LogOut } from "lucide-react";
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
     const { user, logout } = useAuth();
     const pathname = usePathname() || "";
-    const isPublicPage = pathname === "/login" || pathname === "/customer-feedback" || pathname.startsWith("/public-survey");
+    const isPublicPage = pathname === "/login" || pathname === "/customer-feedback" || pathname.startsWith("/public-survey") || pathname.includes("/print/");
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
 

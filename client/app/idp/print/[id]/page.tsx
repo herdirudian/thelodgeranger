@@ -272,97 +272,174 @@ export default function IDPPrintPage() {
 
   const userName = idp?.user?.name || '';
   const userDept = idp?.user?.department || '';
+  const userRole = idp?.user?.role || '';
+  const userId = idp?.user?.id || '';
+  const managerName = idp?.createdBy?.name || '';
   const year = idp?.year || '';
 
   return (
-    <div className="p-8 print:p-0">
+    <div className="min-h-screen bg-white text-gray-900">
       <style jsx global>{`
         @media print {
+          @page {
+            size: A4;
+            margin: 1.5cm;
+          }
           .print\\:hidden {
             display: none !important;
           }
-          .print\\:p-0 {
+          .print-no-border {
+            border: none !important;
+          }
+          .print-no-shadow {
+            box-shadow: none !important;
+          }
+          .print-p-0 {
             padding: 0 !important;
+          }
+          .print-mt-0 {
+            margin-top: 0 !important;
+          }
+          body {
+            background-color: white !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          table {
+            page-break-inside: auto;
+          }
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          thead {
+            display: table-header-group;
           }
           .print-page-break {
             break-before: page;
             page-break-before: always;
           }
-          body {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
+        }
+        .idp-table th, .idp-table td {
+          border: 1px solid #e2e8f0;
+        }
+        .idp-table th {
+          background-color: #f8fafc;
         }
       `}</style>
 
-      <div className="flex items-start justify-between gap-4 mb-6 print:hidden">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Cetak IDP</h1>
-          <p className="text-gray-500">
-            {userName} {userDept ? `• ${userDept}` : ''} {year ? `• ${year}` : ''}
-          </p>
-        </div>
+      {/* Floating Action Button for Print */}
+      <div className="fixed bottom-8 right-8 print:hidden flex gap-3">
+        <button
+          onClick={() => window.close()}
+          className="bg-gray-100 text-gray-700 px-6 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all shadow-lg"
+        >
+          Tutup
+        </button>
         <button
           onClick={printNow}
-          className="inline-flex items-center gap-2 bg-[#0F4D39] text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-[#0a3628] transition-all"
+          className="bg-[#0F4D39] text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-[#0a3628] transition-all shadow-lg"
         >
-          <Printer size={18} />
-          Print / Save as PDF
+          <Printer size={20} />
+          Cetak Dokumen
         </button>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
-        {renderSectionHeader('Guideline', guidelines?.header)}
-        <div className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">{guidelines?.text || ''}</div>
-      </div>
+      <div className="max-w-[1000px] mx-auto p-8 print:p-0 print:max-w-none">
+        {/* Document Header */}
+        <div className="flex justify-between items-center border-b-2 border-[#0F4D39] pb-6 mb-8">
+          <div className="flex items-center gap-4">
+            <img src="/logo.png" alt="Logo" className="h-16 w-auto object-contain" />
+            <div>
+              <h1 className="text-2xl font-bold text-[#0F4D39]">THE LODGE MARIBAYA</h1>
+              <p className="text-sm font-semibold tracking-widest text-gray-500 uppercase">Individual Development Plan</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="inline-block bg-[#0F4D39] text-white px-4 py-1 text-sm font-bold rounded mb-1">
+              IDP YEAR: {year}
+            </div>
+            <p className="text-xs text-gray-400 italic">Printed on {new Date().toLocaleDateString('id-ID', { dateStyle: 'long' })}</p>
+          </div>
+        </div>
 
-      <div className="print-page-break" />
+        {/* Co-Worker Details */}
+        <div className="mb-10">
+          <h2 className="text-sm font-bold text-white bg-[#0F4D39] px-4 py-1 inline-block rounded-t-lg mb-0 uppercase tracking-wider">
+            Employee Information
+          </h2>
+          <div className="border-2 border-[#0F4D39] rounded-tr-lg rounded-b-lg p-6 grid grid-cols-2 gap-y-4 gap-x-12">
+            <div className="flex border-b border-gray-100 pb-2">
+              <span className="text-xs font-bold text-gray-400 w-32 uppercase">Name</span>
+              <span className="text-sm font-semibold text-gray-800">: {userName}</span>
+            </div>
+            <div className="flex border-b border-gray-100 pb-2">
+              <span className="text-xs font-bold text-gray-400 w-32 uppercase">Employee ID</span>
+              <span className="text-sm font-semibold text-gray-800">: {userId}</span>
+            </div>
+            <div className="flex border-b border-gray-100 pb-2">
+              <span className="text-xs font-bold text-gray-400 w-32 uppercase">Department</span>
+              <span className="text-sm font-semibold text-gray-800">: {userDept}</span>
+            </div>
+            <div className="flex border-b border-gray-100 pb-2">
+              <span className="text-xs font-bold text-gray-400 w-32 uppercase">Position</span>
+              <span className="text-sm font-semibold text-gray-800">: {userRole}</span>
+            </div>
+            <div className="flex border-b border-gray-100 pb-2 col-span-2">
+              <span className="text-xs font-bold text-gray-400 w-32 uppercase">Manager / Reviewer</span>
+              <span className="text-sm font-semibold text-gray-800">: {managerName}</span>
+            </div>
+          </div>
+        </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
-        {renderSectionHeader('Objective Setting')}
-        <div className="overflow-x-auto">
-          <table className="min-w-full border border-gray-200">
-            <thead className="bg-gray-50">
-              <tr className="border-b border-gray-200">
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-12">No</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Objective</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Measure</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Start</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-28">End</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Milestone</th>
+        {/* Section 1: Objective Setting */}
+        <div className="mb-12">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-[#0F4D39] text-white flex items-center justify-center font-bold">1</div>
+            <h2 className="text-lg font-bold text-gray-800">OBJECTIVE SETTING</h2>
+          </div>
+          <table className="w-full idp-table border-collapse">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase w-12">No</th>
+                <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase">Objective Details</th>
+                <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase">Measure</th>
+                <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase w-24">Start Date</th>
+                <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase w-24">End Date</th>
+                <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase">Milestone</th>
               </tr>
             </thead>
             <tbody>
               {(effective.objectiveSetting?.goals || buildDefaultObjectiveSetting().goals).map((g, idx) => (
-                <tr key={idx} className="border-b border-gray-100">
-                  <td className="px-3 py-2 text-sm text-gray-700">{g.no || idx + 1}</td>
-                  <td className="px-3 py-2 text-sm text-gray-800 whitespace-pre-wrap">{g.objectiveDetails || ''}</td>
-                  <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{g.measure || ''}</td>
-                  <td className="px-3 py-2 text-sm text-gray-700">{g.startDate || ''}</td>
-                  <td className="px-3 py-2 text-sm text-gray-700">{g.endDate || ''}</td>
-                  <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{g.milestone || ''}</td>
+                <tr key={idx}>
+                  <td className="p-3 text-sm text-gray-700 text-center">{g.no || idx + 1}</td>
+                  <td className="p-3 text-sm text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">{g.objectiveDetails || '-'}</td>
+                  <td className="p-3 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{g.measure || '-'}</td>
+                  <td className="p-3 text-sm text-gray-700 text-center">{g.startDate || '-'}</td>
+                  <td className="p-3 text-sm text-gray-700 text-center">{g.endDate || '-'}</td>
+                  <td className="p-3 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{g.milestone || '-'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
 
-      <div className="print-page-break" />
-
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
-        {renderSectionHeader('Individual Development Plan (IDP)')}
-        <div className="overflow-x-auto">
-          <table className="min-w-full border border-gray-200">
-            <thead className="bg-gray-50">
-              <tr className="border-b border-gray-200">
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-72">Development Needs</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-56">Competency</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Type</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-48">Responsibility</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Start</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-28">End</th>
+        {/* Section 2: IDP */}
+        <div className="mb-12">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-[#0F4D39] text-white flex items-center justify-center font-bold">2</div>
+            <h2 className="text-lg font-bold text-gray-800">INDIVIDUAL DEVELOPMENT PLAN (IDP)</h2>
+          </div>
+          <table className="w-full idp-table border-collapse">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase w-48">Development Needs</th>
+                <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase w-40">Competency</th>
+                <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase w-32">Type</th>
+                <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase">Action / Description</th>
+                <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase w-32">PIC</th>
+                <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase w-24">Start</th>
+                <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase w-24">End</th>
               </tr>
             </thead>
             <tbody>
@@ -370,367 +447,197 @@ export default function IDPPrintPage() {
                 const actions = Array.isArray(it.actions) ? it.actions : [];
                 if (actions.length === 0) {
                   return [
-                    <tr key={`${idx}-empty`} className="border-b border-gray-100">
-                      <td className="px-3 py-2 text-sm text-gray-800 whitespace-pre-wrap">{it.developmentNeeds || ''}</td>
-                      <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{it.competency || ''}</td>
-                      <td className="px-3 py-2 text-sm text-gray-700" />
-                      <td className="px-3 py-2 text-sm text-gray-700" />
-                      <td className="px-3 py-2 text-sm text-gray-700" />
-                      <td className="px-3 py-2 text-sm text-gray-700" />
-                      <td className="px-3 py-2 text-sm text-gray-700" />
+                    <tr key={`${idx}-empty`}>
+                      <td className="p-3 text-sm text-gray-800 font-medium whitespace-pre-wrap">{it.developmentNeeds || '-'}</td>
+                      <td className="p-3 text-sm text-gray-700 whitespace-pre-wrap">{it.competency || '-'}</td>
+                      <td colSpan={5} className="p-3 text-sm text-gray-400 italic text-center">Belum ada tindakan pengembangan</td>
                     </tr>,
                   ];
                 }
                 return actions.map((a, aIdx) => (
-                  <tr key={`${idx}-${aIdx}`} className="border-b border-gray-100">
-                    <td className="px-3 py-2 text-sm text-gray-800 whitespace-pre-wrap">{aIdx === 0 ? it.developmentNeeds || '' : ''}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{aIdx === 0 ? it.competency || '' : ''}</td>
-                    <td className="px-3 py-2 text-sm text-gray-800 font-semibold whitespace-pre-wrap">{a.label || a.type}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{a.description || ''}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{a.responsibility || ''}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700">{a.startDate || ''}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700">{a.endDate || ''}</td>
+                  <tr key={`${idx}-${aIdx}`}>
+                    {aIdx === 0 && (
+                      <>
+                        <td className="p-3 text-sm text-gray-800 font-medium whitespace-pre-wrap align-top" rowSpan={actions.length}>
+                          {it.developmentNeeds || '-'}
+                        </td>
+                        <td className="p-3 text-sm text-gray-700 whitespace-pre-wrap align-top" rowSpan={actions.length}>
+                          {it.competency || '-'}
+                        </td>
+                      </>
+                    )}
+                    <td className="p-3 text-[10px] text-gray-800 font-bold whitespace-pre-wrap leading-tight">{a.label || a.type}</td>
+                    <td className="p-3 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{a.description || '-'}</td>
+                    <td className="p-3 text-sm text-gray-700 whitespace-pre-wrap">{a.responsibility || '-'}</td>
+                    <td className="p-3 text-sm text-gray-700 text-center">{a.startDate || '-'}</td>
+                    <td className="p-3 text-sm text-gray-700 text-center">{a.endDate || '-'}</td>
                   </tr>
                 ));
               })}
             </tbody>
           </table>
+          {effective.generalNotes && (
+            <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">General Notes</p>
+              <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{effective.generalNotes}</div>
+            </div>
+          )}
         </div>
-        <div className="mt-4 whitespace-pre-wrap text-sm text-gray-700">{effective.generalNotes || ''}</div>
-      </div>
 
-      <div className="print-page-break" />
+        <div className="print-page-break" />
 
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
-        {renderSectionHeader('Performance Review')}
-        <h2 className="text-sm font-bold text-gray-800 mt-2 mb-2">The “What”</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full border border-gray-200">
-            <thead className="bg-gray-50">
-              <tr className="border-b border-gray-200">
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Target</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Co-worker comment</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Manager comment</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-20">CW</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-20">MGR</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(effective.performanceReview?.what?.targets || buildDefaultPerformanceReview().what.targets).map((row, idx) => (
-                <tr key={idx} className="border-b border-gray-100">
-                  <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{row.target || ''}</td>
-                  <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{row.coworkerComment || ''}</td>
-                  <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{row.managerComment || ''}</td>
-                  <td className="px-3 py-2 text-sm text-gray-700">{row.coworkerRating || ''}</td>
-                  <td className="px-3 py-2 text-sm text-gray-700">{row.managerRating || ''}</td>
+        {/* Section 3: Performance Review */}
+        <div className="mb-12">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-8 h-8 rounded-lg bg-[#0F4D39] text-white flex items-center justify-center font-bold">3</div>
+            <h2 className="text-lg font-bold text-gray-800">PERFORMANCE REVIEW</h2>
+          </div>
+
+          <div className="mb-8">
+            <h3 className="text-sm font-bold text-[#0F4D39] border-l-4 border-[#0F4D39] pl-3 mb-3 uppercase tracking-wider">The “What” - Targets</h3>
+            <table className="w-full idp-table border-collapse">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase">Target Description</th>
+                  <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase">Co-Worker Comment</th>
+                  <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase">Manager Comment</th>
+                  <th className="p-3 text-center text-[10px] font-bold text-gray-500 uppercase w-16">CW</th>
+                  <th className="p-3 text-center text-[10px] font-bold text-gray-500 uppercase w-16">MGR</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {(effective.performanceReview?.what?.targets || buildDefaultPerformanceReview().what.targets).map((row, idx) => (
+                  <tr key={idx}>
+                    <td className="p-3 text-sm text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">{row.target || '-'}</td>
+                    <td className="p-3 text-sm text-gray-600 whitespace-pre-wrap italic">{row.coworkerComment || '-'}</td>
+                    <td className="p-3 text-sm text-gray-700 whitespace-pre-wrap font-medium">{row.managerComment || '-'}</td>
+                    <td className="p-3 text-sm font-bold text-center text-gray-700">{row.coworkerRating || '-'}</td>
+                    <td className="p-3 text-sm font-bold text-center text-[#0F4D39]">{row.managerRating || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-        <h2 className="text-sm font-bold text-gray-800 mt-6 mb-2">The “How”</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full border border-gray-200">
-            <thead className="bg-gray-50">
-              <tr className="border-b border-gray-200">
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-56">Value</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Co-worker comment</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Manager comment</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-20">CW</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-20">MGR</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(effective.performanceReview?.how?.values || buildDefaultPerformanceReview().how.values).map((row, idx) => (
-                <tr key={idx} className="border-b border-gray-100">
-                  <td className="px-3 py-2 text-sm text-gray-800 font-semibold whitespace-pre-wrap">{row.value || ''}</td>
-                  <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{row.coworkerComment || ''}</td>
-                  <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{row.managerComment || ''}</td>
-                  <td className="px-3 py-2 text-sm text-gray-700">{row.coworkerRating || ''}</td>
-                  <td className="px-3 py-2 text-sm text-gray-700">{row.managerRating || ''}</td>
+          <div className="mb-8">
+            <h3 className="text-sm font-bold text-[#0F4D39] border-l-4 border-[#0F4D39] pl-3 mb-3 uppercase tracking-wider">The “How” - Values</h3>
+            <table className="w-full idp-table border-collapse">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase w-40">Value</th>
+                  <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase">Co-Worker Comment</th>
+                  <th className="p-3 text-left text-[10px] font-bold text-gray-500 uppercase">Manager Comment</th>
+                  <th className="p-3 text-center text-[10px] font-bold text-gray-500 uppercase w-16">CW</th>
+                  <th className="p-3 text-center text-[10px] font-bold text-gray-500 uppercase w-16">MGR</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {(effective.performanceReview?.how?.values || buildDefaultPerformanceReview().how.values).map((row, idx) => (
+                  <tr key={idx}>
+                    <td className="p-3 text-sm text-gray-800 font-bold uppercase">{row.value || '-'}</td>
+                    <td className="p-3 text-sm text-gray-600 whitespace-pre-wrap italic">{row.coworkerComment || '-'}</td>
+                    <td className="p-3 text-sm text-gray-700 whitespace-pre-wrap font-medium">{row.managerComment || '-'}</td>
+                    <td className="p-3 text-sm font-bold text-center text-gray-700">{row.coworkerRating || '-'}</td>
+                    <td className="p-3 text-sm font-bold text-center text-[#0F4D39]">{row.managerRating || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="border border-gray-200 rounded-xl p-4">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Co-worker overall comment</p>
-            <div className="mt-2 whitespace-pre-wrap text-sm text-gray-700">
-              {effective.performanceReview?.coworkerOverallComment || ''}
+          <div className="grid grid-cols-2 gap-8">
+            <div className="p-5 border-2 border-gray-100 rounded-xl bg-gray-50/50">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 border-b border-gray-200 pb-2">Overall Co-Worker Comment</p>
+              <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed italic">
+                {effective.performanceReview?.coworkerOverallComment || '-'}
+              </div>
             </div>
-          </div>
-          <div className="border border-gray-200 rounded-xl p-4">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Manager overall comment</p>
-            <div className="mt-2 whitespace-pre-wrap text-sm text-gray-700">
-              {effective.performanceReview?.managerOverallComment || ''}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="print-page-break" />
-
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
-        {renderSectionHeader('Career Preference')}
-        <div className="grid grid-cols-1 gap-4">
-          <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Strength & Development Area</p>
-            <div className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{effective.careerPreference?.strengthDevelopmentArea || ''}</div>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Employee&apos;s Career Aspiration</p>
-            <div className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{effective.careerPreference?.employeeCareerAspiration || ''}</div>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Manager view on career</p>
-            <div className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{effective.careerPreference?.managerViewOnCareer || ''}</div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Geographic Mobility</p>
-              <div className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{effective.careerPreference?.mobility?.preferredLocations || ''}</div>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Country</p>
-              <div className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{effective.careerPreference?.mobility?.country || ''}</div>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Period</p>
-              <div className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{effective.careerPreference?.mobility?.period || ''}</div>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Would you relocate?</p>
-              <div className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{effective.careerPreference?.mobility?.wouldRelocate || ''}</div>
+            <div className="p-5 border-2 border-[#0F4D39]/10 rounded-xl bg-[#0F4D39]/5">
+              <p className="text-[10px] font-bold text-[#0F4D39] uppercase tracking-widest mb-3 border-b border-[#0F4D39]/10 pb-2">Overall Manager Comment</p>
+              <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed font-medium">
+                {effective.performanceReview?.managerOverallComment || '-'}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="print-page-break" />
+        <div className="print-page-break" />
 
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
-        {renderSectionHeader('IDP - Guidelines', idpGuidelines?.header)}
-        <div className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">{idpGuidelines?.text || ''}</div>
-      </div>
+        {/* Section 4: Career Preference */}
+        <div className="mb-12">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-8 h-8 rounded-lg bg-[#0F4D39] text-white flex items-center justify-center font-bold">4</div>
+            <h2 className="text-lg font-bold text-gray-800">CAREER PREFERENCE</h2>
+          </div>
 
-      <div className="print-page-break" />
-
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
-        {renderSectionHeader('IDP - Sample')}
-        {sample ? (
-          <div className="space-y-4">
-            {(sample.items || []).map((it: any, idx: number) => (
-              <div key={idx} className="border border-gray-200 rounded-xl p-4">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Development Needs</p>
-                <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{it.developmentNeeds || ''}</div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mt-4">Competency</p>
-                <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{it.competency || ''}</div>
-                <div className="mt-4 overflow-x-auto">
-                  <table className="min-w-full border border-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr className="border-b border-gray-200">
-                        <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-56">Type</th>
-                        <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Description</th>
-                        <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-56">Responsibility</th>
-                        <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Start</th>
-                        <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-28">End</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(it.actions || []).map((a: any, aIdx: number) => (
-                        <tr key={aIdx} className="border-b border-gray-100">
-                          <td className="px-3 py-2 text-sm text-gray-800 font-semibold">{a.label || a.type}</td>
-                          <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{a.description || ''}</td>
-                          <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{a.responsibility || ''}</td>
-                          <td className="px-3 py-2 text-sm text-gray-700">{a.startDate || ''}</td>
-                          <td className="px-3 py-2 text-sm text-gray-700">{a.endDate || ''}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-6">
+              <div className="border border-gray-200 rounded-xl p-6">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Strength & Development Area</p>
+                <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                  {effective.careerPreference?.strengthDevelopmentArea || '-'}
                 </div>
               </div>
-            ))}
-            {sample.note ? <div className="whitespace-pre-wrap text-sm text-gray-700">{sample.note}</div> : null}
-          </div>
-        ) : (
-          <div className="text-sm text-gray-500">Data tidak tersedia.</div>
-        )}
-      </div>
-
-      <div className="print-page-break" />
-
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
-        {renderSectionHeader('Competencies')}
-        <div className="space-y-6">
-          {competencySections.map((sec: any, idx: number) => (
-            <div key={idx} className="border border-gray-200 rounded-xl overflow-hidden">
-              <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                <p className="font-bold text-gray-800">{sec.title}</p>
+              <div className="border border-gray-200 rounded-xl p-6">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Employee&apos;s Career Aspiration</p>
+                <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                  {effective.careerPreference?.employeeCareerAspiration || '-'}
+                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead className="bg-white">
-                    <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-72">Department</th>
-                      <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-64">Competency Area</th>
-                      <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Description</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(sec.rows || []).map((r: any, rIdx: number) => (
-                      <tr key={rIdx} className="border-b border-gray-100">
-                        <td className="px-3 py-2 text-sm text-gray-800">{r.department || ''}</td>
-                        <td className="px-3 py-2 text-sm text-gray-800 font-semibold">{r.competencyArea || ''}</td>
-                        <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{r.description || ''}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="border border-[#0F4D39]/20 rounded-xl p-6 bg-[#0F4D39]/5">
+                <p className="text-[10px] font-bold text-[#0F4D39] uppercase tracking-widest mb-2">Manager View on Career</p>
+                <div className="text-sm text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">
+                  {effective.careerPreference?.managerViewOnCareer || '-'}
+                </div>
               </div>
             </div>
-          ))}
+
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Geographic Mobility</p>
+              </div>
+              <div className="p-6 grid grid-cols-4 gap-8">
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Preferred Locations</p>
+                  <p className="text-sm font-semibold text-gray-800">{effective.careerPreference?.mobility?.preferredLocations || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Country</p>
+                  <p className="text-sm font-semibold text-gray-800">{effective.careerPreference?.mobility?.country || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Period</p>
+                  <p className="text-sm font-semibold text-gray-800">{effective.careerPreference?.mobility?.period || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Relocation Interest</p>
+                  <p className="text-sm font-semibold text-gray-800">{effective.careerPreference?.mobility?.wouldRelocate || '-'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="print-page-break" />
-
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
-        {renderSectionHeader('Summary')}
-        <div className="space-y-6">
-          <div>
-            <p className="text-sm font-bold text-[#0F4D39]">SUMMARY FOR HR</p>
-            <p className="text-xs text-gray-500 mt-1">CO-WORKER DETAILS</p>
-            <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full border border-gray-200">
-                <thead className="bg-gray-50">
-                  <tr className="border-b border-gray-200">
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">ID</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Position</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Manager</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-gray-100">
-                    <td className="px-3 py-2 text-sm text-gray-800">{idp?.user?.name || '-'}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700">{idp?.user?.id || '-'}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700">{idp?.user?.role || '-'}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700">{idp?.createdBy?.name || '-'}</td>
-                  </tr>
-                </tbody>
-              </table>
+        {/* Signature Section */}
+        <div className="mt-20">
+          <div className="grid grid-cols-2 gap-32">
+            <div className="text-center">
+              <p className="text-sm font-bold text-gray-800 mb-20 uppercase tracking-widest">Co-Worker / Employee</p>
+              <div className="border-b-2 border-gray-300 w-full mb-2"></div>
+              <p className="text-sm font-bold text-gray-800 uppercase">{userName}</p>
+              <p className="text-[10px] text-gray-500 mt-1 italic">Tanggal: ___________________</p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-bold text-gray-800 mb-20 uppercase tracking-widest">Manager / Reviewer</p>
+              <div className="border-b-2 border-gray-300 w-full mb-2"></div>
+              <p className="text-sm font-bold text-gray-800 uppercase">{managerName}</p>
+              <p className="text-[10px] text-gray-500 mt-1 italic">Tanggal: ___________________</p>
             </div>
           </div>
-
-          <div>
-            <p className="text-sm font-bold text-[#0F4D39]">OBJECTIVE SETTING</p>
-            <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full border border-gray-200">
-                <thead className="bg-gray-50">
-                  <tr className="border-b border-gray-200">
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[320px]">Objectives</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[240px]">Measures</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Start Date</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-28">End Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(effective.objectiveSetting?.goals || buildDefaultObjectiveSetting().goals).map((g, idx) => (
-                    <tr key={idx} className="border-b border-gray-100">
-                      <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{g.objectiveDetails || ''}</td>
-                      <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{g.measure || ''}</td>
-                      <td className="px-3 py-2 text-sm text-gray-700">{g.startDate || ''}</td>
-                      <td className="px-3 py-2 text-sm text-gray-700">{g.endDate || ''}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-sm font-bold text-[#0F4D39]">INDIVIDUAL DEVELOPMENT PLAN (IDP)</p>
-            <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full border border-gray-200">
-                <thead className="bg-gray-50">
-                  <tr className="border-b border-gray-200">
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Co-worker ID</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-56">Name</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[260px]">Development Needs</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-56">Competencies 1</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-56">Competencies 2</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-44">Formal Training (10%)</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-56">Mentoring & Coaching (20%)</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-36">OJT (70%)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(effective.items || []).map((it: any, idx: number) => {
-                    const raw = String(it?.competency || '');
-                    const parts = raw
-                      .split(/\r?\n|,|;|\s+-\s+/)
-                      .map((s) => s.trim())
-                      .filter(Boolean);
-                    const c1 = parts[0] || '';
-                    const c2 = parts[1] || '';
-                    const actions = Array.isArray(it?.actions) ? it.actions : [];
-                    const isFilled = (a: any) =>
-                      String(a?.description || '').trim() ||
-                      String(a?.responsibility || '').trim() ||
-                      String(a?.startDate || '').trim() ||
-                      String(a?.endDate || '').trim();
-                    const countType = (t: string) => actions.filter((a: any) => a?.type === t && isFilled(a)).length;
-
-                    return (
-                      <tr key={idx} className="border-b border-gray-100">
-                        <td className="px-3 py-2 text-sm text-gray-700">{idp?.user?.id || ''}</td>
-                        <td className="px-3 py-2 text-sm text-gray-800">{idp?.user?.name || ''}</td>
-                        <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{it?.developmentNeeds || ''}</td>
-                        <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{c1}</td>
-                        <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{c2}</td>
-                        <td className="px-3 py-2 text-sm text-gray-700">{countType('FORMAL_TRAINING') || 0}</td>
-                        <td className="px-3 py-2 text-sm text-gray-700">{countType('MENTORING_COACHING') || 0}</td>
-                        <td className="px-3 py-2 text-sm text-gray-700">{countType('OJT') || 0}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-sm font-bold text-[#0F4D39]">CAREER PREFERENCE</p>
-            <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full border border-gray-200">
-                <thead className="bg-gray-50">
-                  <tr className="border-b border-gray-200">
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[260px]">Strength & Development Area</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[260px]">Employee&apos;s Career Aspiration</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[260px]">Manager view on career</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-56">Geographic Mobility</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-40">Country</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-40">Period</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-56">Would you be interested?</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-gray-100">
-                    <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{effective.careerPreference?.strengthDevelopmentArea || ''}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{effective.careerPreference?.employeeCareerAspiration || ''}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{effective.careerPreference?.managerViewOnCareer || ''}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{effective.careerPreference?.mobility?.preferredLocations || ''}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{effective.careerPreference?.mobility?.country || ''}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{effective.careerPreference?.mobility?.period || ''}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{effective.careerPreference?.mobility?.wouldRelocate || ''}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <div className="mt-16 text-center">
+             <div className="inline-block border-2 border-[#0F4D39] px-8 py-2">
+                <p className="text-[10px] font-bold text-[#0F4D39] uppercase tracking-[0.3em]">Official IDP Document - The Lodge Ranger</p>
+             </div>
           </div>
         </div>
       </div>
