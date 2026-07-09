@@ -304,6 +304,21 @@ export default function IDPPrintPage() {
             background-color: white !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+            overflow: visible !important;
+            height: auto !important;
+          }
+          html {
+            overflow: visible !important;
+            height: auto !important;
+          }
+          /* Remove any scrollbars from containers during print */
+          * {
+            overflow: visible !important;
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
+          }
+          *::-webkit-scrollbar {
+            display: none !important;
           }
           table {
             page-break-inside: auto;
