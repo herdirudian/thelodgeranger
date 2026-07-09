@@ -116,7 +116,7 @@ exports.createRequest = async (req, res) => {
             createNotification(approver.id, `New Request: ${type} from ${requester.name} (${requester.department || '-'})`);
             if (approver.whatsappNumber && approver.whatsappVerifiedAt) {
                 const text = `Pengajuan ${type} dari ${requester.name} menunggu persetujuan Anda.`;
-                sendWhatsAppMessage({ to: approver.whatsappNumber, message: text }).catch(() => {});
+                // sendWhatsAppMessage({ to: approver.whatsappNumber, message: text }).catch(() => {});
             }
         }
     } else {
@@ -133,7 +133,7 @@ exports.createRequest = async (req, res) => {
                 createNotification(spv.id, `New Request: ${type} from ${requester.name} (${requester.department || '-'})`);
                 if (spv.whatsappNumber && spv.whatsappVerifiedAt) {
                     const text = `Pengajuan ${type} dari ${requester.name} menunggu persetujuan Anda.`;
-                    sendWhatsAppMessage({ to: spv.whatsappNumber, message: text }).catch(() => {});
+                    // sendWhatsAppMessage({ to: spv.whatsappNumber, message: text }).catch(() => {});
                 }
             }
         } else if (initialStatus === 'PENDING_MERCHANDISE_HOD') {
@@ -143,7 +143,7 @@ exports.createRequest = async (req, res) => {
                 createNotification(hod.id, `New Request: ${type} from ${requester.name} (Merchandise Staff)`);
                 if (hod.whatsappNumber && hod.whatsappVerifiedAt) {
                     const text = `Pengajuan ${type} dari ${requester.name} menunggu persetujuan Anda.`;
-                    sendWhatsAppMessage({ to: hod.whatsappNumber, message: text }).catch(() => {});
+                    // sendWhatsAppMessage({ to: hod.whatsappNumber, message: text }).catch(() => {});
                 }
             }
         } else if (initialStatus === 'PENDING_PHOTOGRAPHER_HOD') {
@@ -153,7 +153,7 @@ exports.createRequest = async (req, res) => {
                 createNotification(hod.id, `New Request: ${type} from ${requester.name} (Photographer Staff)`);
                 if (hod.whatsappNumber && hod.whatsappVerifiedAt) {
                     const text = `Pengajuan ${type} dari ${requester.name} menunggu persetujuan Anda.`;
-                    sendWhatsAppMessage({ to: hod.whatsappNumber, message: text }).catch(() => {});
+                    // sendWhatsAppMessage({ to: hod.whatsappNumber, message: text }).catch(() => {});
                 }
             }
         } else if (requester.department) {
@@ -167,7 +167,7 @@ exports.createRequest = async (req, res) => {
                     createNotification(hod.id, `New Request: ${type} from ${requester.name} (${requester.department})`);
                     if (hod.whatsappNumber && hod.whatsappVerifiedAt) {
                         const text = `Pengajuan ${type} dari ${requester.name} menunggu persetujuan Anda.`;
-                        sendWhatsAppMessage({ to: hod.whatsappNumber, message: text }).catch(() => {});
+                        // sendWhatsAppMessage({ to: hod.whatsappNumber, message: text }).catch(() => {});
                     }
                 }
             }
@@ -1514,7 +1514,7 @@ async function handleLegacyRequestApproval({ res, user, request, action, reason 
             createNotification(spv.id, `Request from ${request.user.name} (${request.type}) approved by HOD, pending Supervisor approval.`);
             if (spv.whatsappNumber && spv.whatsappVerifiedAt) {
                 const text = `Pengajuan ${request.type} dari ${request.user.name} menunggu persetujuan Supervisor.`;
-                sendWhatsAppMessage({ to: spv.whatsappNumber, message: text }).catch(() => {});
+                // sendWhatsAppMessage({ to: spv.whatsappNumber, message: text }).catch(() => {});
             }
         }
     } else if (updated.status === 'PENDING_MERCHANDISE_HOD') {
@@ -1528,7 +1528,7 @@ async function handleLegacyRequestApproval({ res, user, request, action, reason 
             createNotification(hod.id, `Request from ${request.user.name} (${request.type}) pending your approval.`);
             if (hod.whatsappNumber && hod.whatsappVerifiedAt) {
                 const text = `Pengajuan ${request.type} dari ${request.user.name} menunggu persetujuan Merchandise HOD.`;
-                sendWhatsAppMessage({ to: hod.whatsappNumber, message: text }).catch(() => {});
+                // sendWhatsAppMessage({ to: hod.whatsappNumber, message: text }).catch(() => {});
             }
         }
     } else if (updated.status === 'PENDING_MERCHANDISE_SPV') {
@@ -1542,7 +1542,7 @@ async function handleLegacyRequestApproval({ res, user, request, action, reason 
             createNotification(spv.id, `Request from ${request.user.name} (${request.type}) approved by Merchandise HOD, pending your approval.`);
             if (spv.whatsappNumber && spv.whatsappVerifiedAt) {
                 const text = `Pengajuan ${request.type} dari ${request.user.name} menunggu persetujuan Merchandise SPV.`;
-                sendWhatsAppMessage({ to: spv.whatsappNumber, message: text }).catch(() => {});
+                // sendWhatsAppMessage({ to: spv.whatsappNumber, message: text }).catch(() => {});
             }
         }
     } else if (updated.status === 'PENDING_HR') {
@@ -1556,7 +1556,7 @@ async function handleLegacyRequestApproval({ res, user, request, action, reason 
             createNotification(hr.id, `Request from ${request.user.name} (${request.type}) approved by Supervisor Operational, pending HR approval.`);
             if (hr.whatsappNumber && hr.whatsappVerifiedAt) {
                 const text = `Pengajuan ${request.type} dari ${request.user.name} menunggu persetujuan HR.`;
-                sendWhatsAppMessage({ to: hr.whatsappNumber, message: text }).catch(() => {});
+                // sendWhatsAppMessage({ to: hr.whatsappNumber, message: text }).catch(() => {});
             }
         }
     } else if (updated.status === 'PENDING_GM') {
@@ -1570,7 +1570,7 @@ async function handleLegacyRequestApproval({ res, user, request, action, reason 
             createNotification(gm.id, `Request from ${request.user.name} (${request.type}) approved by HR, pending GM approval.`);
             if (gm.whatsappNumber && gm.whatsappVerifiedAt) {
                 const text = `Pengajuan ${request.type} dari ${request.user.name} menunggu persetujuan GM.`;
-                sendWhatsAppMessage({ to: gm.whatsappNumber, message: text }).catch(() => {});
+                // sendWhatsAppMessage({ to: gm.whatsappNumber, message: text }).catch(() => {});
             }
         }
     } else if (updated.status === 'APPROVED') {
@@ -1933,7 +1933,7 @@ async function handleConfigRequestApproval({ res, user, request, action, reason,
             createNotification(approver.id, `Request from ${request.user.name} (${request.type}) is pending your approval.`);
             if (approver.whatsappNumber && approver.whatsappVerifiedAt) {
                 const text = `Pengajuan ${request.type} dari ${request.user.name} menunggu persetujuan Anda.`;
-                sendWhatsAppMessage({ to: approver.whatsappNumber, message: text }).catch(() => {});
+                // sendWhatsAppMessage({ to: approver.whatsappNumber, message: text }).catch(() => {});
             }
         }
     } else if (updated.status === 'APPROVED') {

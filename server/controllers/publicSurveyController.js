@@ -67,7 +67,7 @@ exports.submit = async (req, res) => {
     try {
       const infoText = `Survey ${type.replace('_',' ')} diterima (${formatWibLongDateId(new Date())}).`;
       const adminPhone = process.env.SURVEY_ADMIN_WA;
-      if (adminPhone) await sendWhatsAppMessage({ to: adminPhone, message: infoText });
+      // if (adminPhone) await sendWhatsAppMessage({ to: adminPhone, message: infoText });
     } catch (e) {}
 
     return res.status(201).json({ message: 'Terima kasih, jawaban Anda sudah tersimpan.' });

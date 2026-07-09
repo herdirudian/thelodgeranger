@@ -354,9 +354,9 @@ async function startReminders() {
 
   setInterval(async () => {
     try {
-      await runAttendanceReminders();
+      // await runAttendanceReminders(); // Disabled as per user request
       await runShiftReminders();
-      await runApprovalReminders();
+      // await runApprovalReminders(); // Disabled as per user request
     } catch (e) {}
   }, intervalMs);
 }
