@@ -78,26 +78,32 @@ async function sendWhatsAppMessage({ to, message }) {
   }
 
   // --- ANTI-BOT / HUMAN-LIKE BEHAVIOR ---
-  // 1. Initial random delay (2 - 5s) - Increased for safety
-  await sleep(2000 + Math.random() * 3000);
+  // 1. Initial random delay (3 - 8s) - Mimicking looking at the phone
+  await sleep(3000 + Math.random() * 5000);
 
-  // 2. Simulate Typing State
+  // 2. Set Presence to 'composing' (Typing)
   try {
     const typingUrl = `${cleanBaseUrl}/api/sessions/${sessionId}/chats/${chatId}/send-chatstate`;
-    await axios.post(typingUrl, { state: 'typing' }, { 
+    await axios.post(typingUrl, { state: 'composing' }, { 
       headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
       timeout: 5000 
     }).catch(() => {});
   } catch (e) {}
 
-  // 3. Simulate Typing Duration (5 - 10s) - Increased to be more realistic
-  const typingDuration = Math.min(10000, Math.max(5000, message.length * 70));
-  await sleep(typingDuration);
+  // 3. Simulate Typing Duration (8 - 15s) - Much longer and variable
+  // Human average is ~200 chars per minute, plus thinking time
+  const baseTypingTime = 5000;
+  const thinkingTime = Math.random() * 5000;
+  const perCharTime = message.length * 50;
+  const totalTypingTime = Math.min(20000, baseTypingTime + thinkingTime + perCharTime);
+  await sleep(totalTypingTime);
 
-  // 4. Add Entropy: Invisible characters and a unique tag at the end
-  // This ensures no two messages are byte-for-byte identical.
-  const randomSuffix = `\n\n[Ref: ${Math.random().toString(36).substring(7)}]`;
-  const finalMessage = message + randomSuffix;
+  // 4. Content Randomization (Anti-Signature detection)
+  // We add random zero-width characters or whitespace and a human-like tag
+  const invisibleChars = ['\u200B', '\u200C', '\u200D', '\uFEFF'];
+  const randomChar = invisibleChars[Math.floor(Math.random() * invisibleChars.length)];
+  const humanTag = `\n\n- ${Math.random().toString(36).substring(7)}${randomChar}`;
+  const finalMessage = message + humanTag;
   // ---------------------------------------
 
   const url = `${cleanBaseUrl}/api/sessions/${sessionId}/messages/send-text`;

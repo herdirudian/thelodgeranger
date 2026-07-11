@@ -287,9 +287,9 @@ async function runShiftReminders() {
         const msg = generateShiftReminderMessage(user, s, 'IN');
         try {
           await sendWhatsAppMessage({ to: user.whatsappNumber, message: msg });
-          // SIGNIFICANT DELAY between different users (20-40 seconds)
-          // To prevent mass-sending pattern detection
-          await sleep(20000 + Math.random() * 20000);
+          // VERY LONG DELAY between different users (45-90 seconds)
+          // To strictly avoid being flagged as a bulk-sending bot
+          await sleep(45000 + Math.random() * 45000);
         } catch (e) {}
       }
     }
@@ -301,7 +301,8 @@ async function runShiftReminders() {
         const msg = generateShiftReminderMessage(user, s, 'OUT');
         try {
           await sendWhatsAppMessage({ to: user.whatsappNumber, message: msg });
-          await sleep(2000 + Math.random() * 3000);
+          // VERY LONG DELAY between different users (45-90 seconds)
+          await sleep(45000 + Math.random() * 45000);
         } catch (e) {}
       }
     }
