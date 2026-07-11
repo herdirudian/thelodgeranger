@@ -134,8 +134,8 @@ export default function HODChecklistPage() {
     useEffect(() => {
         if (!user?.id) return;
         fetchTemplates();
-        fetchSubmissions();
-    }, [user?.id, user?.role, user?.department]);
+        fetchSubmissions(exportDate);
+    }, [user?.id, user?.role, user?.department, exportDate]);
 
     useEffect(() => {
         // Calculate which templates are already submitted today
@@ -202,9 +202,15 @@ export default function HODChecklistPage() {
         }
     };
 
-    const fetchSubmissions = async () => {
+    const fetchSubmissions = async (date?: string) => {
         try {
-            const res = await api.get('/checklist/submissions');
+            const params: any = {};
+            const targetDate = date || exportDate;
+            if (targetDate) {
+                params.startDate = targetDate;
+                params.endDate = targetDate;
+            }
+            const res = await api.get('/checklist/submissions', { params });
             setSubmissions(res.data);
         } catch (error) {
             console.error(error);
@@ -220,6 +226,11 @@ export default function HODChecklistPage() {
 
     const getFilteredHistorySubmissions = () => {
         return submissions.filter(sub => {
+            // Filter by date
+            const subDate = format(new Date(sub.date), 'yyyy-MM-dd');
+            if (subDate !== exportDate) return false;
+
+            // Filter by approval status
             if (historyFilter === 'ALL') return true;
             if (historyFilter === 'PENDING_MY_APPROVAL') {
                 if (sub.status === 'PENDING_SUPERVISOR' && (user?.role === 'SUPERVISOR' || user?.role?.includes('SPV') || user?.role === 'ADMIN')) return true;
