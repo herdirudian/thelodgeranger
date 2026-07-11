@@ -42,6 +42,11 @@ function to62(phone) {
 }
 
 /**
+ * Helper for human-like delay
+ */
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
  * Send message using OpenWA API
  * Format: /api/sessions/:sessionId/messages/send-text
  */
@@ -63,13 +68,28 @@ async function sendWhatsAppMessage({ to, message }) {
     throw new Error(`WhatsApp configuration missing: ${missing.join(', ')}. Please configure in Admin Dashboard.`);
   }
 
-  // Ensure baseUrl doesn't have trailing slash
   const cleanBaseUrl = baseUrl.replace(/\/$/, '');
-  const url = `${cleanBaseUrl}/api/sessions/${sessionId}/messages/send-text`;
-  
-  // Format for OpenWA: number@c.us
   const chatId = `${to62(to)}@c.us`;
 
+  // --- ANTI-BOT / HUMAN-LIKE BEHAVIOR ---
+  // 1. Initial random delay (0.5 - 2s)
+  await sleep(500 + Math.random() * 1500);
+
+  // 2. Simulate Typing State (if supported by OpenWA)
+  try {
+    const typingUrl = `${cleanBaseUrl}/api/sessions/${sessionId}/chats/${chatId}/send-chatstate`;
+    await axios.post(typingUrl, { state: 'typing' }, { 
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+      timeout: 5000 
+    }).catch(() => {}); // Ignore error if endpoint not available
+  } catch (e) {}
+
+  // 3. Simulate Typing Duration (3 - 6s depending on length)
+  const typingDuration = Math.min(6000, Math.max(3000, message.length * 50));
+  await sleep(typingDuration);
+  // ---------------------------------------
+
+  const url = `${cleanBaseUrl}/api/sessions/${sessionId}/messages/send-text`;
   const payload = {
     chatId,
     text: message
