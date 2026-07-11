@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const sharp = require('sharp');
 
 // Ensure uploads directory exists
 const uploadDir = path.join(__dirname, '../uploads');
@@ -11,15 +12,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 // Multer Configuration
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'upload-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
+const storage = multer.memoryStorage(); // Switch to memory storage to process with sharp
 
 const fileFilter = (req, file, cb) => {
     // Allow images and PDFs
@@ -37,16 +30,44 @@ const upload = multer({
 });
 
 // Single file upload route
-router.post('/', upload.single('file'), (req, res) => {
+router.post('/', upload.single('file'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
         }
         
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        let filename = 'upload-' + uniqueSuffix + path.extname(req.file.originalname);
+        const filePath = path.join(uploadDir, filename);
+
+        // Auto-compress if it's an image
+        if (req.file.mimetype.startsWith('image/')) {
+            // Always convert to jpeg for best compression, or keep original ext if preferred
+            // Here we keep original ext but compress quality
+            const ext = path.extname(req.file.originalname).toLowerCase();
+            
+            let sharpInstance = sharp(req.file.buffer)
+                .rotate() // Auto-rotate based on EXIF
+                .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true }); // Resize to max 1200px
+
+            if (ext === '.png') {
+                await sharpInstance.png({ quality: 80, compressionLevel: 8 }).toFile(filePath);
+            } else {
+                // Default to jpeg/webp for others
+                filename = 'upload-' + uniqueSuffix + '.jpg';
+                const newPath = path.join(uploadDir, filename);
+                await sharpInstance.jpeg({ quality: 75, mozjpeg: true }).toFile(newPath);
+            }
+        } else {
+            // Non-image (like PDF), just write buffer
+            fs.writeFileSync(filePath, req.file.buffer);
+        }
+        
         // Return the URL
-        const fileUrl = `/uploads/${req.file.filename}`;
-        res.status(200).json({ url: fileUrl, filename: req.file.filename });
+        const fileUrl = `/uploads/${filename}`;
+        res.status(200).json({ url: fileUrl, filename: filename });
     } catch (error) {
+        console.error('Upload Error:', error);
         res.status(500).json({ message: 'Error uploading file', error: error.message });
     }
 });

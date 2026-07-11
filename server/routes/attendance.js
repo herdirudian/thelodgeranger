@@ -49,52 +49,42 @@ const compressImage = async (req, res, next) => {
 
     const originalPath = req.file.path;
     const dir = path.dirname(originalPath);
-    const ext = path.extname(originalPath);
+    const ext = path.extname(originalPath).toLowerCase();
     const name = path.basename(originalPath, ext);
-    const newFilename = `${name}-comp${ext}`;
+    
+    // Always use .jpg for consistency and compression
+    const newFilename = `${name}-comp.jpg`;
     const newPath = path.join(dir, newFilename);
 
     try {
-        // Disable sharp cache
         sharp.cache(false);
 
         await sharp(originalPath)
-            .resize({ width: 800, withoutEnlargement: true })
-            .jpeg({ quality: 80, mozjpeg: true })
+            .rotate() // Auto-rotate
+            .resize({ width: 1000, height: 1000, fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 70, mozjpeg: true })
             .toFile(newPath);
 
         // Update req.file to point to the new file
         req.file.path = newPath;
         req.file.filename = newFilename;
         
-        // Try to delete the original file
+        // Delete the original file
         try {
             fs.unlinkSync(originalPath);
-        } catch (unlinkErr) {
-            console.warn("Could not delete original file (locked?):", unlinkErr.message);
-            // It's okay, we have the compressed one.
-        }
+        } catch (unlinkErr) {}
         
-        // Update size
         const stats = fs.statSync(newPath);
         req.file.size = stats.size;
         
         next();
     } catch (error) {
         console.error('Error compressing image:', error);
-        // If compression failed, we still have the original file at req.file.path
-        // Ensure we clean up the new file if it was partially created
-        if (fs.existsSync(newPath)) {
-            try { fs.unlinkSync(newPath); } catch(e) {}
-        }
-        // Proceed with original file
         next();
     }
 };
 
-// router.post('/', [verifyToken, upload.single('photo'), compressImage], controller.clockIn);
-// Temporarily disabled compression to debug "Error clocking in"
-router.post('/', [verifyToken, upload.single('photo')], controller.clockIn);
+router.post('/', [verifyToken, upload.single('photo'), compressImage], controller.clockIn);
 router.get('/me', [verifyToken], controller.getHistory);
 router.get('/team', [verifyToken, isHOD], controller.getTeamAttendance);
 router.get('/pending', [verifyToken, isHOD], controller.getPendingAttendance);
