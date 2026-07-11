@@ -69,7 +69,13 @@ async function sendWhatsAppMessage({ to, message }) {
   }
 
   const cleanBaseUrl = baseUrl.replace(/\/$/, '');
-  const chatId = `${to62(to)}@c.us`;
+  
+  // Format chatId: if it already has @c.us or @g.us, use it as is.
+  // Otherwise, format to 628xxx@c.us
+  let chatId = to;
+  if (typeof chatId === 'string' && !chatId.includes('@')) {
+    chatId = `${to62(to)}@c.us`;
+  }
 
   // --- ANTI-BOT / HUMAN-LIKE BEHAVIOR ---
   // 1. Initial random delay (2 - 5s) - Increased for safety
