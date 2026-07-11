@@ -350,18 +350,16 @@ const isChecklistSignatureQuestion = (questionText) => {
 
 const normalizeChecklistImage = async (imageBytes, sourceHint = '') => {
     const lowerHint = String(sourceHint || '').toLowerCase();
-    const metadata = await sharp(imageBytes).metadata().catch(() => null);
+    
+    // Resize and compress for PDF to save space and memory
+    // Max 400px width/height is enough for small table images
+    const compressed = await sharp(imageBytes)
+        .rotate()
+        .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 60, mozjpeg: true })
+        .toBuffer();
 
-    if (lowerHint.endsWith('.png') || metadata?.format === 'png') {
-        return { bytes: imageBytes, type: 'png' };
-    }
-
-    if (lowerHint.endsWith('.jpg') || lowerHint.endsWith('.jpeg') || metadata?.format === 'jpeg') {
-        return { bytes: imageBytes, type: 'jpg' };
-    }
-
-    const pngBuffer = await sharp(imageBytes).png().toBuffer();
-    return { bytes: pngBuffer, type: 'png' };
+    return { bytes: compressed, type: 'jpg' };
 };
 
 const readChecklistImageBytes = async (photoUrl) => {
