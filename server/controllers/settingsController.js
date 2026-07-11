@@ -42,7 +42,7 @@ exports.testWhatsApp = async (req, res) => {
             return res.status(400).json({ message: 'Phone number is required' });
         }
 
-        const { sendWhatsAppMessage } = require('../services/watzapService');
+        const { sendWhatsAppMessage } = require('../services/whatsappService');
         const message = `Halo! Ini adalah pesan tes dari sistem Lodge Ranger. Jika Anda menerima ini, berarti integrasi WhatsApp Anda sudah berhasil terhubung.`;
         
         const result = await sendWhatsAppMessage({ to: phone, message });

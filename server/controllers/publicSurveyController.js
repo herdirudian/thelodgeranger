@@ -1,7 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { formatWibLongDateId } = require('../utils/wibDate');
-const { sendWhatsAppMessage } = require('../services/watzapService');
+const { sendWhatsAppMessage } = require('../services/whatsappService');
 const XLSX = require('xlsx');
 
 function normalizeType(type) {

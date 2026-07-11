@@ -1,7 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
-const { sendOtpWhatsApp, to62 } = require('../services/watzapService');
+const { sendOtpWhatsApp, to62 } = require('../services/whatsappService');
 
 exports.getAllUsers = async (req, res) => {
   try {

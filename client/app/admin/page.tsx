@@ -65,10 +65,10 @@ function AdminContent() {
   const [rookieSearch, setRookieSearch] = useState('');
   
   const [waSettings, setWaSettings] = useState({
-    WATZAP_BASE_URL: "",
-    WATZAP_API_KEY: "",
-    WATZAP_NUMBER_KEY: "",
-    WATZAP_FAKE_SEND: "0"
+    WA_BASE_URL: "",
+    WA_API_KEY: "",
+    WA_SESSION_ID: "",
+    WA_FAKE_SEND: "0"
   });
   const [isSavingWaSettings, setIsSavingWaSettings] = useState(false);
   const [testPhone, setTestPhone] = useState("");
@@ -178,11 +178,16 @@ function AdminContent() {
     try {
       const res = await api.get("/settings?group=WHATSAPP");
       const settings = res.data;
-      const newSettings = { ...waSettings };
+      const newSettings: any = { ...waSettings };
       settings.forEach((s: any) => {
-        if (s.key in newSettings) {
-          // @ts-ignore
-          newSettings[s.key] = s.value;
+        // Support migration from old WATZAP keys to new WA keys
+        let targetKey = s.key;
+        if (s.key === 'WATZAP_BASE_URL') targetKey = 'WA_BASE_URL';
+        if (s.key === 'WATZAP_API_KEY') targetKey = 'WA_API_KEY';
+        if (s.key === 'WATZAP_FAKE_SEND') targetKey = 'WA_FAKE_SEND';
+
+        if (targetKey in newSettings) {
+          newSettings[targetKey] = s.value;
         }
       });
       setWaSettings(newSettings);
@@ -1082,7 +1087,7 @@ function AdminContent() {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center gap-2 mb-6">
             <Settings className="text-[#0F4D39]" />
-            <h2 className="text-xl font-bold">WhatsApp Integration Settings (Watzap.id)</h2>
+            <h2 className="text-xl font-bold">WhatsApp Integration Settings (OpenWA)</h2>
           </div>
           
           <form onSubmit={handleWaSettingsSubmit} className="max-w-2xl space-y-6">
@@ -1093,7 +1098,7 @@ function AdminContent() {
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-blue-700">
-                    Pengaturan ini akan menimpa (override) nilai yang ada di file .env. Pastikan data yang dimasukkan valid agar integrasi WhatsApp berjalan lancar.
+                    Pengaturan ini menggunakan server OpenWA milik sendiri. Pastikan API Key dan Session ID sudah benar.
                   </p>
                 </div>
               </div>
@@ -1101,50 +1106,51 @@ function AdminContent() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Watzap Base URL</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">OpenWA Base URL</label>
                 <input 
                   type="text" 
                   className="w-full border border-gray-300 p-2 rounded focus:ring-[#0F4D39] focus:border-[#0F4D39]" 
-                  placeholder="https://api.watzap.id/v1"
-                  value={waSettings.WATZAP_BASE_URL} 
-                  onChange={e => setWaSettings({...waSettings, WATZAP_BASE_URL: e.target.value})}
+                  placeholder="https://api.anda.id"
+                  value={waSettings.WA_BASE_URL} 
+                  onChange={e => setWaSettings({...waSettings, WA_BASE_URL: e.target.value})}
                 />
-                <p className="mt-1 text-xs text-gray-500">Contoh: https://api.watzap.id/v1</p>
+                <p className="mt-1 text-xs text-gray-500">Contoh: http://127.0.0.1:2785 atau https://api.thelodgegroup.id</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">API Key (X-API-Key)</label>
                 <input 
                   type="password" 
                   className="w-full border border-gray-300 p-2 rounded focus:ring-[#0F4D39] focus:border-[#0F4D39]" 
-                  placeholder="Masukkan API Key dari Watzap"
-                  value={waSettings.WATZAP_API_KEY} 
-                  onChange={e => setWaSettings({...waSettings, WATZAP_API_KEY: e.target.value})}
+                  placeholder="Masukkan API Key OpenWA"
+                  value={waSettings.WA_API_KEY} 
+                  onChange={e => setWaSettings({...waSettings, WA_API_KEY: e.target.value})}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Number Key</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Session ID</label>
                 <input 
                   type="text" 
                   className="w-full border border-gray-300 p-2 rounded focus:ring-[#0F4D39] focus:border-[#0F4D39]" 
-                  placeholder="Masukkan Number Key dari Watzap"
-                  value={waSettings.WATZAP_NUMBER_KEY} 
-                  onChange={e => setWaSettings({...waSettings, WATZAP_NUMBER_KEY: e.target.value})}
+                  placeholder="Contoh: my-session"
+                  value={waSettings.WA_SESSION_ID} 
+                  onChange={e => setWaSettings({...waSettings, WA_SESSION_ID: e.target.value})}
                 />
+                <p className="mt-1 text-xs text-gray-500">ID Sesi yang aktif di server OpenWA Anda.</p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Mode Simulasi (Fake Send)</label>
                 <select 
                   className="w-full border border-gray-300 p-2 rounded focus:ring-[#0F4D39] focus:border-[#0F4D39]"
-                  value={waSettings.WATZAP_FAKE_SEND}
-                  onChange={e => setWaSettings({...waSettings, WATZAP_FAKE_SEND: e.target.value})}
+                  value={waSettings.WA_FAKE_SEND}
+                  onChange={e => setWaSettings({...waSettings, WA_FAKE_SEND: e.target.value})}
                 >
                   <option value="0">OFF (Kirim beneran ke WA)</option>
                   <option value="1">ON (Hanya simulasi, tidak kirim beneran)</option>
                 </select>
-                <p className="mt-1 text-xs text-gray-500">Aktifkan mode simulasi jika ingin mencoba sistem tanpa mengurangi kuota Watzap.</p>
+                <p className="mt-1 text-xs text-gray-500">Aktifkan mode simulasi jika ingin mencoba sistem tanpa mengirim pesan beneran.</p>
               </div>
             </div>
 

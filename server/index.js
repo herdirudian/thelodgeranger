@@ -32,7 +32,7 @@ const votingRoutes = require('./routes/voting');
 const checklistRoutes = require('./routes/checklist');
 const settingsRoutes = require('./routes/settings');
 const { PrismaClient } = require('@prisma/client');
-const { sendWhatsAppMessage } = require('./services/watzapService');
+const { sendWhatsAppMessage } = require('./services/whatsappService');
 const { formatWibTime } = require('./utils/wibDate');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));

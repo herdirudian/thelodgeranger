@@ -1,7 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sendEmail } = require('../services/emailService');
-const { sendWhatsAppMessage } = require('../services/watzapService');
+const { sendWhatsAppMessage } = require('../services/whatsappService');
 const pdfService = require('../services/pdfService');
 const { formatWibDate } = require('../utils/wibDate');
 const { createNotification } = require('./notificationController');
