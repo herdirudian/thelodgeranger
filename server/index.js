@@ -47,18 +47,35 @@ function generateShiftReminderMessage(user, shift, type) {
 
   const timeRange = `${formatWibTime(shift.shiftStart)}–${formatWibTime(shift.shiftEnd)}`;
   
+  // Extra randomization for anti-bot
+  const closings = [
+    'Semangat!',
+    'Terima kasih.',
+    'Have a nice day!',
+    'Stay safe!',
+    'Semangat bekerja!',
+    'Jangan lupa ya.',
+    'Terima kasih banyak.',
+    'Sehat selalu!'
+  ];
+  const closing = closings[Math.floor(Math.random() * closings.length)];
+  
   if (type === 'IN') {
     const templates = [
-      `${greeting} ${user.name}, pengingat 10 menit lagi waktu check-in Anda (Shift ${shift.shiftName || ''} ${timeRange}). Semangat bekerja!`,
-      `${greeting} ${user.name}, jangan lupa 10 menit lagi masuk Shift ${shift.shiftName || ''} ya (${timeRange}). Have a great day!`,
-      `${greeting} ${user.name}, yuk bersiap! 10 menit lagi waktu mulai Shift ${shift.shiftName || ''} (${timeRange}).`
+      `${greeting} ${user.name}, pengingat 10 menit lagi waktu check-in Anda (Shift ${shift.shiftName || ''} ${timeRange}). ${closing}`,
+      `${greeting} ${user.name}, jangan lupa 10 menit lagi masuk Shift ${shift.shiftName || ''} ya (${timeRange}). ${closing}`,
+      `${greeting} ${user.name}, yuk bersiap! 10 menit lagi waktu mulai Shift ${shift.shiftName || ''} (${timeRange}). ${closing}`,
+      `Halo ${user.name}, 10 menit lagi jadwal masuk Shift ${shift.shiftName || ''} (${timeRange}). ${closing}`,
+      `${greeting} kak ${user.name}, bersiap untuk Shift ${shift.shiftName || ''} (${timeRange}) 10 menit lagi ya. ${closing}`
     ];
     return templates[Math.floor(Math.random() * templates.length)];
   } else {
     const templates = [
-      `${greeting} ${user.name}, pengingat 10 menit lagi waktu check-out Anda (Shift ${shift.shiftName || ''} berakhir ${formatWibTime(shift.shiftEnd)}). Terima kasih atas kerja kerasnya hari ini!`,
-      `${greeting} ${user.name}, 10 menit lagi waktu selesai Shift ${shift.shiftName || ''} (${formatWibTime(shift.shiftEnd)}). Jangan lupa melakukan check-out ya.`,
-      `${greeting} ${user.name}, bersiap pulang! 10 menit lagi Shift ${shift.shiftName || ''} Anda berakhir.`
+      `${greeting} ${user.name}, pengingat 10 menit lagi waktu check-out Anda (Shift ${shift.shiftName || ''} berakhir ${formatWibTime(shift.shiftEnd)}). ${closing}`,
+      `${greeting} ${user.name}, 10 menit lagi waktu selesai Shift ${shift.shiftName || ''} (${formatWibTime(shift.shiftEnd)}). Jangan lupa melakukan check-out ya. ${closing}`,
+      `${greeting} ${user.name}, bersiap pulang! 10 menit lagi Shift ${shift.shiftName || ''} Anda berakhir. ${closing}`,
+      `Halo ${user.name}, Shift ${shift.shiftName || ''} selesai dalam 10 menit (${formatWibTime(shift.shiftEnd)}). ${closing}`,
+      `${greeting} kak ${user.name}, jangan lupa absen pulang 10 menit lagi ya. ${closing}`
     ];
     return templates[Math.floor(Math.random() * templates.length)];
   }
@@ -270,7 +287,9 @@ async function runShiftReminders() {
         const msg = generateShiftReminderMessage(user, s, 'IN');
         try {
           await sendWhatsAppMessage({ to: user.whatsappNumber, message: msg });
-          await sleep(2000 + Math.random() * 3000);
+          // SIGNIFICANT DELAY between different users (20-40 seconds)
+          // To prevent mass-sending pattern detection
+          await sleep(20000 + Math.random() * 20000);
         } catch (e) {}
       }
     }

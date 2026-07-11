@@ -72,27 +72,32 @@ async function sendWhatsAppMessage({ to, message }) {
   const chatId = `${to62(to)}@c.us`;
 
   // --- ANTI-BOT / HUMAN-LIKE BEHAVIOR ---
-  // 1. Initial random delay (0.5 - 2s)
-  await sleep(500 + Math.random() * 1500);
+  // 1. Initial random delay (2 - 5s) - Increased for safety
+  await sleep(2000 + Math.random() * 3000);
 
-  // 2. Simulate Typing State (if supported by OpenWA)
+  // 2. Simulate Typing State
   try {
     const typingUrl = `${cleanBaseUrl}/api/sessions/${sessionId}/chats/${chatId}/send-chatstate`;
     await axios.post(typingUrl, { state: 'typing' }, { 
       headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
       timeout: 5000 
-    }).catch(() => {}); // Ignore error if endpoint not available
+    }).catch(() => {});
   } catch (e) {}
 
-  // 3. Simulate Typing Duration (3 - 6s depending on length)
-  const typingDuration = Math.min(6000, Math.max(3000, message.length * 50));
+  // 3. Simulate Typing Duration (5 - 10s) - Increased to be more realistic
+  const typingDuration = Math.min(10000, Math.max(5000, message.length * 70));
   await sleep(typingDuration);
+
+  // 4. Add Entropy: Invisible characters and a unique tag at the end
+  // This ensures no two messages are byte-for-byte identical.
+  const randomSuffix = `\n\n[Ref: ${Math.random().toString(36).substring(7)}]`;
+  const finalMessage = message + randomSuffix;
   // ---------------------------------------
 
   const url = `${cleanBaseUrl}/api/sessions/${sessionId}/messages/send-text`;
   const payload = {
     chatId,
-    text: message
+    text: finalMessage
   };
 
   const headers = {
