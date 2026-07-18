@@ -319,6 +319,7 @@ exports.listIDPs = async (req, res) => {
     const IDP = getIDPModel(res);
     if (!IDP) return;
     const role = req.role;
+    const userDept = req.department; // Assume department is available in req
     if (!isManagerRole(role)) return res.status(403).json({ message: 'Unauthorized' });
 
     const department = typeof req.query.department === 'string' && req.query.department.trim().length > 0
@@ -335,7 +336,20 @@ exports.listIDPs = async (req, res) => {
     const where = {};
     if (year) where.year = year;
     if (status) where.status = status;
-    if (department) where.user = { department };
+
+    // Filter by department based on role
+    // HOD can only see their department
+    // SPV Operasional (assuming role name), HR, GM, ADMIN can see all
+    const fullAccessRoles = ['GM', 'HR', 'ADMIN', 'SUPERVISOR', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD'];
+    
+    if (!fullAccessRoles.includes(role)) {
+      // If not a full access role (like HOD), restrict to their department
+      where.user = { department: userDept };
+    } else if (department) {
+      // Full access role can filter by a specific department if requested
+      where.user = { department };
+    }
+
     if (search) {
       where.OR = [
         { user: { name: { contains: search } } },
