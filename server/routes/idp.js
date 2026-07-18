@@ -14,5 +14,7 @@ router.get('/reference/competencies', verifyToken, referenceController.getCompet
 router.get('/:id', verifyToken, controller.getIDPById);
 router.put('/:id', verifyToken, controller.updateIDPById);
 router.post('/:id/submit', verifyToken, controller.submitIDP);
+router.post('/:id/approve', verifyToken, controller.approveIDP);
+router.post('/:id/reject', verifyToken, controller.rejectIDP);
 
 module.exports = router;

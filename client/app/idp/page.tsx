@@ -317,6 +317,8 @@ export default function IDPPage() {
   const [selectedIdp, setSelectedIdp] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
 
   const [manageDept, setManageDept] = useState('');
   const [manageYear, setManageYear] = useState(String(getCurrentYear()));
@@ -670,6 +672,38 @@ export default function IDPPage() {
     }
   };
 
+  const approveIDP = async () => {
+    if (!selectedIdp?.id) return;
+    if (!confirm('Apakah Anda yakin ingin menyetujui IDP ini?')) return;
+    try {
+      setApproving(true);
+      await api.post(`/idp/${selectedIdp.id}/approve`);
+      await openIDP(selectedIdp.id);
+      if (canManage) await fetchManage();
+      alert('IDP berhasil disetujui');
+    } catch (e: any) {
+      alert('Gagal menyetujui IDP: ' + (e.response?.data?.error || e.response?.data?.message || e.message));
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const rejectIDP = async () => {
+    if (!selectedIdp?.id) return;
+    if (!confirm('Apakah Anda yakin ingin menolak IDP ini?')) return;
+    try {
+      setRejecting(true);
+      await api.post(`/idp/${selectedIdp.id}/reject`);
+      await openIDP(selectedIdp.id);
+      if (canManage) await fetchManage();
+      alert('IDP berhasil ditolak');
+    } catch (e: any) {
+      alert('Gagal menolak IDP: ' + (e.response?.data?.error || e.response?.data?.message || e.message));
+    } finally {
+      setRejecting(false);
+    }
+  };
+
   const Editor = () => {
     if (!selectedIdp) return null;
 
@@ -722,6 +756,24 @@ export default function IDPPage() {
                 <Send size={18} />
                 {submitting ? 'Mengirim...' : 'Submit'}
               </button>
+            )}
+            {!isOwner && canManage && selectedIdp.status === 'SUBMITTED' && (
+              <>
+                <button
+                  onClick={approveIDP}
+                  disabled={approving}
+                  className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {approving ? 'Menyetujui...' : 'Setujui (Approve)'}
+                </button>
+                <button
+                  onClick={rejectIDP}
+                  disabled={rejecting}
+                  className="inline-flex items-center gap-2 bg-red-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {rejecting ? 'Menolak...' : 'Tolak (Reject)'}
+                </button>
+              </>
             )}
           </div>
         </div>

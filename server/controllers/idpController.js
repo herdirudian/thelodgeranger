@@ -314,6 +314,85 @@ exports.submitIDP = async (req, res) => {
   }
 };
 
+const { sendWhatsAppMessage } = require('../services/whatsappService');
+
+async function notifyEmployee(idp, action) {
+  try {
+    if (!idp.user?.whatsappNumber) return;
+    
+    let statusText = action === 'APPROVED' ? 'DISETUJUI (APPROVED)' : 'DITOLAK (REJECTED)';
+    let msg = `Halo ${idp.user.name},\n\nIDP Anda tahun ${idp.year} telah ${statusText} oleh ${idp.reviewerName || 'Atasan'}.\n\nSilakan cek detailnya di aplikasi Ranger. Terima kasih!`;
+    
+    await sendWhatsAppMessage({ to: idp.user.whatsappNumber, message: msg });
+  } catch (e) {
+    console.error('[IDP-NOTIFY-ERROR]', e.message);
+  }
+}
+
+exports.approveIDP = async (req, res) => {
+  try {
+    const IDP = getIDPModel(res);
+    if (!IDP) return;
+    const id = parseInt(req.params.id);
+    const role = req.role;
+    const reviewerId = parseInt(req.userId);
+    const reviewerName = req.userName; // Assume userName is available
+
+    if (!isManagerRole(role)) return res.status(403).json({ message: 'Unauthorized' });
+
+    const existing = await IDP.findUnique({
+      where: { id },
+      include: { user: { select: { id: true, name: true, whatsappNumber: true } } }
+    });
+
+    if (!existing) return res.status(404).json({ message: 'IDP not found' });
+
+    const updated = await IDP.update({
+      where: { id },
+      data: { status: 'APPROVED' },
+      include: { user: { select: { id: true, name: true, whatsappNumber: true } } }
+    });
+
+    await notifyEmployee({ ...updated, reviewerName }, 'APPROVED');
+
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: 'Error approving IDP', error: error.message });
+  }
+};
+
+exports.rejectIDP = async (req, res) => {
+  try {
+    const IDP = getIDPModel(res);
+    if (!IDP) return;
+    const id = parseInt(req.params.id);
+    const role = req.role;
+    const reviewerId = parseInt(req.userId);
+    const reviewerName = req.userName;
+
+    if (!isManagerRole(role)) return res.status(403).json({ message: 'Unauthorized' });
+
+    const existing = await IDP.findUnique({
+      where: { id },
+      include: { user: { select: { id: true, name: true, whatsappNumber: true } } }
+    });
+
+    if (!existing) return res.status(404).json({ message: 'IDP not found' });
+
+    const updated = await IDP.update({
+      where: { id },
+      data: { status: 'REJECTED' },
+      include: { user: { select: { id: true, name: true, whatsappNumber: true } } }
+    });
+
+    await notifyEmployee({ ...updated, reviewerName }, 'REJECTED');
+
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: 'Error rejecting IDP', error: error.message });
+  }
+};
+
 exports.listIDPs = async (req, res) => {
   try {
     const IDP = getIDPModel(res);
