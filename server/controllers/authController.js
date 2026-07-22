@@ -171,7 +171,7 @@ exports.signin = async (req, res) => {
     if (!process.env.JWT_SECRET) {
       return res.status(500).json({ message: 'JWT_SECRET not configured' });
     }
-    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ id: user.id, role: user.role, department: user.department }, process.env.JWT_SECRET, {
       expiresIn: 86400, // 24 hours
     });
     

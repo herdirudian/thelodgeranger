@@ -398,7 +398,13 @@ exports.listIDPs = async (req, res) => {
     const IDP = getIDPModel(res);
     if (!IDP) return;
     const role = req.role;
-    const userDept = req.department; // Assume department is available in req
+    let userDept = req.department;
+
+    if (!userDept && req.userId) {
+      const u = await prisma.user.findUnique({ where: { id: req.userId }, select: { department: true } });
+      userDept = u?.department;
+    }
+
     if (!isManagerRole(role)) return res.status(403).json({ message: 'Unauthorized' });
 
     const department = typeof req.query.department === 'string' && req.query.department.trim().length > 0
@@ -418,8 +424,8 @@ exports.listIDPs = async (req, res) => {
 
     // Filter by department based on role
     // HOD can only see their department
-    // SPV Operasional (assuming role name), HR, GM, ADMIN can see all
-    const fullAccessRoles = ['GM', 'HR', 'ADMIN', 'SUPERVISOR', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD'];
+    // SPV Operasional, HR, GM, ADMIN can see all
+    const fullAccessRoles = ['GM', 'HR', 'ADMIN', 'SUPERVISOR', 'MERCHANDISE_SPV'];
     
     if (!fullAccessRoles.includes(role)) {
       // If not a full access role (like HOD), restrict to their department
