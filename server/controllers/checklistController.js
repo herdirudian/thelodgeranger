@@ -587,7 +587,17 @@ exports.updateTemplate = async (req, res) => {
 exports.deleteTemplate = async (req, res) => {
     try {
         const { id } = req.params;
-        await prisma.checklistTemplate.delete({ where: { id: parseInt(id) } });
+        const templateId = parseInt(id);
+
+        // Delete associated submissions (which will cascade to answers)
+        await prisma.checklistSubmission.deleteMany({
+            where: { templateId }
+        });
+
+        await prisma.checklistTemplate.delete({ 
+            where: { id: templateId } 
+        });
+
         res.json({ message: 'Template deleted' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting template', error: error.message });
@@ -669,7 +679,26 @@ exports.updateCategory = async (req, res) => {
 exports.deleteCategory = async (req, res) => {
     try {
         const { id } = req.params;
-        await prisma.checklistCategoryTemplate.delete({ where: { id: parseInt(id) } });
+        const categoryId = parseInt(id);
+
+        // Find all questions in this category to delete their answers first
+        const questions = await prisma.checklistQuestionTemplate.findMany({
+            where: { categoryId },
+            select: { id: true }
+        });
+        
+        const questionIds = questions.map(q => q.id);
+
+        if (questionIds.length > 0) {
+            await prisma.checklistAnswer.deleteMany({
+                where: { questionId: { in: questionIds } }
+            });
+        }
+
+        await prisma.checklistCategoryTemplate.delete({ 
+            where: { id: categoryId } 
+        });
+
         res.json({ message: 'Category deleted' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting category', error: error.message });
@@ -762,7 +791,17 @@ exports.reorderCategories = async (req, res) => {
 exports.deleteQuestion = async (req, res) => {
     try {
         const { id } = req.params;
-        await prisma.checklistQuestionTemplate.delete({ where: { id: parseInt(id) } });
+        const questionId = parseInt(id);
+
+        // Delete associated answers first to avoid Foreign Key constraint errors
+        await prisma.checklistAnswer.deleteMany({
+            where: { questionId }
+        });
+
+        await prisma.checklistQuestionTemplate.delete({ 
+            where: { id: questionId } 
+        });
+
         res.json({ message: 'Question deleted' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting question', error: error.message });
