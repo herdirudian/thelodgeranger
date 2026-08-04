@@ -124,6 +124,11 @@ exports.submitChecklist = async (req, res) => {
     try {
         const { templateId, answers, notes, date, photoUrl } = req.body;
         const userId = req.userId;
+
+        if (!templateId || !Array.isArray(answers)) {
+            return res.status(400).json({ message: 'Data checklist tidak lengkap atau format salah.' });
+        }
+
         const user = await prisma.user.findUnique({ 
             where: { id: userId },
             include: { assignedChecklists: { select: { id: true } } }
@@ -143,7 +148,7 @@ exports.submitChecklist = async (req, res) => {
         if (!template) return res.status(404).json({ message: 'Template not found' });
 
         const isAssignedManually = user.assignedChecklists.some(c => c.id === template.id);
-        const isAssignedByDept = (user.role.includes('HOD') || user.role.includes('SPV')) && user.department === template.department;
+        const isAssignedByDept = (user.role.includes('HOD') || user.role.includes('SPV') || user.role === 'SUPERVISOR') && user.department === template.department;
 
         if (!isAssignedManually && !isAssignedByDept && user.role !== 'ADMIN' && user.role !== 'GM') {
             return res.status(403).json({ message: 'Anda tidak memiliki akses untuk mengisi checklist ini.' });
@@ -170,7 +175,17 @@ exports.submitChecklist = async (req, res) => {
             return res.status(400).json({ message: 'Anda sudah mengisi checklist untuk hari ini.' });
         }
 
-        const answerMap = new Map((answers || []).map(answer => [parseInt(answer.questionId), answer]));
+        // Get valid question IDs for this template to avoid Foreign Key errors
+        const validQuestionIds = new Set(
+            template.categories.flatMap(cat => cat.questions.map(q => q.id))
+        );
+
+        const answerMap = new Map(
+            answers
+                .filter(a => validQuestionIds.has(parseInt(a.questionId)))
+                .map(answer => [parseInt(answer.questionId), answer])
+        );
+
         const questionsWithoutPhoto = template.categories
             .flatMap(category => category.questions)
             .filter(question => !isSignatureQuestion(question.question))
@@ -195,7 +210,7 @@ exports.submitChecklist = async (req, res) => {
                 photoUrl,
                 status: 'PENDING_SUPERVISOR', // Start workflow
                 answers: {
-                    create: answers.map(a => ({
+                    create: Array.from(answerMap.values()).map(a => ({
                         questionId: parseInt(a.questionId),
                         value: String(a.value),
                         remarks: a.remarks,
@@ -207,7 +222,12 @@ exports.submitChecklist = async (req, res) => {
 
         res.status(201).json({ message: 'Checklist berhasil dikirim', submission });
     } catch (error) {
-        res.status(500).json({ message: 'Error submitting checklist', error: error.message });
+        console.error("[SUBMIT-CHECKLIST-ERROR]", error);
+        res.status(500).json({ 
+            message: 'Error submitting checklist', 
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 };
 
