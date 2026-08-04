@@ -125,18 +125,28 @@ exports.submitChecklist = async (req, res) => {
         const { templateId, answers, notes, date, photoUrl } = req.body;
         const userId = req.userId;
 
-        if (!templateId || !Array.isArray(answers)) {
-            return res.status(400).json({ message: 'Data checklist tidak lengkap atau format salah.' });
+        // 1. Basic Validation
+        const tid = parseInt(templateId);
+        if (!tid || isNaN(tid)) {
+            return res.status(400).json({ message: 'ID Template tidak valid.' });
+        }
+
+        if (!Array.isArray(answers)) {
+            return res.status(400).json({ message: 'Data jawaban (answers) harus berupa array.' });
         }
 
         const user = await prisma.user.findUnique({ 
-            where: { id: userId },
+            where: { id: parseInt(userId) },
             include: { assignedChecklists: { select: { id: true } } }
         });
 
-        // Security check: Ensure user only submits for their assigned template or department
+        if (!user) {
+            return res.status(404).json({ message: 'User tidak ditemukan.' });
+        }
+
+        // 2. Fetch Template & Security Check
         const template = await prisma.checklistTemplate.findUnique({
-            where: { id: parseInt(templateId) },
+            where: { id: tid },
             include: {
                 categories: {
                     include: {
@@ -145,25 +155,33 @@ exports.submitChecklist = async (req, res) => {
                 }
             }
         });
-        if (!template) return res.status(404).json({ message: 'Template not found' });
+        
+        if (!template) {
+            return res.status(404).json({ message: 'Template checklist tidak ditemukan.' });
+        }
 
-        const isAssignedManually = user.assignedChecklists.some(c => c.id === template.id);
+        const isAssignedManually = (user.assignedChecklists || []).some(c => c.id === template.id);
         const isAssignedByDept = (user.role.includes('HOD') || user.role.includes('SPV') || user.role === 'SUPERVISOR') && user.department === template.department;
 
-        if (!isAssignedManually && !isAssignedByDept && user.role !== 'ADMIN' && user.role !== 'GM') {
+        if (!isAssignedManually && !isAssignedByDept && user.role !== 'ADMIN' && user.role !== 'GM' && user.role !== 'HR') {
             return res.status(403).json({ message: 'Anda tidak memiliki akses untuk mengisi checklist ini.' });
         }
 
-        // Check if already submitted for today
-        const startOfDay = new Date(date || new Date());
+        // 3. Double Submission Check
+        const submissionDate = date ? new Date(date) : new Date();
+        if (isNaN(submissionDate.getTime())) {
+            return res.status(400).json({ message: 'Format tanggal tidak valid.' });
+        }
+
+        const startOfDay = new Date(submissionDate);
         startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(startOfDay);
+        const endOfDay = new Date(submissionDate);
         endOfDay.setHours(23, 59, 59, 999);
 
         const existing = await prisma.checklistSubmission.findFirst({
             where: {
-                templateId: parseInt(templateId),
-                userId: parseInt(userId),
+                templateId: tid,
+                userId: user.id,
                 date: {
                     gte: startOfDay,
                     lte: endOfDay
@@ -172,49 +190,58 @@ exports.submitChecklist = async (req, res) => {
         });
 
         if (existing) {
-            return res.status(400).json({ message: 'Anda sudah mengisi checklist untuk hari ini.' });
+            return res.status(400).json({ message: 'Anda sudah mengisi checklist ini untuk hari ini.' });
         }
 
-        // Get valid question IDs for this template to avoid Foreign Key errors
+        // 4. Answer Filtering & Photo Validation
         const validQuestionIds = new Set(
-            template.categories.flatMap(cat => cat.questions.map(q => q.id))
+            template.categories.flatMap(cat => (cat.questions || []).map(q => q.id))
         );
 
-        const answerMap = new Map(
-            answers
-                .filter(a => validQuestionIds.has(parseInt(a.questionId)))
-                .map(answer => [parseInt(answer.questionId), answer])
-        );
+        const answerMap = new Map();
+        answers.forEach(a => {
+            const qid = parseInt(a.questionId);
+            if (!isNaN(qid) && validQuestionIds.has(qid)) {
+                answerMap.set(qid, a);
+            }
+        });
 
         const questionsWithoutPhoto = template.categories
-            .flatMap(category => category.questions)
-            .filter(question => !isSignatureQuestion(question.question))
+            .flatMap(category => category.questions || [])
+            .filter(question => {
+                // Check if it's a regular question (not signature) and is required
+                const isSig = isSignatureQuestion(question.question);
+                const isReq = question.isRequired !== false;
+                return !isSig && isReq;
+            })
             .filter(question => {
                 const answer = answerMap.get(question.id);
-                return !answer || !String(answer.photoUrl || '').trim();
+                const hasPhoto = answer && String(answer.photoUrl || '').trim().length > 0;
+                return !hasPhoto;
             });
 
         if (questionsWithoutPhoto.length > 0) {
             return res.status(400).json({
-                message: `Semua pertanyaan wajib difoto. Masih ada ${questionsWithoutPhoto.length} foto bukti yang kosong.`,
+                message: `Wajib melampirkan foto bukti. Masih ada ${questionsWithoutPhoto.length} pertanyaan yang belum difoto.`,
                 missingQuestion: questionsWithoutPhoto[0].question
             });
         }
 
+        // 5. Create Submission
         const submission = await prisma.checklistSubmission.create({
             data: {
-                templateId: parseInt(templateId),
-                userId: parseInt(userId),
-                date: new Date(date || new Date()),
-                notes,
-                photoUrl,
-                status: 'PENDING_SUPERVISOR', // Start workflow
+                templateId: tid,
+                userId: user.id,
+                date: submissionDate,
+                notes: notes || null,
+                photoUrl: photoUrl || null,
+                status: 'PENDING_SUPERVISOR',
                 answers: {
                     create: Array.from(answerMap.values()).map(a => ({
                         questionId: parseInt(a.questionId),
-                        value: String(a.value),
-                        remarks: a.remarks,
-                        photoUrl: a.photoUrl
+                        value: String(a.value || ''),
+                        remarks: a.remarks || null,
+                        photoUrl: a.photoUrl || null
                     }))
                 }
             }
@@ -222,11 +249,15 @@ exports.submitChecklist = async (req, res) => {
 
         res.status(201).json({ message: 'Checklist berhasil dikirim', submission });
     } catch (error) {
-        console.error("[SUBMIT-CHECKLIST-ERROR]", error);
+        console.error("[SUBMIT-CHECKLIST-FATAL-ERROR]", {
+            message: error.message,
+            stack: error.stack,
+            body: req.body,
+            userId: req.userId
+        });
         res.status(500).json({ 
-            message: 'Error submitting checklist', 
-            error: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            message: 'Gagal mengirim checklist (Server Error)', 
+            error: error.message 
         });
     }
 };
