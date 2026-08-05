@@ -158,14 +158,14 @@ exports.signin = async (req, res) => {
 
     if (!user) {
       console.log("User not found:", email);
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(401).json({ message: 'Email atau password salah' });
     }
 
     const passwordIsValid = await bcrypt.compare(password, user.password);
 
     if (!passwordIsValid) {
       console.log("Invalid password for:", email);
-      return res.status(401).json({ token: null, message: 'Invalid Password' });
+      return res.status(401).json({ message: 'Email atau password salah' });
     }
 
     if (!process.env.JWT_SECRET) {

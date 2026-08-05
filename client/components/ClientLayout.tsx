@@ -183,7 +183,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 {!isPublicPage && (
                     <footer className="py-6 text-center text-sm text-gray-500 border-t border-gray-200 bg-gray-50 mt-auto">
                         <p className="font-semibold text-[#0F4D39]">The Lodge Ranger System</p>
-                        <p>Versi 1.1.51</p>
+                        <p>© 2026 The Lodge Maribaya. All rights reserved.</p>
                     </footer>
                 )}
             </main>
