@@ -1,6 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const watzapService = require('../services/watzapService');
+const whatsappService = require('../services/whatsappService');
 
 exports.createRch = async (req, res) => {
   try {
@@ -39,7 +39,7 @@ exports.createRch = async (req, res) => {
 
       for (const user of usersInDept) {
         if (user.whatsappNumber) {
-          await watzapService.sendMessage(user.whatsappNumber, message);
+          await whatsappService.sendWhatsAppMessage({ to: user.whatsappNumber, message });
         }
       }
     } catch (waError) {
