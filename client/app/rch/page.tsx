@@ -32,6 +32,17 @@ interface Rch {
 export default function RchPage() {
   const { user } = useAuth();
   const [rchs, setRchs] = useState<Rch[]>([]);
+
+  if (user && !user.rchAccess && !['HR', 'GM', 'ADMIN'].includes(user.role)) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-sm border border-gray-100">
+        <FileText className="w-16 h-16 text-gray-200 mb-4" />
+        <h2 className="text-xl font-bold text-gray-800">Akses Dibatasi</h2>
+        <p className="text-gray-500 mt-2">Anda tidak memiliki izin untuk mengakses fitur RCH ini.</p>
+        <p className="text-sm text-gray-400 mt-1">Silakan hubungi Admin atau HR untuk mendapatkan akses.</p>
+      </div>
+    );
+  }
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [departments, setDepartments] = useState<string[]>([]);

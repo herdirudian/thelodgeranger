@@ -137,7 +137,8 @@ function AdminContent() {
     leaveQuota: 12,
     pdo: 0,
     contractStartDate: "",
-    contractEndDate: ""
+    contractEndDate: "",
+    rchAccess: false
   });
 
   // Schedule Form State
@@ -587,7 +588,8 @@ function AdminContent() {
             leaveQuota: 12, 
             pdo: 0, 
             contractStartDate: "", 
-            contractEndDate: "" 
+            contractEndDate: "",
+            rchAccess: false 
           });
           fetchUsers();
       } catch (err: any) {
@@ -605,6 +607,15 @@ function AdminContent() {
       }
   };
 
+  const handleToggleRchAccess = async (user: any) => {
+    try {
+      await api.put(`/users/${user.id}`, { rchAccess: !user.rchAccess });
+      setUsers(users.map(u => u.id === user.id ? { ...u, rchAccess: !u.rchAccess } : u));
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Error updating RCH access");
+    }
+  };
+
   const handleEditUser = (user: any) => {
       setEditingUser(user);
       setFormDataUser({
@@ -617,7 +628,8 @@ function AdminContent() {
           leaveQuota: typeof user.leaveQuota === "number" ? user.leaveQuota : 12,
           pdo: typeof user.pdo === "number" ? user.pdo : 0,
           contractStartDate: user.contractStartDate ? new Date(user.contractStartDate).toISOString().split('T')[0] : "",
-          contractEndDate: user.contractEndDate ? new Date(user.contractEndDate).toISOString().split('T')[0] : ""
+          contractEndDate: user.contractEndDate ? new Date(user.contractEndDate).toISOString().split('T')[0] : "",
+          rchAccess: user.rchAccess || false
       });
       setShowUserModal(true);
   };
@@ -909,7 +921,7 @@ function AdminContent() {
                     <button 
                       onClick={() => {
                           setEditingUser(null);
-                          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", employmentType: "CONTRACT", leaveQuota: 12, pdo: 0, contractStartDate: "", contractEndDate: "" });
+                          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", employmentType: "CONTRACT", leaveQuota: 12, pdo: 0, contractStartDate: "", contractEndDate: "", rchAccess: false });
                           setShowUserModal(true);
                       }}
                       className="w-full sm:w-auto justify-center bg-[#0F4D39] text-white px-4 py-2 rounded flex items-center space-x-2"
@@ -927,6 +939,7 @@ function AdminContent() {
                             <th className="p-3">Type</th>
                             <th className="p-3">Role</th>
                             <th className="p-3">Department</th>
+                            <th className="p-3">RCH Access</th>
                             <th className="p-3">Leave Quota</th>
                             <th className="p-3">PDO</th>
                             <th className="p-3">Contract End</th>
@@ -952,6 +965,20 @@ function AdminContent() {
                                     <span className="bg-gray-100 px-2 py-1 rounded text-xs">{u.role}</span>
                                 </td>
                                 <td className="p-3">{u.department}</td>
+                                <td className="p-3">
+                                    <button 
+                                        onClick={() => handleToggleRchAccess(u)}
+                                        className={clsx(
+                                            "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none",
+                                            u.rchAccess ? "bg-[#0F4D39]" : "bg-gray-200"
+                                        )}
+                                    >
+                                        <span className={clsx(
+                                            "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                            u.rchAccess ? "translate-x-6" : "translate-x-1"
+                                        )} />
+                                    </button>
+                                </td>
                                 <td className="p-3 text-center">{u.leaveQuota ?? 12}</td>
                                 <td className="p-3 text-center">{u.pdo ?? 0}</td>
                                 <td className="p-3 text-sm">
@@ -2084,6 +2111,16 @@ function AdminContent() {
                                 value={formDataUser.contractEndDate} onChange={e => setFormDataUser({...formDataUser, contractEndDate: e.target.value})}
                             />
                         </div>
+                      </div>
+                      <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded border border-gray-200">
+                          <input 
+                            type="checkbox" 
+                            id="rchAccess"
+                            className="w-4 h-4 text-[#0F4D39] border-gray-300 rounded focus:ring-[#0F4D39]"
+                            checked={formDataUser.rchAccess} 
+                            onChange={e => setFormDataUser({...formDataUser, rchAccess: e.target.checked})}
+                          />
+                          <label htmlFor="rchAccess" className="text-sm font-medium text-gray-700 cursor-pointer">Izinkan Input RCH (Ranger Customer Handling)</label>
                       </div>
                       <div className="flex justify-end space-x-2 mt-4">
                           <button type="button" onClick={() => setShowUserModal(false)} className="px-4 py-2 text-gray-600">Cancel</button>

@@ -6,6 +6,12 @@ exports.createRch = async (req, res) => {
   try {
     const { nomor, area, guestName, type, date, description, followUp, status, progress, targetDepartment } = req.body;
 
+    // Access control: Check if user has RCH access or is Admin/HR/GM
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user.rchAccess && !['HR', 'GM', 'ADMIN'].includes(user.role)) {
+      return res.status(403).json({ message: 'Anda tidak memiliki akses untuk menginput RCH.' });
+    }
+
     const newRch = await prisma.rangerCustomerHandling.create({
       data: {
         nomor,

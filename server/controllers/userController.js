@@ -41,6 +41,7 @@ exports.getAllUsers = async (req, res) => {
         pdo: true,
         contractStartDate: true,
         contractEndDate: true,
+        rchAccess: true,
         createdAt: true
       },
       orderBy: { name: 'asc' }
@@ -69,7 +70,7 @@ exports.getColleagues = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const { email, password, name, role, department, leaveQuota, pdo, contractStartDate, contractEndDate, employmentType } = req.body;
+    const { email, password, name, role, department, leaveQuota, pdo, contractStartDate, contractEndDate, employmentType, rchAccess } = req.body;
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) return res.status(400).json({ message: 'User already exists' });
@@ -87,7 +88,8 @@ exports.createUser = async (req, res) => {
         leaveQuota: typeof leaveQuota !== 'undefined' ? parseInt(leaveQuota) : 12,
         pdo: typeof pdo !== 'undefined' ? parseInt(pdo) : 0,
         contractStartDate: contractStartDate ? new Date(contractStartDate) : null,
-        contractEndDate: contractEndDate ? new Date(contractEndDate) : null
+        contractEndDate: contractEndDate ? new Date(contractEndDate) : null,
+        rchAccess: rchAccess === true || rchAccess === 'true'
       }
     });
 
@@ -135,9 +137,13 @@ exports.getWhatsAppStatus = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, role, department, password, leaveQuota, pdo, contractStartDate, contractEndDate, employmentType } = req.body;
+    const { name, email, role, department, password, leaveQuota, pdo, contractStartDate, contractEndDate, employmentType, rchAccess } = req.body;
     
     let dataToUpdate = { name, email, role, department, employmentType };
+
+    if (rchAccess !== undefined) {
+        dataToUpdate.rchAccess = rchAccess === true || rchAccess === 'true';
+    }
 
     if (leaveQuota !== undefined) {
         dataToUpdate.leaveQuota = parseInt(leaveQuota);
