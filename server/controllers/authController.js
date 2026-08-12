@@ -61,7 +61,8 @@ exports.me = async (req, res) => {
                         id: true,
                         name: true
                     }
-                }
+                },
+                rchAccess: true
             }
         });
         if (!user) return res.status(404).json({ message: 'User not found' });
@@ -189,6 +190,7 @@ exports.signin = async (req, res) => {
       whatsappNumber: user.whatsappNumber,
       whatsappVerifiedAt: user.whatsappVerifiedAt,
       assignedChecklists: user.assignedChecklists,
+      rchAccess: user.rchAccess,
       accessToken: token,
     });
   } catch (error) {

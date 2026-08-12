@@ -31,6 +31,7 @@ const idpRoutes = require('./routes/idp');
 const votingRoutes = require('./routes/voting');
 const checklistRoutes = require('./routes/checklist');
 const settingsRoutes = require('./routes/settings');
+const rchRoutes = require('./routes/rch');
 const { PrismaClient } = require('@prisma/client');
 const { sendWhatsAppMessage } = require('./services/whatsappService');
 const { formatWibTime } = require('./utils/wibDate');
@@ -206,6 +207,7 @@ app.use('/api/idp', idpRoutes);
 app.use('/api/voting', votingRoutes);
 app.use('/api/checklist', checklistRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/rch', rchRoutes);
 
 const prisma = new PrismaClient();
 const reminderState = { 

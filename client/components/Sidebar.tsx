@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { Home, Calendar, Clock, FileText, User, LogOut, MessageSquare, ShoppingBag, ClipboardList, BookOpen, ClipboardCheck, Users, Archive, BarChart2, Target, Shield, Award } from 'lucide-react';
+import { Home, Calendar, Clock, FileText, User, LogOut, MessageSquare, ShoppingBag, ClipboardList, BookOpen, ClipboardCheck, Users, Archive, BarChart2, Target, Shield, Award, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 import { usePathname } from 'next/navigation';
 
@@ -63,6 +63,10 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
   
   if (canSeeChecklist) {
       links.push({ name: 'Daily Checklist', href: '/hod-checklist', icon: ClipboardCheck });
+  }
+  
+  if (user.rchAccess || user.role === 'ADMIN' || user.role === 'HR' || user.role === 'GM') {
+      links.push({ name: 'RCH', href: '/rch', icon: AlertCircle });
   }
   
   // Feedback menu visibility

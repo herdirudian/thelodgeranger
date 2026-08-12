@@ -107,79 +107,89 @@ enum ApprovalStatus {
   SKIPPED
 }
 
+enum RchStatus {
+  LOW
+  NORMAL
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String
-  role      Role     @default(STAFF)
-  employmentType EmploymentType @default(CONTRACT)
-  department String?
-  leaveQuota Int      @default(12)
-  pdo       Int      @default(0)
-  contractStartDate DateTime?
-  contractEndDate DateTime?
-  resetToken String?
-  resetTokenExpiry DateTime?
-  whatsappNumber String?
+  id                 Int            @id @default(autoincrement())
+  email              String         @unique
+  password           String
+  name               String
+  role               Role           @default(STAFF)
+  employmentType     EmploymentType @default(CONTRACT)
+  department         String?
+  leaveQuota         Int            @default(12)
+  pdo                Int            @default(0)
+  contractStartDate  DateTime?
+  contractEndDate    DateTime?
+  resetToken         String?
+  resetTokenExpiry   DateTime?
+  whatsappNumber     String?
   whatsappVerifiedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
-  attendances     Attendance[]
-  schedules       Schedule[]
-  requests        Request[]
-  securityConfirmedRequests Request[] @relation("RequestSecurityReturnBy")
-  procurements    Procurement[]
-  feedbacks       CustomerFeedback[]
-  announcements   Announcement[]
-  notifications   Notification[]
-  bugReports      BugReport[]
-  idps            IndividualDevelopmentPlan[]
-  idpsCreated     IndividualDevelopmentPlan[] @relation("IDPCreatedBy")
-  
-  createdMonthlySchedules MonthlySchedule[] @relation("CreatedSchedules")
-  onboardingTasks OnboardingTask[]
-  learningProgress UserLearningProgress[]
-  approvalAssignments ApprovalAssignment[]
-  transactionApprovals TransactionApproval[]
-  review360FormsCreated Review360Form[] @relation("Review360CreatedBy")
-  review360AssignmentsToDo Review360Assignment[] @relation("Review360Reviewer")
-  review360AssignmentsAboutMe Review360Assignment[] @relation("Review360Target")
+  attendances               Attendance[]
+  schedules                 Schedule[]
+  requests                  Request[]
+  securityConfirmedRequests Request[]                   @relation("RequestSecurityReturnBy")
+  procurements              Procurement[]
+  feedbacks                 CustomerFeedback[]
+  announcements             Announcement[]
+  notifications             Notification[]
+  bugReports                BugReport[]
+  idps                      IndividualDevelopmentPlan[]
+  idpsCreated               IndividualDevelopmentPlan[] @relation("IDPCreatedBy")
 
-  assessmentsGiven AssessmentSubmission[] @relation("AssessmentAssessor")
-  assessmentsReceived AssessmentSubmission[] @relation("AssessmentTarget")
-  manualProcurements ManualProcurement[]
-  verificationCodes VerificationCode[]
+  createdMonthlySchedules     MonthlySchedule[]      @relation("CreatedSchedules")
+  onboardingTasks             OnboardingTask[]
+  learningProgress            UserLearningProgress[]
+  approvalAssignments         ApprovalAssignment[]
+  transactionApprovals        TransactionApproval[]
+  review360FormsCreated       Review360Form[]        @relation("Review360CreatedBy")
+  review360AssignmentsToDo    Review360Assignment[]  @relation("Review360Reviewer")
+  review360AssignmentsAboutMe Review360Assignment[]  @relation("Review360Target")
+
+  assessmentsGiven     AssessmentSubmission[]   @relation("AssessmentAssessor")
+  assessmentsReceived  AssessmentSubmission[]   @relation("AssessmentTarget")
+  manualProcurements   ManualProcurement[]
+  verificationCodes    VerificationCode[]
   publicSurveyAccesses PublicSurveyAccess[]
-  votesGiven Vote[] @relation("VoteVoter")
-  votesReceived Vote[] @relation("VoteCandidate")
-  voteCandidateMedia VoteCandidateMedia[]
-  votingFinalized Boolean @default(false)
+  votesGiven           Vote[]                   @relation("VoteVoter")
+  votesReceived        Vote[]                   @relation("VoteCandidate")
+  voteCandidateMedia   VoteCandidateMedia[]
+  votingFinalized      Boolean                  @default(false)
   checklistSubmissions ChecklistSubmission[]
-  assignedChecklists   ChecklistTemplate[] @relation("UserChecklistTemplates")
+  assignedChecklists   ChecklistTemplate[]      @relation("UserChecklistTemplates")
+  rchsCreated          RangerCustomerHandling[] @relation("RCHCreatedBy")
+  rchAccess            Boolean                  @default(false)
 }
 
 model IndividualDevelopmentPlan {
-  id          Int       @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  userId      Int
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdById Int
-  createdBy   User      @relation("IDPCreatedBy", fields: [createdById], references: [id])
+  createdBy   User @relation("IDPCreatedBy", fields: [createdById], references: [id])
 
-  year        Int
-  status      IDPStatus @default(DRAFT)
+  year   Int
+  status IDPStatus @default(DRAFT)
 
-  items       Json
-  generalNotes String?  @db.Text
-  objectiveSetting Json?
+  items             Json
+  generalNotes      String? @db.Text
+  objectiveSetting  Json?
   performanceReview Json?
-  careerPreference Json?
+  careerPreference  Json?
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([year])
@@ -187,16 +197,16 @@ model IndividualDevelopmentPlan {
 }
 
 model VerificationCode {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  channel   String
-  phone     String
-  code      String
-  createdAt DateTime @default(now())
-  expiresAt DateTime
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel    String
+  phone      String
+  code       String
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
   consumedAt DateTime?
-  attempts  Int      @default(0)
+  attempts   Int       @default(0)
 
   @@index([userId, channel])
   @@index([phone, channel])
@@ -216,66 +226,66 @@ enum LearningStatus {
 }
 
 model LearningModule {
-  id          Int      @id @default(autoincrement())
+  id          Int        @id @default(autoincrement())
   title       String
-  description String?  @db.Text
+  description String?    @db.Text
   type        ModuleType
-  category    String   // e.g., 'Wahana', 'F&B', 'FO', 'General'
-  content     String?  @db.LongText // Rich text content
-  metadata    Json?    // { price: 10000, target: "Family", etc }
+  category    String // e.g., 'Wahana', 'F&B', 'FO', 'General'
+  content     String?    @db.LongText // Rich text content
+  metadata    Json? // { price: 10000, target: "Family", etc }
   videoUrl    String?
-  images      Json?    // Array of image URLs
-  fileUrl     String?  // PDF link if any
-  
-  version     String   @default("1.0")
-  isMandatory Boolean  @default(false)
-  targetRoles Json?    // Array of strings ['STAFF', 'HR'] or null for all
-  
-  quizzes     Quiz[]
-  progress    UserLearningProgress[]
+  images      Json? // Array of image URLs
+  fileUrl     String? // PDF link if any
+
+  version     String  @default("1.0")
+  isMandatory Boolean @default(false)
+  targetRoles Json? // Array of strings ['STAFF', 'HR'] or null for all
+
+  quizzes               Quiz[]
+  progress              UserLearningProgress[]
   assessmentSubmissions AssessmentSubmission[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ManualProcurement {
   id            Int      @id @default(autoincrement())
   department    String
   date          DateTime
-  requestNumber String   // "No"
-  description   String?  // "Keterangan"
-  totalAmount   Float    // "Total Estimasi"
+  requestNumber String // "No"
+  description   String? // "Keterangan"
+  totalAmount   Float // "Total Estimasi"
 
-  status        ProcurementStatus @default(PENDING_FINANCE)
-  financeApproved Boolean @default(false)
+  status            ProcurementStatus @default(PENDING_FINANCE)
+  financeApproved   Boolean           @default(false)
   financeApproverId Int?
   financeApprovedAt DateTime?
-  gmApproved      Boolean @default(false)
-  gmApproverId    Int?
-  gmApprovedAt    DateTime?
-  
-  purchased       Boolean @default(false)
-  purchasedAt     DateTime?
-  purchasedById   Int?
-  
+  gmApproved        Boolean           @default(false)
+  gmApproverId      Int?
+  gmApprovedAt      DateTime?
+
+  purchased     Boolean   @default(false)
+  purchasedAt   DateTime?
+  purchasedById Int?
+
   rejectedByRole  Role?
   rejectionReason String?
-  
-  items         ManualProcurementItem[]
-  
-  createdById   Int
-  createdBy     User     @relation(fields: [createdById], references: [id])
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+
+  items ManualProcurementItem[]
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ManualProcurementItem {
   id                  Int               @id @default(autoincrement())
   manualProcurementId Int
   manualProcurement   ManualProcurement @relation(fields: [manualProcurementId], references: [id], onDelete: Cascade)
-  
+
   itemName String
   quantity Int
   unit     String
@@ -284,194 +294,194 @@ model ManualProcurementItem {
 }
 
 model Quiz {
-  id          Int      @id @default(autoincrement())
-  moduleId    Int
-  module      LearningModule @relation(fields: [moduleId], references: [id])
-  questions   Json     // [{ question: "...", options: ["A","B"], answer: 0 }]
-  minScore    Int      @default(70)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        Int            @id @default(autoincrement())
+  moduleId  Int
+  module    LearningModule @relation(fields: [moduleId], references: [id])
+  questions Json // [{ question: "...", options: ["A","B"], answer: 0 }]
+  minScore  Int            @default(70)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model UserLearningProgress {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  moduleId    Int
-  module      LearningModule @relation(fields: [moduleId], references: [id])
-  
-  status      LearningStatus @default(NOT_STARTED)
-  acknowledged Boolean @default(false)
+  id       Int            @id @default(autoincrement())
+  userId   Int
+  user     User           @relation(fields: [userId], references: [id])
+  moduleId Int
+  module   LearningModule @relation(fields: [moduleId], references: [id])
+
+  status         LearningStatus @default(NOT_STARTED)
+  acknowledged   Boolean        @default(false)
   acknowledgedAt DateTime?
-  
-  quizScore   Int?
-  isPassed    Boolean  @default(false)
-  answers     Json?    // User's answers
-  
-  startedAt   DateTime @default(now())
+
+  quizScore Int?
+  isPassed  Boolean @default(false)
+  answers   Json? // User's answers
+
+  startedAt   DateTime  @default(now())
   completedAt DateTime?
-  
+
   @@unique([userId, moduleId])
 }
 
 model AssessmentSubmission {
-  id            Int      @id @default(autoincrement())
-  moduleId      Int
-  module        LearningModule @relation(fields: [moduleId], references: [id])
-  
-  assessorId    Int
-  assessor      User     @relation("AssessmentAssessor", fields: [assessorId], references: [id])
-  
-  targetUserId  Int
-  targetUser    User     @relation("AssessmentTarget", fields: [targetUserId], references: [id])
-  
-  answers       Json
-  score         Float?
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id       Int            @id @default(autoincrement())
+  moduleId Int
+  module   LearningModule @relation(fields: [moduleId], references: [id])
+
+  assessorId Int
+  assessor   User @relation("AssessmentAssessor", fields: [assessorId], references: [id])
+
+  targetUserId Int
+  targetUser   User @relation("AssessmentTarget", fields: [targetUserId], references: [id])
+
+  answers Json
+  score   Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([moduleId, assessorId, targetUserId])
 }
 
 model Review360Form {
-  id          Int      @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   title       String
-  description String?  @db.Text
+  description String? @db.Text
   questions   Json
   createdById Int
-  createdBy   User     @relation("Review360CreatedBy", fields: [createdById], references: [id])
-  isPublished Boolean  @default(true)
+  createdBy   User    @relation("Review360CreatedBy", fields: [createdById], references: [id])
+  isPublished Boolean @default(true)
 
   assignments Review360Assignment[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Review360Assignment {
-  id            Int      @id @default(autoincrement())
-  formId        Int
-  form          Review360Form @relation(fields: [formId], references: [id], onDelete: Cascade)
+  id     Int           @id @default(autoincrement())
+  formId Int
+  form   Review360Form @relation(fields: [formId], references: [id], onDelete: Cascade)
 
-  targetUserId  Int
-  targetUser    User     @relation("Review360Target", fields: [targetUserId], references: [id])
+  targetUserId Int
+  targetUser   User @relation("Review360Target", fields: [targetUserId], references: [id])
 
   reviewerUserId Int
-  reviewerUser   User     @relation("Review360Reviewer", fields: [reviewerUserId], references: [id])
+  reviewerUser   User @relation("Review360Reviewer", fields: [reviewerUserId], references: [id])
 
-  answers       Json?
-  submittedAt   DateTime?
+  answers     Json?
+  submittedAt DateTime?
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([formId, targetUserId, reviewerUserId])
 }
 
 model OnboardingTask {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   userId      Int
-  user        User     @relation(fields: [userId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
   task        String
-  category    String   // 'Administrasi', 'Fasilitas', 'Training', 'Departemen'
-  isCompleted Boolean  @default(false)
+  category    String // 'Administrasi', 'Fasilitas', 'Training', 'Departemen'
+  isCompleted Boolean   @default(false)
   completedAt DateTime?
   notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model MonthlySchedule {
-  id          Int       @id @default(autoincrement())
-  department  String
-  month       Int       
-  year        Int
-  data        Json      
-  status      RequestStatus @default(PENDING_HR)
-  
+  id         Int           @id @default(autoincrement())
+  department String
+  month      Int
+  year       Int
+  data       Json
+  status     RequestStatus @default(PENDING_HR)
+
   createdByUserId Int
   createdByUser   User @relation("CreatedSchedules", fields: [createdByUserId], references: [id])
 
   hodApproved Boolean @default(false)
   hrApproved  Boolean @default(false)
   gmApproved  Boolean @default(false)
-  
+
   rejectionReason String?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Procurement {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  
-  title       String?  
-  reason      String   @db.Text
-  totalPrice  Float    
-  requiredDate DateTime
+  id     Int  @id @default(autoincrement())
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  title         String?
+  reason        String   @db.Text
+  totalPrice    Float
+  requiredDate  DateTime
   attachmentUrl String?
 
-  items       ProcurementItem[]
+  items ProcurementItem[]
 
-  status      ProcurementStatus @default(PENDING_HOD)
+  status ProcurementStatus @default(PENDING_HOD)
 
-  hodApproved      Boolean @default(false)
-  hodDate          DateTime?
-  hodNote          String?
+  hodApproved Boolean   @default(false)
+  hodDate     DateTime?
+  hodNote     String?
 
-  spvApproved      Boolean @default(false)
-  spvDate          DateTime?
-  spvNote          String?
+  spvApproved Boolean   @default(false)
+  spvDate     DateTime?
+  spvNote     String?
 
-  financeApproved  Boolean @default(false)
-  financeDate      DateTime?
-  financeNote      String?
+  financeApproved Boolean   @default(false)
+  financeDate     DateTime?
+  financeNote     String?
 
-  gmApproved       Boolean @default(false)
-  gmDate           DateTime?
-  gmNote           String?
+  gmApproved Boolean   @default(false)
+  gmDate     DateTime?
+  gmNote     String?
 
-  rejectionReason  String?
-  rejectedByRole   Role?
+  rejectionReason String?
+  rejectedByRole  Role?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ProcurementItem {
-  id            Int      @id @default(autoincrement())
+  id            Int         @id @default(autoincrement())
   procurementId Int
   procurement   Procurement @relation(fields: [procurementId], references: [id], onDelete: Cascade)
 
   itemName    String
   description String?
   imageUrl    String?
-  category    String   
+  category    String
   quantity    Int
   unitPrice   Float
   totalPrice  Float
 }
 
 model Attendance {
-  id        Int      @id @default(autoincrement())
+  id        Int              @id @default(autoincrement())
   userId    Int
-  user      User     @relation(fields: [userId], references: [id])
-  type      String   
-  timestamp DateTime @default(now())
+  user      User             @relation(fields: [userId], references: [id])
+  type      String
+  timestamp DateTime         @default(now())
   latitude  Float?
   longitude Float?
-  location  String?  
+  location  String?
   photoUrl  String?
-  status    AttendanceStatus @default(APPROVED) 
-  notes     String? @db.Text
+  status    AttendanceStatus @default(APPROVED)
+  notes     String?          @db.Text
 
-  hodApproved Boolean @default(false)
-  hrApproved  Boolean @default(false)
-  gmApproved  Boolean @default(false)
+  hodApproved     Boolean @default(false)
+  hrApproved      Boolean @default(false)
+  gmApproved      Boolean @default(false)
   rejectionReason String?
 
   @@index([userId])
@@ -480,44 +490,44 @@ model Attendance {
 }
 
 model Request {
-  id          Int           @id @default(autoincrement())
-  userId      Int
-  user        User          @relation(fields: [userId], references: [id])
-  type        RequestType
-  startDate   DateTime
-  endDate     DateTime
-  reason      String
-  status      RequestStatus @default(PENDING_HOD)
-  
-  returnDate      DateTime?
-  replacementDate DateTime?
-  replacementName String?
-  quantity        Float?
-  startTime       String?
-  endTime         String?
-  newEmployeeName String?
+  id        Int           @id @default(autoincrement())
+  userId    Int
+  user      User          @relation(fields: [userId], references: [id])
+  type      RequestType
+  startDate DateTime
+  endDate   DateTime
+  reason    String
+  status    RequestStatus @default(PENDING_HOD)
+
+  returnDate       DateTime?
+  replacementDate  DateTime?
+  replacementName  String?
+  quantity         Float?
+  startTime        String?
+  endTime          String?
+  newEmployeeName  String?
   targetDepartment String?
 
-  hodApproved Boolean       @default(false)
-   spvApproved Boolean       @default(false)
-  hrApproved  Boolean       @default(false)
-  gmApproved  Boolean       @default(false)
-  
-  hodNote     String?
-  spvNote     String?
-  hrNote      String?
-  gmNote      String?
+  hodApproved Boolean @default(false)
+  spvApproved Boolean @default(false)
+  hrApproved  Boolean @default(false)
+  gmApproved  Boolean @default(false)
+
+  hodNote String?
+  spvNote String?
+  hrNote  String?
+  gmNote  String?
 
   rejectionReason String?
 
   securityReturnStatus SecurityReturnStatus?
-  securityReturnNote   String? @db.Text
+  securityReturnNote   String?               @db.Text
   securityReturnAt     DateTime?
   securityReturnById   Int?
-  securityReturnBy     User? @relation("RequestSecurityReturnBy", fields: [securityReturnById], references: [id])
-  
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  securityReturnBy     User?                 @relation("RequestSecurityReturnBy", fields: [securityReturnById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([status])
@@ -525,36 +535,36 @@ model Request {
 }
 
 model Schedule {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
-  date      DateTime
-  shiftStart DateTime
-  shiftEnd   DateTime
-  shiftName  String?
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  date        DateTime
+  shiftStart  DateTime
+  shiftEnd    DateTime
+  shiftName   String?
   description String?
-  
+
   @@index([userId])
   @@index([date])
 }
 
 model CustomerFeedback {
-  id                Int      @id @default(autoincrement())
-  staffId           Int
-  staff             User     @relation(fields: [staffId], references: [id])
+  id                 Int      @id @default(autoincrement())
+  staffId            Int
+  staff              User     @relation(fields: [staffId], references: [id])
   ratingFriendliness Int
-  ratingExplanation Int
-  ratingHelpfulness Int
-  ratingRecommend   Int
-  likedAspects      String?  @db.Text
-  improvementAreas  String?  @db.Text
-  customerName      String
-  customerPhone     String?
-  customerEmail     String?
-  wantFollowUp      Boolean  @default(false)
-  privacyConsent    Boolean  @default(false)
-  marketingConsent  Boolean  @default(false)
-  createdAt         DateTime @default(now())
+  ratingExplanation  Int
+  ratingHelpfulness  Int
+  ratingRecommend    Int
+  likedAspects       String?  @db.Text
+  improvementAreas   String?  @db.Text
+  customerName       String
+  customerPhone      String?
+  customerEmail      String?
+  wantFollowUp       Boolean  @default(false)
+  privacyConsent     Boolean  @default(false)
+  marketingConsent   Boolean  @default(false)
+  createdAt          DateTime @default(now())
 }
 
 enum BugReportStatus {
@@ -565,16 +575,16 @@ enum BugReportStatus {
 }
 
 model BugReport {
-  id          Int      @id @default(autoincrement())
+  id          Int             @id @default(autoincrement())
   title       String
-  description String   @db.Text
+  description String          @db.Text
   type        String
   status      BugReportStatus @default(OPEN)
-  priority    String   @default("MEDIUM")
+  priority    String          @default("MEDIUM")
   imageUrl    String?
   createdById Int
-  createdBy   User     @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
+  createdBy   User            @relation(fields: [createdById], references: [id])
+  createdAt   DateTime        @default(now())
 }
 
 model Announcement {
@@ -584,15 +594,15 @@ model Announcement {
   description String   @db.Text
   imageUrl    String?
   pdfUrl      String?
-  
-  targetType  String   @default("ALL") 
-  targetIds   String?  
-  
-  authorId    Int
-  author      User     @relation(fields: [authorId], references: [id])
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  targetType String  @default("ALL")
+  targetIds  String?
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Notification {
@@ -605,18 +615,18 @@ model Notification {
 }
 
 model PublicSurveyResponse {
-  id        Int      @id @default(autoincrement())
-  type      String   // THE_CAVE | THE_PINES | OMAH_BAMBOO | HOTEL_GUEST
-  data      Json
-  name      String?
-  address   String?
-  email     String?
-  phone     String?
-  wantFollowUp   Boolean  @default(false)
-  privacyConsent Boolean  @default(false)
-  marketingConsent Boolean @default(false)
-  createdAt DateTime @default(now())
-  
+  id               Int      @id @default(autoincrement())
+  type             String // THE_CAVE | THE_PINES | OMAH_BAMBOO | HOTEL_GUEST
+  data             Json
+  name             String?
+  address          String?
+  email            String?
+  phone            String?
+  wantFollowUp     Boolean  @default(false)
+  privacyConsent   Boolean  @default(false)
+  marketingConsent Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
   @@index([type])
   @@index([createdAt])
 }
@@ -625,9 +635,9 @@ model PublicSurveyAccess {
   id        Int      @id @default(autoincrement())
   userId    Int
   user      User     @relation(fields: [userId], references: [id])
-  type      String?  // null or 'ALL' means akses semua, atau spesifik THE_CAVE dsb.
+  type      String? // null or 'ALL' means akses semua, atau spesifik THE_CAVE dsb.
   createdAt DateTime @default(now())
-  
+
   @@index([userId, type])
 }
 
@@ -642,26 +652,26 @@ model InventoryItem {
 }
 
 model ApprovalConfig {
-  id          Int             @id @default(autoincrement())
+  id          Int                  @id @default(autoincrement())
   module      ApprovalModule
   department  String?
-  enabled     Boolean         @default(true)
+  enabled     Boolean              @default(true)
   steps       ApprovalStep[]
   assignments ApprovalAssignment[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 }
 
 model ApprovalStep {
-  id               Int            @id @default(autoincrement())
-  approvalConfigId Int
-  approvalConfig   ApprovalConfig @relation(fields: [approvalConfigId], references: [id], onDelete: Cascade)
-  order            Int
-  role             Role
+  id                 Int            @id @default(autoincrement())
+  approvalConfigId   Int
+  approvalConfig     ApprovalConfig @relation(fields: [approvalConfigId], references: [id], onDelete: Cascade)
+  order              Int
+  role               Role
   approverDepartment String?
-  minApprovals     Int?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  minApprovals       Int?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 }
 
 model ApprovalAssignment {
@@ -677,19 +687,19 @@ model ApprovalAssignment {
 }
 
 model TransactionApproval {
-  id         Int            @id @default(autoincrement())
-  module     ApprovalModule
-  moduleId   Int
-  stepOrder  Int
-  role       Role
+  id                 Int            @id @default(autoincrement())
+  module             ApprovalModule
+  moduleId           Int
+  stepOrder          Int
+  role               Role
   approverDepartment String?
-  userId     Int?
-  user       User?          @relation(fields: [userId], references: [id])
-  status     ApprovalStatus @default(PENDING)
-  note       String?
-  approvedAt DateTime?
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  userId             Int?
+  user               User?          @relation(fields: [userId], references: [id])
+  status             ApprovalStatus @default(PENDING)
+  note               String?
+  approvedAt         DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 }
 
 enum VotingTargetType {
@@ -708,21 +718,21 @@ model VotingCategory {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  votes       Vote[]
+  votes          Vote[]
   candidateMedia VoteCandidateMedia[]
 }
 
 model Vote {
-  id                 Int            @id @default(autoincrement())
-  categoryId         Int
-  category           VotingCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  voterId            Int
-  voter              User           @relation("VoteVoter", fields: [voterId], references: [id], onDelete: Cascade)
-  candidateUserId    Int?
-  candidateUser      User?          @relation("VoteCandidate", fields: [candidateUserId], references: [id], onDelete: SetNull)
+  id                  Int            @id @default(autoincrement())
+  categoryId          Int
+  category            VotingCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  voterId             Int
+  voter               User           @relation("VoteVoter", fields: [voterId], references: [id], onDelete: Cascade)
+  candidateUserId     Int?
+  candidateUser       User?          @relation("VoteCandidate", fields: [candidateUserId], references: [id], onDelete: SetNull)
   candidateDepartment String?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   @@unique([categoryId, voterId])
   @@index([candidateUserId])
@@ -759,62 +769,62 @@ enum ChecklistSubmissionStatus {
 }
 
 model ChecklistTemplate {
-  id          Int      @id @default(autoincrement())
-  name        String
-  department  String
-  dayOfWeek   String?  // Optional: "Senin", "Selasa", etc.
-  order       Int      @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  name       String
+  department String
+  dayOfWeek  String? // Optional: "Senin", "Selasa", etc.
+  order      Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  categories  ChecklistCategoryTemplate[]
-  submissions ChecklistSubmission[]
-  assignedUsers User[] @relation("UserChecklistTemplates")
+  categories    ChecklistCategoryTemplate[]
+  submissions   ChecklistSubmission[]
+  assignedUsers User[]                      @relation("UserChecklistTemplates")
 }
 
 model ChecklistCategoryTemplate {
-  id          Int      @id @default(autoincrement())
-  templateId  Int
-  template    ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  name        String
-  order       Int      @default(0)
+  id         Int               @id @default(autoincrement())
+  templateId Int
+  template   ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name       String
+  order      Int               @default(0)
 
-  questions   ChecklistQuestionTemplate[]
+  questions ChecklistQuestionTemplate[]
 }
 
 model ChecklistQuestionTemplate {
-  id          Int      @id @default(autoincrement())
-  categoryId  Int
-  category    ChecklistCategoryTemplate @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  question    String
-  type        ChecklistType @default(BOOLEAN)
-  order       Int      @default(0)
-  isRequired  Boolean  @default(true)
+  id         Int                       @id @default(autoincrement())
+  categoryId Int
+  category   ChecklistCategoryTemplate @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  question   String
+  type       ChecklistType             @default(BOOLEAN)
+  order      Int                       @default(0)
+  isRequired Boolean                   @default(true)
 
-  answers     ChecklistAnswer[]
+  answers ChecklistAnswer[]
 }
 
 model ChecklistSubmission {
-  id          Int      @id @default(autoincrement())
-  templateId  Int
-  template    ChecklistTemplate @relation(fields: [templateId], references: [id])
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  date        DateTime @default(now())
-  status      ChecklistSubmissionStatus @default(SUBMITTED)
-  notes       String?  @db.Text
-  photoUrl    String?  // Evidence photo
-  
-  // Signatures
-  hodSigned   Boolean  @default(false)
-  spvSigned   Boolean  @default(false)
-  gmSigned    Boolean  @default(false)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         Int                       @id @default(autoincrement())
+  templateId Int
+  template   ChecklistTemplate         @relation(fields: [templateId], references: [id])
+  userId     Int
+  user       User                      @relation(fields: [userId], references: [id])
+  date       DateTime                  @default(now())
+  status     ChecklistSubmissionStatus @default(SUBMITTED)
+  notes      String?                   @db.Text
+  photoUrl   String? // Evidence photo
 
-  answers     ChecklistAnswer[]
+  // Signatures
+  hodSigned Boolean @default(false)
+  spvSigned Boolean @default(false)
+  gmSigned  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  answers ChecklistAnswer[]
 
   @@index([templateId])
   @@index([userId])
@@ -822,14 +832,14 @@ model ChecklistSubmission {
 }
 
 model ChecklistAnswer {
-  id           Int      @id @default(autoincrement())
+  id           Int                       @id @default(autoincrement())
   submissionId Int
-  submission   ChecklistSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submission   ChecklistSubmission       @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   questionId   Int
   question     ChecklistQuestionTemplate @relation(fields: [questionId], references: [id])
-  value        String   
-  remarks      String?  @db.Text
-  photoUrl     String?  // Photo evidence per question
+  value        String
+  remarks      String?                   @db.Text
+  photoUrl     String? // Photo evidence per question
 
   @@index([submissionId])
 }
@@ -839,6 +849,26 @@ model SystemSetting {
   key       String   @unique
   value     String   @db.Text
   group     String   @default("GENERAL")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RangerCustomerHandling {
+  id          Int       @id @default(autoincrement())
+  nomor       String
+  area        String
+  guestName   String
+  type        String
+  date        DateTime
+  description String    @db.Text
+  followUp    String?   @db.Text
+  status      RchStatus @default(NORMAL)
+
+  createdById Int
+  createdBy   User @relation("RCHCreatedBy", fields: [createdById], references: [id])
+
+  targetDepartment String
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
