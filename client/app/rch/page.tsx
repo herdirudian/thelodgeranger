@@ -138,31 +138,38 @@ export default function RchPage() {
 
   return (
     <ClientLayout>
-      <div className="p-6 max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-              <FileText className="text-[#0F4D39]" />
-              Ranger Customer Handling (RCH)
-            </h1>
-            <p className="text-gray-500 text-sm mt-1">Kelola dan pantau laporan penanganan pelanggan</p>
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Actions Bar */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="relative w-full md:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input 
+                type="text" 
+                placeholder="Cari RCH..." 
+                className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] outline-none transition-all"
+              />
+            </div>
           </div>
           <button
             onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-[#0F4D39] text-white rounded-lg hover:bg-[#0c3d2d] transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-[#0F4D39] text-white rounded-lg hover:bg-[#0c3d2d] transition-all shadow-sm hover:shadow-md font-medium text-sm whitespace-nowrap w-full md:w-auto justify-center"
           >
-            {showForm ? <X size={20} /> : <Plus size={20} />}
-            {showForm ? 'Tutup Form' : 'Buat RCH Baru'}
+            {showForm ? <X size={18} /> : <Plus size={18} />}
+            {showForm ? 'Batal' : 'Buat RCH Baru'}
           </button>
         </div>
 
         {showForm && (
-          <div className="bg-white rounded-xl shadow-md p-6 mb-8 border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">Form Input RCH</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nomor RCH</label>
+          <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="bg-gray-50 px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-800">Form Ranger Customer Handling</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Lengkapi data penanganan pelanggan di bawah ini</p>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-gray-700">Nomor RCH</label>
                   <input
                     type="text"
                     name="nomor"
@@ -170,11 +177,11 @@ export default function RchPage() {
                     value={formData.nomor}
                     onChange={handleInputChange}
                     placeholder="Contoh: RCH-001"
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-[#0F4D39] focus:border-[#0F4D39]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] outline-none transition-all"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Area</label>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-gray-700">Area</label>
                   <input
                     type="text"
                     name="area"
@@ -182,11 +189,11 @@ export default function RchPage() {
                     value={formData.area}
                     onChange={handleInputChange}
                     placeholder="Area penanganan"
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-[#0F4D39] focus:border-[#0F4D39]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] outline-none transition-all"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Guest Name</label>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-gray-700">Nama Tamu</label>
                   <input
                     type="text"
                     name="guestName"
@@ -194,39 +201,39 @@ export default function RchPage() {
                     value={formData.guestName}
                     onChange={handleInputChange}
                     placeholder="Nama tamu"
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-[#0F4D39] focus:border-[#0F4D39]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] outline-none transition-all"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-gray-700">Jenis Laporan</label>
                   <input
                     type="text"
                     name="type"
                     required
                     value={formData.type}
                     onChange={handleInputChange}
-                    placeholder="Jenis keluhan/laporan"
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-[#0F4D39] focus:border-[#0F4D39]"
+                    placeholder="Contoh: Keluhan Fasilitas"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] outline-none transition-all"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-gray-700">Tanggal</label>
                   <input
                     type="date"
                     name="date"
                     required
                     value={formData.date}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-[#0F4D39] focus:border-[#0F4D39]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] outline-none transition-all"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-gray-700">Prioritas</label>
                   <select
                     name="status"
                     value={formData.status}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-[#0F4D39] focus:border-[#0F4D39]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] outline-none transition-all"
                   >
                     <option value="LOW">🟢 Low</option>
                     <option value="NORMAL">🔵 Normal</option>
@@ -235,14 +242,14 @@ export default function RchPage() {
                     <option value="CRITICAL">🔴 Critical</option>
                   </select>
                 </div>
-                <div className="md:col-span-2 lg:col-span-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Target Department (Untuk Notifikasi)</label>
+                <div className="md:col-span-2 lg:col-span-3 space-y-1.5">
+                  <label className="text-sm font-semibold text-gray-700">Departemen Tujuan (Notifikasi WhatsApp)</label>
                   <select
                     name="targetDepartment"
                     required
                     value={formData.targetDepartment}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-[#0F4D39] focus:border-[#0F4D39]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] outline-none transition-all"
                   >
                     <option value="">-- Pilih Departemen --</option>
                     {departments.map(d => (
@@ -250,38 +257,45 @@ export default function RchPage() {
                     ))}
                   </select>
                 </div>
-                <div className="md:col-span-2 lg:col-span-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <div className="md:col-span-2 lg:col-span-3 space-y-1.5">
+                  <label className="text-sm font-semibold text-gray-700">Deskripsi Kejadian</label>
                   <textarea
                     name="description"
                     required
-                    rows={3}
+                    rows={4}
                     value={formData.description}
                     onChange={handleInputChange}
-                    placeholder="Deskripsi detail RCH..."
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-[#0F4D39] focus:border-[#0F4D39]"
+                    placeholder="Jelaskan detail penanganan pelanggan..."
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] outline-none transition-all resize-none"
                   />
                 </div>
-                <div className="md:col-span-2 lg:col-span-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Follow Up</label>
+                <div className="md:col-span-2 lg:col-span-3 space-y-1.5">
+                  <label className="text-sm font-semibold text-gray-700">Tindakan Lanjut (Follow Up)</label>
                   <textarea
                     name="followUp"
-                    rows={2}
+                    rows={3}
                     value={formData.followUp}
                     onChange={handleInputChange}
-                    placeholder="Tindakan lanjut (opsional)..."
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-[#0F4D39] focus:border-[#0F4D39]"
+                    placeholder="Langkah-langkah yang sudah/akan diambil..."
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] outline-none transition-all resize-none"
                   />
                 </div>
               </div>
-              <div className="flex justify-end pt-4 border-t">
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 rounded-lg transition-all"
+                >
+                  Batal
+                </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex items-center gap-2 px-6 py-2 bg-[#0F4D39] text-white font-medium rounded-lg hover:bg-[#0c3d2d] transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 px-8 py-2.5 bg-[#0F4D39] text-white font-bold rounded-lg hover:bg-[#0c3d2d] transition-all shadow-md hover:shadow-lg disabled:opacity-50"
                 >
-                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                  Submit & Notifikasi
+                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Kirim & Notifikasi
                 </button>
               </div>
             </form>
@@ -289,52 +303,65 @@ export default function RchPage() {
         )}
 
         {loading ? (
-          <div className="flex justify-center items-center py-20">
-            <Loader2 className="w-10 h-10 animate-spin text-[#0F4D39]" />
+          <div className="flex flex-col justify-center items-center py-20 bg-white rounded-2xl shadow-sm border border-gray-100">
+            <Loader2 className="w-10 h-10 animate-spin text-[#0F4D39] mb-4" />
+            <p className="text-gray-500 font-medium">Memuat data RCH...</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-gray-50 text-gray-600 text-sm border-b">
-                    <th className="p-4 font-semibold">Nomor & Tanggal</th>
-                    <th className="p-4 font-semibold">Tamu & Area</th>
-                    <th className="p-4 font-semibold">Type & Dept. Tujuan</th>
-                    <th className="p-4 font-semibold">Status</th>
-                    <th className="p-4 font-semibold">Dibuat Oleh</th>
+                  <tr className="bg-gray-50/50 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-100">
+                    <th className="px-6 py-4 font-bold">Nomor & Tanggal</th>
+                    <th className="px-6 py-4 font-bold">Tamu & Area</th>
+                    <th className="px-6 py-4 font-bold">Tipe & Tujuan</th>
+                    <th className="px-6 py-4 font-bold">Prioritas</th>
+                    <th className="px-6 py-4 font-bold">Pelapor</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-gray-50">
                   {rchs.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-gray-500">
-                        Belum ada data RCH.
+                      <td colSpan={5} className="px-6 py-20 text-center">
+                        <div className="flex flex-col items-center">
+                          <FileText className="w-12 h-12 text-gray-200 mb-3" />
+                          <p className="text-gray-400 font-medium">Belum ada data RCH yang tercatat</p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
                     rchs.map((rch) => (
-                      <tr key={rch.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="p-4">
-                          <div className="font-medium text-gray-800">{rch.nomor}</div>
-                          <div className="text-sm text-gray-500">{format(new Date(rch.date), 'dd MMM yyyy')}</div>
+                      <tr key={rch.id} className="hover:bg-gray-50/80 transition-all group cursor-pointer">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-gray-900 group-hover:text-[#0F4D39] transition-colors">{rch.nomor}</div>
+                          <div className="text-[11px] text-gray-400 font-medium mt-0.5">{format(new Date(rch.date), 'dd MMM yyyy')}</div>
                         </td>
-                        <td className="p-4">
-                          <div className="font-medium text-gray-800">{rch.guestName}</div>
-                          <div className="text-sm text-gray-500">{rch.area}</div>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-semibold text-gray-800">{rch.guestName}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{rch.area}</div>
                         </td>
-                        <td className="p-4">
-                          <div className="text-gray-800">{rch.type}</div>
-                          <div className="text-sm font-medium text-[#0F4D39]">{rch.targetDepartment}</div>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-700">{rch.type}</div>
+                          <div className="inline-flex text-[10px] font-bold text-[#0F4D39] bg-green-50 px-2 py-0.5 rounded mt-1 uppercase tracking-tighter">
+                            {rch.targetDepartment}
+                          </div>
                         </td>
-                        <td className="p-4">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(rch.status)}`}>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm border ${getStatusColor(rch.status)}`}>
                             {getStatusIcon(rch.status)} {rch.status}
                           </span>
                         </td>
-                        <td className="p-4">
-                          <div className="text-sm text-gray-800">{rch.createdBy?.name}</div>
-                          <div className="text-xs text-gray-500">{rch.createdBy?.department}</div>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 border border-gray-200">
+                              {rch.createdBy?.name?.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="text-sm font-semibold text-gray-800">{rch.createdBy?.name}</div>
+                              <div className="text-[10px] text-gray-400 font-medium">{rch.createdBy?.department}</div>
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     ))

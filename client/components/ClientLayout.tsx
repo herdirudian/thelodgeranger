@@ -113,7 +113,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 {!isPublicPage && (
                     <div className="hidden md:flex sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-200 px-8 py-4 justify-between items-center">
                         <h2 className="text-xl font-bold text-gray-800 capitalize">
-                            {(pathname || '/') === '/' ? 'Dashboard' : (pathname || '').split('/')[1] || 'Dashboard'}
+                            {(pathname || '/') === '/' ? 'Dashboard' : 
+                             pathname === '/rch' ? 'Ranger Customer Handling' :
+                             (pathname || '').split('/')[1] || 'Dashboard'}
                         </h2>
                         <div className="flex items-center gap-6">
                             <NotificationBell />
