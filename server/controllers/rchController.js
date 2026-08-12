@@ -4,7 +4,7 @@ const whatsappService = require('../services/whatsappService');
 
 exports.createRch = async (req, res) => {
   try {
-    const { nomor, area, guestName, type, date, description, followUp, status, targetDepartment } = req.body;
+    const { nomor, area, guestName, type, date, description, followUp, status, progress, targetDepartment } = req.body;
 
     const newRch = await prisma.rangerCustomerHandling.create({
       data: {
@@ -16,6 +16,7 @@ exports.createRch = async (req, res) => {
         description,
         followUp,
         status: status || 'NORMAL',
+        progress: progress || 'OPEN',
         targetDepartment,
         createdById: req.userId,
       },
@@ -55,7 +56,7 @@ exports.createRch = async (req, res) => {
 
 exports.getAllRch = async (req, res) => {
   try {
-    const { department, status, startDate, endDate } = req.query;
+    const { department, status, progress, startDate, endDate } = req.query;
     
     let whereClause = {};
     if (department) {
@@ -63,6 +64,9 @@ exports.getAllRch = async (req, res) => {
     }
     if (status) {
       whereClause.status = status;
+    }
+    if (progress) {
+      whereClause.progress = progress;
     }
     if (startDate && endDate) {
       whereClause.date = {
@@ -114,7 +118,7 @@ exports.getRchById = async (req, res) => {
 exports.updateRch = async (req, res) => {
   try {
     const { id } = req.params;
-    const { area, guestName, type, date, description, followUp, status, targetDepartment } = req.body;
+    const { area, guestName, type, date, description, followUp, status, progress, targetDepartment } = req.body;
 
     const rch = await prisma.rangerCustomerHandling.update({
       where: { id: parseInt(id) },
@@ -126,6 +130,7 @@ exports.updateRch = async (req, res) => {
         description,
         followUp,
         status,
+        progress,
         targetDepartment,
       },
     });

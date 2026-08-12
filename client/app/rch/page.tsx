@@ -7,6 +7,7 @@ import { Loader2, Plus, X, Search, FileText, Send } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 type RchStatus = 'LOW' | 'NORMAL' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+type RchProgress = 'OPEN' | 'IN_PROGRESS' | 'PENDING' | 'DONE';
 
 interface Rch {
   id: number;
@@ -18,6 +19,7 @@ interface Rch {
   description: string;
   followUp: string | null;
   status: RchStatus;
+  progress: RchProgress;
   targetDepartment: string;
   createdBy: {
     id: number;
@@ -33,6 +35,7 @@ export default function RchPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [departments, setDepartments] = useState<string[]>([]);
+  const [filterProgress, setFilterProgress] = useState<string>('');
   
   // Form state
   const [formData, setFormData] = useState({
@@ -44,25 +47,61 @@ export default function RchPage() {
     description: '',
     followUp: '',
     status: 'NORMAL' as RchStatus,
+    progress: 'OPEN' as RchProgress,
     targetDepartment: ''
   });
   
   const [submitting, setSubmitting] = useState(false);
+  const [updatingProgressId, setUpdatingProgressId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchData();
     fetchDepartments();
-  }, []);
+  }, [filterProgress]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/rch');
+      const params: any = {};
+      if (filterProgress) params.progress = filterProgress;
+      const res = await api.get('/rch', { params });
       setRchs(res.data);
     } catch (error) {
       console.error('Error fetching RCH:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateProgress = async (id: number, newProgress: RchProgress) => {
+    setUpdatingProgressId(id);
+    try {
+      await api.put(`/rch/${id}`, { progress: newProgress });
+      setRchs(prev => prev.map(item => item.id === id ? { ...item, progress: newProgress } : item));
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Gagal update progress');
+    } finally {
+      setUpdatingProgressId(null);
+    }
+  };
+
+  const getProgressLabel = (progress: RchProgress) => {
+    switch (progress) {
+      case 'OPEN': return 'Baru';
+      case 'IN_PROGRESS': return 'Proses';
+      case 'PENDING': return 'Pending';
+      case 'DONE': return 'Selesai';
+      default: return progress;
+    }
+  };
+
+  const getProgressColor = (progress: RchProgress) => {
+    switch (progress) {
+      case 'OPEN': return 'bg-gray-100 text-gray-600 border-gray-200';
+      case 'IN_PROGRESS': return 'bg-blue-50 text-blue-600 border-blue-100';
+      case 'PENDING': return 'bg-yellow-50 text-yellow-600 border-yellow-100';
+      case 'DONE': return 'bg-emerald-50 text-emerald-600 border-emerald-100';
+      default: return 'bg-gray-50 text-gray-500 border-gray-100';
     }
   };
 
@@ -103,6 +142,7 @@ export default function RchPage() {
         description: '',
         followUp: '',
         status: 'NORMAL',
+        progress: 'OPEN',
         targetDepartment: ''
       });
       fetchData();
@@ -137,26 +177,37 @@ export default function RchPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Actions Bar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative w-full md:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input 
-              type="text" 
-              placeholder="Cari RCH..." 
-              className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] outline-none transition-all"
-            />
+        {/* Actions Bar */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+            <div className="relative w-full md:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input 
+                type="text" 
+                placeholder="Cari RCH..." 
+                className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] outline-none transition-all"
+              />
+            </div>
+            <select
+              value={filterProgress}
+              onChange={(e) => setFilterProgress(e.target.value)}
+              className="w-full sm:w-auto px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] outline-none transition-all"
+            >
+              <option value="">Semua Progress</option>
+              <option value="OPEN">Baru</option>
+              <option value="IN_PROGRESS">Proses</option>
+              <option value="PENDING">Pending</option>
+              <option value="DONE">Selesai</option>
+            </select>
           </div>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-4 py-2 bg-[#0F4D39] text-white rounded-lg hover:bg-[#0c3d2d] transition-all shadow-sm hover:shadow-md font-medium text-sm whitespace-nowrap w-full md:w-auto justify-center"
+          >
+            {showForm ? <X size={18} /> : <Plus size={18} />}
+            {showForm ? 'Batal' : 'Buat RCH Baru'}
+          </button>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#0F4D39] text-white rounded-lg hover:bg-[#0c3d2d] transition-all shadow-sm hover:shadow-md font-medium text-sm whitespace-nowrap w-full md:w-auto justify-center"
-        >
-          {showForm ? <X size={18} /> : <Plus size={18} />}
-          {showForm ? 'Batal' : 'Buat RCH Baru'}
-        </button>
-      </div>
 
       {showForm && (
         <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
@@ -315,13 +366,14 @@ export default function RchPage() {
                   <th className="px-6 py-4 font-bold">Tamu & Area</th>
                   <th className="px-6 py-4 font-bold">Tipe & Tujuan</th>
                   <th className="px-6 py-4 font-bold">Prioritas</th>
+                  <th className="px-6 py-4 font-bold">Progress</th>
                   <th className="px-6 py-4 font-bold">Pelapor</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {rchs.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-20 text-center">
+                    <td colSpan={6} className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center">
                         <FileText className="w-12 h-12 text-gray-200 mb-3" />
                         <p className="text-gray-400 font-medium">Belum ada data RCH yang tercatat</p>
@@ -349,6 +401,22 @@ export default function RchPage() {
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm border ${getStatusColor(rch.status)}`}>
                           {getStatusIcon(rch.status)} {rch.status}
                         </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {updatingProgressId === rch.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-[#0F4D39]" />
+                        ) : (
+                          <select
+                            value={rch.progress}
+                            onChange={(e) => handleUpdateProgress(rch.id, e.target.value as RchProgress)}
+                            className={`text-[10px] font-bold uppercase px-2 py-1 rounded border outline-none cursor-pointer transition-colors ${getProgressColor(rch.progress)}`}
+                          >
+                            <option value="OPEN">Baru</option>
+                            <option value="IN_PROGRESS">Proses</option>
+                            <option value="PENDING">Pending</option>
+                            <option value="DONE">Selesai</option>
+                          </select>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">

@@ -115,6 +115,13 @@ enum RchStatus {
   CRITICAL
 }
 
+enum RchProgress {
+  OPEN
+  IN_PROGRESS
+  PENDING
+  DONE
+}
+
 model User {
   id                 Int            @id @default(autoincrement())
   email              String         @unique
@@ -861,8 +868,9 @@ model RangerCustomerHandling {
   type        String
   date        DateTime
   description String    @db.Text
-  followUp    String?   @db.Text
-  status      RchStatus @default(NORMAL)
+  followUp    String?     @db.Text
+  status      RchStatus   @default(NORMAL)
+  progress    RchProgress @default(OPEN)
 
   createdById Int
   createdBy   User @relation("RCHCreatedBy", fields: [createdById], references: [id])
