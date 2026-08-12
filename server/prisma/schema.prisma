@@ -877,6 +877,9 @@ model RangerCustomerHandling {
 
   targetDepartment String
 
+  investigationNote String?   @db.Text
+  investigatedAt    DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

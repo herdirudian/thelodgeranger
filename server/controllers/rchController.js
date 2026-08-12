@@ -63,11 +63,19 @@ exports.createRch = async (req, res) => {
 exports.getAllRch = async (req, res) => {
   try {
     const { department, status, progress, startDate, endDate } = req.query;
+    const userRole = req.role;
+    const userDept = req.department;
     
     let whereClause = {};
-    if (department) {
+
+    // HODs can only see RCHs for their department
+    if (userRole === 'HOD' || userRole === 'SUPERVISOR' || userRole === 'PHOTOGRAPHER_HOD' || userRole === 'MERCHANDISE_HOD' || userRole === 'MERCHANDISE_SPV') {
+      whereClause.targetDepartment = userDept;
+    } else if (department) {
+      // GM/HR/Admin can filter by department
       whereClause.targetDepartment = department;
     }
+
     if (status) {
       whereClause.status = status;
     }
@@ -124,21 +132,28 @@ exports.getRchById = async (req, res) => {
 exports.updateRch = async (req, res) => {
   try {
     const { id } = req.params;
-    const { area, guestName, type, date, description, followUp, status, progress, targetDepartment } = req.body;
+    const { area, guestName, type, date, description, followUp, status, progress, targetDepartment, investigationNote } = req.body;
+
+    const dataToUpdate = {
+      area,
+      guestName,
+      type,
+      date: date ? new Date(date) : undefined,
+      description,
+      followUp,
+      status,
+      progress,
+      targetDepartment,
+      investigationNote
+    };
+
+    if (investigationNote !== undefined) {
+      dataToUpdate.investigatedAt = new Date();
+    }
 
     const rch = await prisma.rangerCustomerHandling.update({
       where: { id: parseInt(id) },
-      data: {
-        area,
-        guestName,
-        type,
-        date: date ? new Date(date) : undefined,
-        description,
-        followUp,
-        status,
-        progress,
-        targetDepartment,
-      },
+      data: dataToUpdate,
     });
 
     res.json({ message: 'RCH updated successfully', data: rch });

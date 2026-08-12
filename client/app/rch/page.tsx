@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import api from "@/lib/api";
-import { Loader2, Plus, X, Search, FileText, Send } from "lucide-react";
+import { Loader2, Plus, X, Search, FileText, Send, Save } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 type RchStatus = 'LOW' | 'NORMAL' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
@@ -21,6 +21,8 @@ interface Rch {
   status: RchStatus;
   progress: RchProgress;
   targetDepartment: string;
+  investigationNote: string | null;
+  investigatedAt: string | null;
   createdBy: {
     id: number;
     name: string;
@@ -47,6 +49,8 @@ export default function RchPage() {
   const [showForm, setShowForm] = useState(false);
   const [departments, setDepartments] = useState<string[]>([]);
   const [filterProgress, setFilterProgress] = useState<string>('');
+  const [selectedRch, setSelectedRch] = useState<Rch | null>(null);
+  const [investigationNote, setInvestigationNote] = useState('');
   
   // Form state
   const [formData, setFormData] = useState({
@@ -64,6 +68,7 @@ export default function RchPage() {
   
   const [submitting, setSubmitting] = useState(false);
   const [updatingProgressId, setUpdatingProgressId] = useState<number | null>(null);
+  const [isSavingInvestigation, setIsSavingInvestigation] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -96,6 +101,29 @@ export default function RchPage() {
     }
   };
 
+  const handleSaveInvestigation = async () => {
+    if (!selectedRch) return;
+    setIsSavingInvestigation(true);
+    try {
+      await api.put(`/rch/${selectedRch.id}`, { investigationNote });
+      alert('Hasil investigasi berhasil disimpan.');
+      fetchData();
+      setSelectedRch(null);
+      setInvestigationNote('');
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Gagal simpan investigasi');
+    } finally {
+      setIsSavingInvestigation(false);
+    }
+  };
+
+  const canInvestigate = (rch: Rch) => {
+    if (!user) return false;
+    if (['HR', 'GM', 'ADMIN'].includes(user.role)) return true;
+    const isHod = user.role.includes('HOD') || user.role.includes('SPV') || user.role === 'SUPERVISOR';
+    return isHod && rch.targetDepartment === user.department;
+  };
+
   const getProgressLabel = (progress: RchProgress) => {
     switch (progress) {
       case 'OPEN': return 'Baru';
@@ -118,8 +146,8 @@ export default function RchPage() {
 
   const fetchDepartments = async () => {
     try {
-      // Fetch users to get unique departments
-      const res = await api.get('/auth/users'); // Try hitting users, assuming it exists. If not, fallback to hardcoded list
+      // Fetch colleagues to get unique departments
+      const res = await api.get('/users/colleagues');
       if (res.data && Array.isArray(res.data)) {
         const depts = Array.from(new Set(res.data.map((u: any) => u.department).filter(Boolean))) as string[];
         setDepartments(depts.sort());
@@ -127,7 +155,7 @@ export default function RchPage() {
     } catch (error) {
       // Fallback
       setDepartments([
-        'Front Office', 'Housekeeping', 'F&B', 'Engineering', 'Security', 'HR', 'Sales', 'Marketing', 'Accounting'
+        'Front Office', 'Housekeeping', 'F&B Service', 'F&B Product', 'Engineering', 'Security', 'HR', 'Finance', 'Accounting', 'Sales & Marketing', 'IT', 'General Affair', 'Merchandise', 'Photographer'
       ]);
     }
   };
@@ -383,68 +411,136 @@ export default function RchPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {rchs.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-20 text-center">
-                      <div className="flex flex-col items-center">
-                        <FileText className="w-12 h-12 text-gray-200 mb-3" />
-                        <p className="text-gray-400 font-medium">Belum ada data RCH yang tercatat</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  rchs.map((rch) => (
-                    <tr key={rch.id} className="hover:bg-gray-50/80 transition-all group cursor-pointer">
-                      <td className="px-6 py-4">
-                        <div className="font-bold text-gray-900 group-hover:text-[#0F4D39] transition-colors">{rch.nomor}</div>
-                        <div className="text-[11px] text-gray-400 font-medium mt-0.5">{format(new Date(rch.date), 'dd MMM yyyy')}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-semibold text-gray-800">{rch.guestName}</div>
-                        <div className="text-xs text-gray-500 mt-0.5">{rch.area}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-700">{rch.type}</div>
-                        <div className="inline-flex text-[10px] font-bold text-[#0F4D39] bg-green-50 px-2 py-0.5 rounded mt-1 uppercase tracking-tighter">
-                          {rch.targetDepartment}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm border ${getStatusColor(rch.status)}`}>
-                          {getStatusIcon(rch.status)} {rch.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        {updatingProgressId === rch.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-[#0F4D39]" />
-                        ) : (
-                          <select
-                            value={rch.progress}
-                            onChange={(e) => handleUpdateProgress(rch.id, e.target.value as RchProgress)}
-                            className={`text-[10px] font-bold uppercase px-2 py-1 rounded border outline-none cursor-pointer transition-colors ${getProgressColor(rch.progress)}`}
-                          >
-                            <option value="OPEN">Baru</option>
-                            <option value="IN_PROGRESS">Proses</option>
-                            <option value="PENDING">Pending</option>
-                            <option value="DONE">Selesai</option>
-                          </select>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 border border-gray-200">
-                            {rch.createdBy?.name?.charAt(0)}
-                          </div>
-                          <div>
-                            <div className="text-sm font-semibold text-gray-800">{rch.createdBy?.name}</div>
-                            <div className="text-[10px] text-gray-400 font-medium">{rch.createdBy?.department}</div>
-                          </div>
+                    <tr>
+                      <td colSpan={6} className="px-6 py-20 text-center">
+                        <div className="flex flex-col items-center">
+                          <FileText className="w-12 h-12 text-gray-200 mb-3" />
+                          <p className="text-gray-400 font-medium">Belum ada data RCH yang tercatat</p>
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
+                  ) : (
+                    rchs.map((rch) => (
+                      <tr 
+                        key={rch.id} 
+                        className="hover:bg-gray-50/80 transition-all group"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-gray-900 group-hover:text-[#0F4D39] transition-colors">{rch.nomor}</div>
+                          <div className="text-[11px] text-gray-400 font-medium mt-0.5">{format(new Date(rch.date), 'dd MMM yyyy')}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-semibold text-gray-800">{rch.guestName}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{rch.area}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-700">{rch.type}</div>
+                          <div className="inline-flex text-[10px] font-bold text-[#0F4D39] bg-green-50 px-2 py-0.5 rounded mt-1 uppercase tracking-tighter">
+                            {rch.targetDepartment}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm border ${getStatusColor(rch.status)}`}>
+                            {getStatusIcon(rch.status)} {rch.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-2">
+                            {updatingProgressId === rch.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-[#0F4D39]" />
+                            ) : (
+                              <select
+                                value={rch.progress}
+                                onChange={(e) => handleUpdateProgress(rch.id, e.target.value as RchProgress)}
+                                className={`text-[10px] font-bold uppercase px-2 py-1 rounded border outline-none cursor-pointer transition-colors ${getProgressColor(rch.progress)}`}
+                              >
+                                <option value="OPEN">Baru</option>
+                                <option value="IN_PROGRESS">Proses</option>
+                                <option value="PENDING">Pending</option>
+                                <option value="DONE">Selesai</option>
+                              </select>
+                            )}
+                            {canInvestigate(rch) && (
+                              <button 
+                                onClick={() => {
+                                  setSelectedRch(rch);
+                                  setInvestigationNote(rch.investigationNote || '');
+                                }}
+                                className="text-[10px] font-bold text-blue-600 hover:underline text-left"
+                              >
+                                {rch.investigationNote ? 'Edit Investigasi' : '+ Input Investigasi'}
+                              </button>
+                            )}
+                            {rch.investigationNote && !canInvestigate(rch) && (
+                              <span className="text-[10px] text-emerald-600 font-bold italic">✓ Investigated</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 border border-gray-200">
+                              {rch.createdBy?.name?.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="text-sm font-semibold text-gray-800">{rch.createdBy?.name}</div>
+                              <div className="text-[10px] text-gray-400 font-medium">{rch.createdBy?.department}</div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Investigation Modal */}
+      {selectedRch && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="bg-[#0F4D39] px-6 py-4 text-white flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold">Investigasi HOD</h3>
+                <p className="text-xs text-green-100">{selectedRch.nomor} - {selectedRch.guestName}</p>
+              </div>
+              <button onClick={() => setSelectedRch(null)} className="hover:bg-white/10 p-1 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-2">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Laporan Staff:</p>
+                <p className="text-sm text-gray-700 leading-relaxed">{selectedRch.description}</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-gray-700">Hasil Investigasi & Tindakan</label>
+                <textarea
+                  rows={6}
+                  value={investigationNote}
+                  onChange={(e) => setInvestigationNote(e.target.value)}
+                  placeholder="Tuliskan hasil investigasi, penyebab, dan tindakan yang telah diambil..."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] outline-none transition-all resize-none text-sm"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={() => setSelectedRch(null)}
+                  className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 rounded-lg transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleSaveInvestigation}
+                  disabled={isSavingInvestigation}
+                  className="flex items-center gap-2 px-6 py-2 bg-[#0F4D39] text-white font-bold rounded-lg hover:bg-[#0c3d2d] transition-all shadow-md disabled:opacity-50"
+                >
+                  {isSavingInvestigation ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Simpan Investigasi
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
