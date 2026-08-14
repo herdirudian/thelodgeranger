@@ -63,16 +63,34 @@ exports.createRch = async (req, res) => {
 exports.getAllRch = async (req, res) => {
   try {
     const { department, status, progress, startDate, endDate } = req.query;
+    const userId = req.userId;
     const userRole = req.role;
     const userDept = req.department;
+
+    // Fetch user from DB to check rchAccess (since it's not in the JWT)
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Access check: Must be Admin/HR/GM OR HOD OR have rchAccess
+    const isAdmin = ['HR', 'GM', 'ADMIN'].includes(userRole);
+    const isHod = ['HOD', 'SUPERVISOR', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV'].includes(userRole);
+    
+    console.log(`RCH Access Check - User: ${user.name}, Role: ${userRole}, rchAccess: ${user.rchAccess}, isAdmin: ${isAdmin}, isHod: ${isHod}`);
+
+    if (!isAdmin && !isHod && !user.rchAccess) {
+      return res.status(403).json({ message: 'Anda tidak memiliki akses untuk melihat data RCH.' });
+    }
     
     let whereClause = {};
 
-    // HODs can only see RCHs for their department
-    if (userRole === 'HOD' || userRole === 'SUPERVISOR' || userRole === 'PHOTOGRAPHER_HOD' || userRole === 'MERCHANDISE_HOD' || userRole === 'MERCHANDISE_SPV') {
-      whereClause.targetDepartment = userDept;
-    } else if (department) {
-      // GM/HR/Admin can filter by department
+    // Filtering logic
+    if (isHod && !isAdmin) {
+      // HODs see their department's RCHs
+      // We use a more flexible check to avoid exact string match issues
+      whereClause.targetDepartment = {
+        contains: userDept
+      };
+    } else if (isAdmin && department) {
       whereClause.targetDepartment = department;
     }
 
