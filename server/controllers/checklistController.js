@@ -14,14 +14,17 @@ const csvEscape = (value) => {
 };
 
 const getChecklistAccessWhere = (user) => {
-    const assignedIds = (user.assignedChecklists || []).map(c => c.id);
+    const isOperational = String(user.department || '').toLowerCase().includes('operasional');
+    const isPrivileged = user.role === 'ADMIN' || user.role === 'GM' || user.role === 'HR' || isOperational;
 
-    if (assignedIds.length > 0) {
-        return { templateId: { in: assignedIds } };
+    // Privileged users (Admin/GM/HR/Operational) see everything by default
+    if (isPrivileged) {
+        return {};
     }
 
-    if (user.role === 'ADMIN' || user.role === 'GM' || user.role === 'HR') {
-        return {};
+    const assignedIds = (user.assignedChecklists || []).map(c => c.id);
+    if (assignedIds.length > 0) {
+        return { templateId: { in: assignedIds } };
     }
 
     if (user.role.includes('HOD') || user.role.includes('SPV') || user.role === 'SUPERVISOR') {
@@ -78,16 +81,27 @@ exports.getTemplates = async (req, res) => {
             include: { assignedChecklists: { select: { id: true } } }
         });
         
+        const isOperational = String(user.department || '').toLowerCase().includes('operasional');
+        const isPrivileged = user.role === 'ADMIN' || user.role === 'GM' || user.role === 'HR' || isOperational;
+
         const assignedIds = user.assignedChecklists.map(c => c.id);
         const where = { isActive: true };
         
+        // If user is privileged, they see all templates unless a filter is applied
+        if (isPrivileged) {
+            if (req.query.department) {
+                where.department = req.query.department;
+            }
+        } 
         // If user has specific assigned checklists, use those.
-        // Otherwise fallback to department logic for HOD/SPV
-        if (assignedIds.length > 0) {
+        else if (assignedIds.length > 0) {
             where.id = { in: assignedIds };
-        } else if (user.role.includes('HOD') || user.role.includes('SPV')) {
+        } 
+        // Fallback to department logic for HOD/SPV/SUPERVISOR
+        else if (user.role.includes('HOD') || user.role.includes('SPV') || user.role === 'SUPERVISOR') {
             where.department = user.department;
-        } else if (req.query.department) {
+        } 
+        else if (req.query.department) {
             where.department = req.query.department;
         }
 
@@ -270,14 +284,14 @@ exports.getSubmissions = async (req, res) => {
             include: { assignedChecklists: { select: { id: true } } }
         });
 
-        const assignedIds = user.assignedChecklists.map(c => c.id);
-        const where = {};
-        if (assignedIds.length > 0) {
-            where.templateId = { in: assignedIds };
-        } else if (user.role.includes('HOD') || user.role.includes('SPV')) {
-            where.template = { department: user.department };
-        } else if (department) {
-            where.template = { department };
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const accessWhere = getChecklistAccessWhere(user);
+        const where = { ...accessWhere };
+
+        // Admin/HR/GM can still filter by specific department via query
+        if (department && (user.role === 'ADMIN' || user.role === 'GM' || user.role === 'HR' || String(user.department || '').toLowerCase().includes('operasional'))) {
+            where.template = { ...where.template, department };
         }
 
         if (startDate || endDate) {

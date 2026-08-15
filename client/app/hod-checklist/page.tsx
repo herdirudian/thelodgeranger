@@ -152,7 +152,11 @@ export default function HODChecklistPage() {
     const fetchTemplates = async () => {
         try {
             // HOD sees their department template, Admin/GM see all
-            const dept = (user?.role === 'GM' || user?.role === 'ADMIN' || user?.role === 'HR') ? undefined : user?.department;
+            // Special Case: Supervisor Operasional can see all departments
+            const isOperational = String(user?.department || '').toLowerCase().includes('operasional');
+            const isPrivileged = user?.role === 'GM' || user?.role === 'ADMIN' || user?.role === 'HR' || isOperational;
+            
+            const dept = isPrivileged ? undefined : user?.department;
             const res = await api.get('/checklist/templates', { params: { department: dept } });
             
             // Filter logic: If there are templates with dayOfWeek, only show for today
