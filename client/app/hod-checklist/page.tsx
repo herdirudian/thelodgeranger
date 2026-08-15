@@ -153,8 +153,9 @@ export default function HODChecklistPage() {
         try {
             // HOD sees their department template, Admin/GM see all
             // Special Case: Supervisor Operasional can see all departments
-            const isOperational = String(user?.department || '').toLowerCase().includes('operasional');
-            const isPrivileged = user?.role === 'GM' || user?.role === 'ADMIN' || user?.role === 'HR' || isOperational;
+            const deptLower = String(user?.department || '').toLowerCase();
+            const isOperational = deptLower.includes('operas') || deptLower.includes('ops');
+            const isPrivileged = user?.role === 'GM' || user?.role === 'ADMIN' || user?.role === 'HR' || user?.role === 'SUPERVISOR' || isOperational;
             
             const dept = isPrivileged ? undefined : user?.department;
             const res = await api.get('/checklist/templates', { params: { department: dept } });

@@ -13,11 +13,23 @@ const csvEscape = (value) => {
     return `"${String(value).replace(/"/g, '""')}"`;
 };
 
-const getChecklistAccessWhere = (user) => {
-    const isOperational = String(user.department || '').toLowerCase().includes('operasional');
-    const isPrivileged = user.role === 'ADMIN' || user.role === 'GM' || user.role === 'HR' || isOperational;
+const isPrivilegedUser = (user) => {
+    if (!user) return false;
+    const role = user.role || '';
+    const dept = String(user.department || '').toLowerCase();
+    
+    const isOperational = dept.includes('operas') || dept.includes('ops');
+    const isSpecialRole = role === 'ADMIN' || role === 'GM' || role === 'HR' || role === 'SUPERVISOR';
+    
+    return isSpecialRole || isOperational;
+};
 
-    // Privileged users (Admin/GM/HR/Operational) see everything by default
+const getChecklistAccessWhere = (user) => {
+    const isPrivileged = isPrivilegedUser(user);
+
+    console.log(`[ChecklistAccess] User: ${user.name}, Role: ${user.role}, Dept: ${user.department}, isPrivileged: ${isPrivileged}`);
+
+    // Privileged users (Admin/GM/HR/Operational/Supervisor) see everything by default
     if (isPrivileged) {
         return {};
     }
@@ -81,8 +93,7 @@ exports.getTemplates = async (req, res) => {
             include: { assignedChecklists: { select: { id: true } } }
         });
         
-        const isOperational = String(user.department || '').toLowerCase().includes('operasional');
-        const isPrivileged = user.role === 'ADMIN' || user.role === 'GM' || user.role === 'HR' || isOperational;
+        const isPrivileged = isPrivilegedUser(user);
 
         const assignedIds = user.assignedChecklists.map(c => c.id);
         const where = { isActive: true };
@@ -176,8 +187,9 @@ exports.submitChecklist = async (req, res) => {
 
         const isAssignedManually = (user.assignedChecklists || []).some(c => c.id === template.id);
         const isAssignedByDept = (user.role.includes('HOD') || user.role.includes('SPV') || user.role === 'SUPERVISOR') && user.department === template.department;
+        const isPrivileged = isPrivilegedUser(user);
 
-        if (!isAssignedManually && !isAssignedByDept && user.role !== 'ADMIN' && user.role !== 'GM' && user.role !== 'HR') {
+        if (!isAssignedManually && !isAssignedByDept && !isPrivileged) {
             return res.status(403).json({ message: 'Anda tidak memiliki akses untuk mengisi checklist ini.' });
         }
 
@@ -289,8 +301,9 @@ exports.getSubmissions = async (req, res) => {
         const accessWhere = getChecklistAccessWhere(user);
         const where = { ...accessWhere };
 
-        // Admin/HR/GM can still filter by specific department via query
-        if (department && (user.role === 'ADMIN' || user.role === 'GM' || user.role === 'HR' || String(user.department || '').toLowerCase().includes('operasional'))) {
+        // Admin/HR/GM/Supervisor can still filter by specific department via query
+        const isPrivileged = isPrivilegedUser(user);
+        if (department && isPrivileged) {
             where.template = { ...where.template, department };
         }
 
