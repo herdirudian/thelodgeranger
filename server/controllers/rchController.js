@@ -85,11 +85,11 @@ exports.getAllRch = async (req, res) => {
 
     // Filtering logic
     if (isHod && !isAdmin) {
-      // HODs see their department's RCHs
-      // We use a more flexible check to avoid exact string match issues
-      whereClause.targetDepartment = {
-        contains: userDept
-      };
+      // HODs see RCHs for their department OR RCHs they created themselves
+      whereClause.OR = [
+        { targetDepartment: { contains: userDept || '___NONE___' } },
+        { createdById: userId }
+      ];
     } else if (isAdmin && department) {
       whereClause.targetDepartment = department;
     }
