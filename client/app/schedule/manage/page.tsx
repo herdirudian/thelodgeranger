@@ -154,20 +154,25 @@ export default function ManageSchedulePage() {
                   const savedDraft = localStorage.getItem(draftKey);
                   
                   if (savedDraft) {
-                      try {
-                          const parsed = JSON.parse(savedDraft);
-                          setScheduleData(parsed.scheduleData || {});
-                          setInchargePerDay(parsed.inchargePerDay || {});
-                          setLocationPalette(parsed.locationPalette || {});
-                          if (existing) {
-                              setCurrentMonthlySchedule(existing);
-                          }
-                          console.log("Restored draft from local storage");
-                          loadedFromDraft = true;
-                      } catch (e) {
-                          console.error("Failed to parse draft from local storage", e);
-                      }
-                  }
+                    try {
+                        const parsed = JSON.parse(savedDraft);
+                        const hasLocalData = Object.keys(parsed.scheduleData || {}).length > 0 || 
+                                             Object.keys(parsed.inchargePerDay || {}).length > 0;
+
+                        if (hasLocalData) {
+                            setScheduleData(parsed.scheduleData || {});
+                            setInchargePerDay(parsed.inchargePerDay || {});
+                            setLocationPalette(parsed.locationPalette || {});
+                            if (existing) {
+                                setCurrentMonthlySchedule(existing);
+                            }
+                            console.log("Restored draft from local storage");
+                            loadedFromDraft = true;
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse draft from local storage", e);
+                    }
+                }
               } else {
                   // Untuk jadwal yang sudah disubmit (bukan DRAFT), abaikan draft lokal lama
                   localStorage.removeItem(draftKey);
@@ -191,26 +196,39 @@ export default function ManageSchedulePage() {
               let loadedFromServer = false;
 
               if (!loadedFromDraft && existing) {
-                  console.log("Loading from server data:", serverData);
-                  
-                  // Handle New Format (Object)
-                  if (serverData && !Array.isArray(serverData) && (serverData.scheduleData || Object.keys(serverData).length === 0)) {
-                       // Ensure keys are consistent (if needed), but usually JS handles string/number keys fine.
-                       // We'll trust the object structure but log it.
-                       setScheduleData(serverData.scheduleData || {});
-                       setInchargePerDay(serverData.inchargePerDay || {});
-                       setLocationPalette(serverData.locationPalette || {});
-                       setCurrentMonthlySchedule(existing);
-                       loadedFromServer = true;
-                       
-                       // HYDRATE LOCAL STORAGE FROM SERVER (SYNC)
-                       if (existing.status === 'DRAFT') {
-                            const draftKey = `draft_schedule_${department}_${selectedMonth}`;
-                            localStorage.setItem(draftKey, JSON.stringify(serverData));
-                       }
+                    console.log("Loading from server data:", serverData);
+                    
+                    // Handle Object Format (New or Old Object)
+                    if (serverData && !Array.isArray(serverData)) {
+                        const hasNewFormatKeys = serverData.scheduleData || serverData.inchargePerDay || serverData.locationPalette;
+                        
+                        if (hasNewFormatKeys) {
+                             setScheduleData(serverData.scheduleData || {});
+                             setInchargePerDay(serverData.inchargePerDay || {});
+                             setLocationPalette(serverData.locationPalette || {});
+                        } else {
+                             // Fallback: entire object is schedule data
+                             setScheduleData(serverData || {});
+                             setInchargePerDay({});
+                             setLocationPalette({});
+                        }
+                        
+                        setCurrentMonthlySchedule(existing);
+                        loadedFromServer = true;
+                        
+                        // HYDRATE LOCAL STORAGE FROM SERVER (SYNC)
+                        if (existing.status === 'DRAFT') {
+                             const draftKey = `draft_schedule_${department}_${selectedMonth}`;
+                             const dataToSave = hasNewFormatKeys ? serverData : {
+                                 scheduleData: serverData,
+                                 inchargePerDay: {},
+                                 locationPalette: {}
+                             };
+                             localStorage.setItem(draftKey, JSON.stringify(dataToSave));
+                        }
 
-                       console.log("Applied server data (New Format)");
-                  }
+                        console.log("Applied server data (Object Format)");
+                    }
                   // Handle Legacy Format (Array)
                   else if (Array.isArray(serverData)) {
                       const nextScheduleData: any = {};
@@ -569,6 +587,15 @@ export default function ManageSchedulePage() {
           if (isDraft) {
             alert("Draft saved successfully!");
             setCurrentMonthlySchedule(res.data);
+            
+            // Explicitly sync to local storage to keep them consistent
+            const draftKey = `draft_schedule_${department}_${selectedMonth}`;
+            const dataToSave = {
+              scheduleData,
+              inchargePerDay,
+              locationPalette
+            };
+            localStorage.setItem(draftKey, JSON.stringify(dataToSave));
           } else if (isHrOverride) {
             alert("Schedule berhasil diadjust oleh HR dan langsung diterapkan.");
             setCurrentMonthlySchedule(res.data.schedule || res.data);
