@@ -152,6 +152,10 @@ exports.updateRch = async (req, res) => {
     const { id } = req.params;
     const { area, guestName, type, date, description, followUp, status, progress, targetDepartment, investigationNote } = req.body;
 
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    const isAdmin = ['HR', 'GM', 'ADMIN'].includes(req.role);
+    const isHod = ['HOD', 'SUPERVISOR', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV'].includes(req.role);
+
     const dataToUpdate = {
       area,
       guestName,
@@ -166,6 +170,16 @@ exports.updateRch = async (req, res) => {
     };
 
     if (investigationNote !== undefined) {
+      // Access check for investigation
+      const existingRch = await prisma.rangerCustomerHandling.findUnique({ where: { id: parseInt(id) } });
+      if (!existingRch) return res.status(404).json({ message: 'RCH not found' });
+
+      const canUpdateInvestigation = isAdmin || user.rchAccess || (isHod && existingRch.targetDepartment === user.department);
+      
+      if (!canUpdateInvestigation) {
+        return res.status(403).json({ message: 'Anda tidak memiliki izin untuk menginput investigasi.' });
+      }
+
       dataToUpdate.investigatedAt = new Date();
     }
 

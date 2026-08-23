@@ -140,6 +140,8 @@ export default function RchPage() {
   const canInvestigate = (rch: Rch) => {
     if (!user) return false;
     if (['HR', 'GM', 'ADMIN'].includes(user.role)) return true;
+    // User with explicit rchAccess can also investigate
+    if (user.rchAccess) return true;
     const isHod = user.role.includes('HOD') || user.role.includes('SPV') || user.role === 'SUPERVISOR';
     return isHod && rch.targetDepartment === user.department;
   };
