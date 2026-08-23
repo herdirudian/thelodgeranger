@@ -6,6 +6,7 @@ const { verifyToken, isHOD, isAdmin } = require('../middleware/authJwt');
 // All authenticated users can view RCH (or maybe restrict later)
 router.get('/', verifyToken, rchController.getAllRch);
 router.get('/:id', verifyToken, rchController.getRchById);
+router.get('/:id/pdf', verifyToken, rchController.downloadRchPdf);
 
 // Users who are selected/allowed can create. For now, we allow authenticated users to create.
 router.post('/', verifyToken, rchController.createRch);

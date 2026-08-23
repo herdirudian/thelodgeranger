@@ -1239,3 +1239,151 @@ exports.generateAttendancePDF = async (attendance, user) => {
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
 };
+
+exports.generateRchPDF = async (rch) => {
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([595.28, 841.89]); // A4 Size
+    const { width, height } = page.getSize();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  
+    const margin = 50;
+    let y = height - margin;
+  
+    // Colors
+    const black = rgb(0, 0, 0);
+    const darkGreen = rgb(0.06, 0.3, 0.22);
+    const gray = rgb(0.5, 0.5, 0.5);
+  
+    // --- Header Section ---
+    try {
+        const logoPath = path.join(__dirname, '../assets/logo.png');
+        if (fs.existsSync(logoPath)) {
+            const logoImageBytes = fs.readFileSync(logoPath);
+            const logoImage = await pdfDoc.embedPng(logoImageBytes);
+            
+            const targetHeight = 50; 
+            const scaleFactor = targetHeight / logoImage.height;
+            const scaledDims = logoImage.scale(scaleFactor);
+  
+            page.drawImage(logoImage, {
+                x: margin,
+                y: height - margin - targetHeight, 
+                width: scaledDims.width,
+                height: scaledDims.height,
+            });
+        }
+    } catch (e) {
+        console.error("Logo embedding failed:", e);
+    }
+  
+    y -= 20;
+  
+    // Title
+    const titleX = margin + 120;
+    let titleY = height - margin - 25;
+    
+    page.drawText('Ranger Customer Handling (RCH)', { x: titleX, y: titleY, size: 16, font: boldFont, color: black });
+    titleY -= 15;
+    page.drawText(`Dicetak: ${format(new Date(), 'dd/MM/yyyy, HH.mm.ss')}`, { x: titleX, y: titleY, size: 10, font: font, color: gray });
+  
+    y -= 60;
+  
+    // --- Helper: Draw Field ---
+    const drawField = (label, value, yPos) => {
+        const cleanVal = cleanText(value || '-');
+        page.drawText(cleanText(label), { x: margin, y: yPos, size: 10, font: boldFont, color: black });
+        page.drawText(':', { x: margin + 120, y: yPos, size: 10, font: font, color: black });
+        
+        // Multi-line wrap for long values
+        const maxWidth = width - margin - (margin + 130);
+        const lines = wrapText(cleanVal, maxWidth, font, 10);
+        
+        let currentY = yPos;
+        lines.forEach((line, i) => {
+            if (i > 0) currentY -= 14;
+            page.drawText(line, { x: margin + 130, y: currentY, size: 10, font: font, color: black });
+        });
+        
+        return currentY - 20;
+    };
+
+    const wrapText = (text, maxWidth, activeFont, size) => {
+        const safeText = cleanText(text || '');
+        if (!safeText) return ['-'];
+
+        const paragraphs = safeText.split(/\r?\n/);
+        const lines = [];
+
+        paragraphs.forEach(paragraph => {
+            const words = paragraph.split(/\s+/).filter(Boolean);
+            if (words.length === 0) {
+                lines.push('');
+                return;
+            }
+
+            let currentLine = words[0];
+            for (let i = 1; i < words.length; i += 1) {
+                const testLine = `${currentLine} ${words[i]}`;
+                if (activeFont.widthOfTextAtSize(testLine, size) <= maxWidth) {
+                    currentLine = testLine;
+                } else {
+                    lines.push(currentLine);
+                    currentLine = words[i];
+                }
+            }
+            lines.push(currentLine);
+        });
+
+        return lines.length > 0 ? lines : ['-'];
+    };
+  
+    y = drawField('Nomor RCH', rch.nomor, y);
+    y = drawField('Tanggal', format(new Date(rch.date), 'dd MMMM yyyy'), y);
+    y = drawField('Nama Tamu', rch.guestName, y);
+    y = drawField('Area', rch.area, y);
+    y = drawField('Jenis Laporan', rch.type, y);
+    y = drawField('Prioritas', rch.status, y);
+    y = drawField('Departemen Tujuan', rch.targetDepartment, y);
+    y = drawField('Progress', rch.progress, y);
+    y = drawField('Pelapor', `${rch.createdBy?.name} (${rch.createdBy?.department})`, y);
+    
+    y -= 10;
+    page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: gray });
+    y -= 25;
+    
+    page.drawText('Deskripsi Kejadian:', { x: margin, y, size: 11, font: boldFont, color: black });
+    y -= 15;
+    y = drawField('', rch.description, y + 20); // Reuse drawField spacing logic
+    
+    y -= 10;
+    page.drawText('Tindakan Lanjut (Staff):', { x: margin, y, size: 11, font: boldFont, color: black });
+    y -= 15;
+    y = drawField('', rch.followUp, y + 20);
+
+    y -= 10;
+    page.drawText('Investigasi HOD:', { x: margin, y, size: 11, font: boldFont, color: black });
+    y -= 15;
+    if (rch.investigatedAt) {
+        page.drawText(`(Diinvestigasi pada: ${format(new Date(rch.investigatedAt), 'dd/MM/yyyy HH:mm')})`, { x: margin + 100, y: y + 15, size: 8, font: font, color: gray });
+    }
+    y = drawField('', rch.investigationNote, y + 20);
+
+    y -= 40;
+
+    // --- Signatures ---
+    const sigY = y - 40;
+    
+    // Reporter
+    page.drawText('Pelapor', { x: margin + 40, y: sigY + 40, size: 11, font: boldFont });
+    page.drawLine({ start: { x: margin, y: sigY }, end: { x: margin + 150, y: sigY }, thickness: 1, color: black });
+    page.drawText(cleanText(rch.createdBy?.name || 'Staff'), { x: margin + 10, y: sigY - 15, size: 9, font: font });
+
+    // HOD Target
+    page.drawText('HOD / Supervisor', { x: width - margin - 130, y: sigY + 40, size: 11, font: boldFont });
+    page.drawLine({ start: { x: width - margin - 150, y: sigY }, end: { x: width - margin, y: sigY }, thickness: 1, color: black });
+    page.drawText(cleanText(rch.targetDepartment), { x: width - margin - 140, y: sigY - 15, size: 9, font: font });
+
+    const pdfBytes = await pdfDoc.save();
+    return pdfBytes;
+};

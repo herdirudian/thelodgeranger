@@ -193,3 +193,31 @@ exports.deleteRch = async (req, res) => {
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 };
+
+exports.downloadRchPdf = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const rch = await prisma.rangerCustomerHandling.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        createdBy: {
+          select: { id: true, name: true, department: true }
+        }
+      }
+    });
+
+    if (!rch) {
+      return res.status(404).json({ message: 'RCH not found' });
+    }
+
+    const pdfService = require('../services/pdfService');
+    const pdfBytes = await pdfService.generateRchPDF(rch);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=RCH-${rch.nomor || rch.id}.pdf`);
+    res.send(Buffer.from(pdfBytes));
+  } catch (error) {
+    console.error('Download RCH PDF error:', error);
+    res.status(500).json({ message: 'Gagal generate PDF', error: error.message });
+  }
+};
