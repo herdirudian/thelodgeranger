@@ -124,17 +124,21 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"], // Removed 'unsafe-inline' and 'unsafe-eval'
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:", "http:"],
-      connectSrc: ["'self'", "https:", "http:"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      connectSrc: ["'self'", "https:", "data:", "blob:"],
+      frameSrc: ["'self'", "https:", "blob:"],
+      objectSrc: ["'none'"], // Recommended 'none' to prevent flash/plugin attacks
+      baseUri: ["'self'"], // Prevent base tag injection
       frameAncestors: ["'none'"],
     },
   },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 
-// Add X-Robots-Tag to prevent indexing
+// Add X-Robots-Tag to prevent indexing and hide server info
+app.disable('x-powered-by'); // Hide Express info
 app.use((req, res, next) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   res.setHeader('X-Content-Type-Options', 'nosniff');
