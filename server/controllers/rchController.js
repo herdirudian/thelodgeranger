@@ -71,26 +71,17 @@ exports.getAllRch = async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Access check: Must be Admin/HR/GM OR HOD OR have rchAccess
+    // Access check: Everyone authenticated can view, but only specific roles/access can see their specific view
     const isAdmin = ['HR', 'GM', 'ADMIN'].includes(userRole);
     const isHod = ['HOD', 'SUPERVISOR', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV'].includes(userRole);
     
-    console.log(`RCH Access Check - User: ${user.name}, Role: ${userRole}, rchAccess: ${user.rchAccess}, isAdmin: ${isAdmin}, isHod: ${isHod}`);
-
-    if (!isAdmin && !isHod && !user.rchAccess) {
-      return res.status(403).json({ message: 'Anda tidak memiliki akses untuk melihat data RCH.' });
-    }
-    
     let whereClause = {};
 
-    // Filtering logic
-    if (isHod && !isAdmin) {
-      // HODs see RCHs for their department OR RCHs they created themselves
-      whereClause.OR = [
-        { targetDepartment: { contains: userDept || '___NONE___' } },
-        { createdById: userId }
-      ];
-    } else if (isAdmin && department) {
+    // Filtering logic: 
+    // HODs still see their dept OR their own inputs by default? 
+    // User requested "di semua akun munculkan", which means global visibility.
+    // So we remove the HOD restriction for viewing.
+    if (isAdmin && department) {
       whereClause.targetDepartment = department;
     }
 
@@ -156,6 +147,15 @@ exports.updateRch = async (req, res) => {
     const isAdmin = ['HR', 'GM', 'ADMIN'].includes(req.role);
     const isHod = ['HOD', 'SUPERVISOR', 'PHOTOGRAPHER_HOD', 'MERCHANDISE_HOD', 'MERCHANDISE_SPV'].includes(req.role);
 
+    // General access check for update
+    const existingRch = await prisma.rangerCustomerHandling.findUnique({ where: { id: parseInt(id) } });
+    if (!existingRch) return res.status(404).json({ message: 'RCH not found' });
+
+    const canUpdate = isAdmin || user.rchAccess || (isHod && existingRch.targetDepartment === user.department);
+    if (!canUpdate) {
+      return res.status(403).json({ message: 'Anda tidak memiliki izin untuk mengubah data RCH ini.' });
+    }
+
     const dataToUpdate = {
       area,
       guestName,
@@ -170,16 +170,6 @@ exports.updateRch = async (req, res) => {
     };
 
     if (investigationNote !== undefined) {
-      // Access check for investigation
-      const existingRch = await prisma.rangerCustomerHandling.findUnique({ where: { id: parseInt(id) } });
-      if (!existingRch) return res.status(404).json({ message: 'RCH not found' });
-
-      const canUpdateInvestigation = isAdmin || user.rchAccess || (isHod && existingRch.targetDepartment === user.department);
-      
-      if (!canUpdateInvestigation) {
-        return res.status(403).json({ message: 'Anda tidak memiliki izin untuk menginput investigasi.' });
-      }
-
       dataToUpdate.investigatedAt = new Date();
     }
 

@@ -35,16 +35,6 @@ export default function RchPage() {
   const { user } = useAuth();
   const [rchs, setRchs] = useState<Rch[]>([]);
 
-  if (user && !user.rchAccess && !['HR', 'GM', 'ADMIN'].includes(user.role)) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-sm border border-gray-100">
-        <FileText className="w-16 h-16 text-gray-200 mb-4" />
-        <h2 className="text-xl font-bold text-gray-800">Akses Dibatasi</h2>
-        <p className="text-gray-500 mt-2">Anda tidak memiliki izin untuk mengakses fitur RCH ini.</p>
-        <p className="text-sm text-gray-400 mt-1">Silakan hubungi Admin atau HR untuk mendapatkan akses.</p>
-      </div>
-    );
-  }
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [departments, setDepartments] = useState<string[]>([]);
@@ -261,13 +251,15 @@ export default function RchPage() {
               <option value="DONE">Selesai</option>
             </select>
           </div>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-[#0F4D39] text-white rounded-lg hover:bg-[#0c3d2d] transition-all shadow-sm hover:shadow-md font-medium text-sm whitespace-nowrap w-full md:w-auto justify-center"
-          >
-            {showForm ? <X size={18} /> : <Plus size={18} />}
-            {showForm ? 'Batal' : 'Buat RCH Baru'}
-          </button>
+          {(user?.rchAccess || ['HR', 'GM', 'ADMIN'].includes(user?.role || '')) && (
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#0F4D39] text-white rounded-lg hover:bg-[#0c3d2d] transition-all shadow-sm hover:shadow-md font-medium text-sm whitespace-nowrap w-full md:w-auto justify-center"
+            >
+              {showForm ? <X size={18} /> : <Plus size={18} />}
+              {showForm ? 'Batal' : 'Buat RCH Baru'}
+            </button>
+          )}
         </div>
 
       {showForm && (
@@ -472,16 +464,22 @@ export default function RchPage() {
                             {updatingProgressId === rch.id ? (
                               <Loader2 className="w-4 h-4 animate-spin text-[#0F4D39]" />
                             ) : (
-                              <select
-                                value={rch.progress}
-                                onChange={(e) => handleUpdateProgress(rch.id, e.target.value as RchProgress)}
-                                className={`text-[10px] font-bold uppercase px-2 py-1 rounded border outline-none cursor-pointer transition-colors ${getProgressColor(rch.progress)}`}
-                              >
-                                <option value="OPEN">Baru</option>
-                                <option value="IN_PROGRESS">Proses</option>
-                                <option value="PENDING">Pending</option>
-                                <option value="DONE">Selesai</option>
-                              </select>
+                              canInvestigate(rch) ? (
+                                <select
+                                  value={rch.progress}
+                                  onChange={(e) => handleUpdateProgress(rch.id, e.target.value as RchProgress)}
+                                  className={`text-[10px] font-bold uppercase px-2 py-1 rounded border outline-none cursor-pointer transition-colors ${getProgressColor(rch.progress)}`}
+                                >
+                                  <option value="OPEN">Baru</option>
+                                  <option value="IN_PROGRESS">Proses</option>
+                                  <option value="PENDING">Pending</option>
+                                  <option value="DONE">Selesai</option>
+                                </select>
+                              ) : (
+                                <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded border inline-block text-center ${getProgressColor(rch.progress)}`}>
+                                  {getProgressLabel(rch.progress)}
+                                </span>
+                              )
                             )}
                             {canInvestigate(rch) && (
                               <button 
