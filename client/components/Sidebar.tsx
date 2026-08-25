@@ -65,9 +65,7 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
       links.push({ name: 'Daily Checklist', href: '/hod-checklist', icon: ClipboardCheck });
   }
   
-  if (user.rchAccess || user.role === 'ADMIN' || user.role === 'HR' || user.role === 'GM') {
-      links.push({ name: 'RCH', href: '/rch', icon: AlertCircle });
-  }
+  links.push({ name: 'RCH', href: '/rch', icon: AlertCircle });
   
   // Feedback menu visibility
   const hasSurveyAccess = user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN' || (user.publicSurveyAccesses && user.publicSurveyAccesses.length > 0);
