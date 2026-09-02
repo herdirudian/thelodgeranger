@@ -26,7 +26,7 @@ function AdminContent() {
 
   // Effect to handle tab from URL
   useEffect(() => {
-    const tab = searchParams.get('tab');
+    const tab = searchParams?.get('tab');
     // 'voting' removed from allowed tabs as it is completed
     if (tab && ['staff', 'schedule', 'contracts', 'approval', 'whatsapp', 'wa-settings', 'bugs'].includes(tab)) {
       setActiveTab(tab);
