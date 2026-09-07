@@ -5,8 +5,8 @@ import api from "@/lib/api";
 import { Shield, X, Lock } from "lucide-react";
 
 interface RestaurantSurveyFormProps {
-  title: string; // e.g. "GUEST COMMENT THE PINES"
-  subtitle: string; // e.g. "Guest Comment • The Pines"
+  title: string;
+  subtitle: string;
   surveyType: "THE_PINES" | "THE_CAVE" | "OMAH_BAMBOO";
   thankYouMessage: string;
 }

@@ -124,14 +124,15 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"], // Removed 'unsafe-inline' and 'unsafe-eval'
+      scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
       connectSrc: ["'self'", "https:", "data:", "blob:"],
       frameSrc: ["'self'", "https:", "blob:"],
-      objectSrc: ["'none'"], // Recommended 'none' to prevent flash/plugin attacks
-      baseUri: ["'self'"], // Prevent base tag injection
-      frameAncestors: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'self'"],
     },
   },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
@@ -142,8 +143,16 @@ app.disable('x-powered-by'); // Hide Express info
 app.use((req, res, next) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  next();
+});
+
+// Cache-Control header for API responses to prevent caching sensitive data
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   next();
 });
 
@@ -155,7 +164,7 @@ app.use(cors({
     if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) return cb(null, true);
     cb(new Error('Not allowed by CORS'));
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'], // Removed OPTIONS unless needed for preflight
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Authorization', 'Content-Type'],
   maxAge: 86400, // Cache preflight for 24h
 }));
@@ -163,7 +172,7 @@ app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Basic IP rate limiter (no external deps)
+// General IP rate limiter
 const rateStore = new Map();
 const RATE_WINDOW_MS = 60 * 1000;
 const RATE_MAX = 300; // 300 req/min per IP
@@ -182,6 +191,27 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Auth route specific rate limiter (protect login/reset from brute force)
+const authRateStore = new Map();
+const AUTH_RATE_WINDOW = 60 * 1000;
+const AUTH_RATE_MAX = 20; // 20 requests per minute per IP for auth
+app.use('/api/auth', (req, res, next) => {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = authRateStore.get(ip) || { count: 0, resetAt: now + AUTH_RATE_WINDOW };
+  if (now > entry.resetAt) {
+    entry.count = 0;
+    entry.resetAt = now + AUTH_RATE_WINDOW;
+  }
+  entry.count += 1;
+  authRateStore.set(ip, entry);
+  if (entry.count > AUTH_RATE_MAX) {
+    return res.status(429).json({ message: 'Terlalu banyak percobaan autentikasi. Silakan coba lagi beberapa saat.' });
+  }
+  next();
+});
+
 app.use(morgan('dev'));
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
