@@ -513,10 +513,10 @@ exports.getAllSubmissions = async (req, res) => {
             }
         });
 
-        // 2. Get E-Learning Module Completions (PRODUCT_KNOWLEDGE & SOP)
+        // 2. Get E-Learning Module Completions (PRODUCT_KNOWLEDGE, SOP & LEARNING_MODULE)
         const learningCompletions = await prisma.userLearningProgress.findMany({
             where: {
-                module: { type: { in: ['PRODUCT_KNOWLEDGE', 'SOP'] } },
+                module: { type: { in: ['PRODUCT_KNOWLEDGE', 'LEARNING_MODULE', 'SOP'] } },
                 OR: [
                     { status: 'COMPLETED' },
                     { quizScore: { not: null } },

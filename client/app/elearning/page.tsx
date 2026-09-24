@@ -11,7 +11,7 @@ import { useReactToPrint } from 'react-to-print';
 export default function ElearningDashboard() {
   const { user } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'PRODUCT_KNOWLEDGE' | 'SOP' | 'SELF_ASSESSMENT' | 'HISTORY' | 'MONITORING'>('PRODUCT_KNOWLEDGE');
+  const [activeTab, setActiveTab] = useState<'PRODUCT_KNOWLEDGE' | 'LEARNING_MODULE' | 'SOP' | 'SELF_ASSESSMENT' | 'HISTORY' | 'MONITORING'>('PRODUCT_KNOWLEDGE');
 
   useEffect(() => {
     // Check URL params for initial tab
@@ -168,6 +168,22 @@ export default function ElearningDashboard() {
         <button
           onClick={() => {
             setLoading(true);
+            setActiveTab('LEARNING_MODULE');
+          }}
+          className={`pb-3 px-4 font-medium transition-colors relative ${
+            activeTab === 'LEARNING_MODULE' 
+              ? 'text-[#0F4D39]' 
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Modul Learning
+          {activeTab === 'LEARNING_MODULE' && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0F4D39]" />
+          )}
+        </button>
+        <button
+          onClick={() => {
+            setLoading(true);
             setActiveTab('SOP');
           }}
           className={`pb-3 px-4 font-medium transition-colors relative ${
@@ -242,9 +258,11 @@ export default function ElearningDashboard() {
             placeholder={
               activeTab === 'PRODUCT_KNOWLEDGE'
                 ? 'Cari Produk...'
-                : activeTab === 'SOP'
-                  ? 'Cari SOP...'
-                  : 'Cari Self Assessment...'
+                : activeTab === 'LEARNING_MODULE'
+                  ? 'Cari Modul Learning...'
+                  : activeTab === 'SOP'
+                    ? 'Cari SOP...'
+                    : 'Cari Self Assessment...'
             }
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}

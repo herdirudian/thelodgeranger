@@ -224,6 +224,7 @@ enum ModuleType {
   SOP
   SELF_ASSESSMENT
   ASSESSMENT_360
+  LEARNING_MODULE
 }
 
 enum LearningStatus {

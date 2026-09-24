@@ -351,6 +351,7 @@ export default function ManageElearning() {
                   onChange={e => setFormData({...formData, type: e.target.value})}
                 >
                   <option value="PRODUCT_KNOWLEDGE">Product Knowledge</option>
+                  <option value="LEARNING_MODULE">Modul Learning</option>
                   <option value="SOP">Bank SOP</option>
                   <option value="SELF_ASSESSMENT">Self Assessment</option>
                   <option value="ASSESSMENT_360">Assessment 360</option>
