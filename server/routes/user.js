@@ -16,4 +16,9 @@ router.post('/wa/send-code', [verifyToken], controller.sendWhatsAppCode);
 router.post('/wa/verify-code', [verifyToken], controller.verifyWhatsAppCode);
 router.get('/wa/status', [verifyToken, isAdmin], controller.getWhatsAppStatus);
 
+// PDO Top-Up Ledger System
+router.get('/:id/pdo-records', [verifyToken], controller.getUserPdoRecords);
+router.post('/:id/pdo-topup', [verifyToken, isHOD], controller.topUpUserPdo);
+router.delete('/pdo-records/:recordId', [verifyToken, isHOD], controller.deletePdoRecord);
+
 module.exports = router;

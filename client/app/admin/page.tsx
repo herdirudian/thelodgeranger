@@ -6,7 +6,7 @@ import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { format, differenceInDays } from "date-fns";
 import { formatWibDate, formatWibMonthDay, formatWibTime } from "@/lib/wibHelpers";
-import { User, Calendar, Trash2, Edit2, Plus, Download, Bug, Settings2, Info, MessageSquare, Award, Upload, Trophy, BarChart2, Loader2, ImageIcon, ClipboardCheck, Settings, List, ChevronRight, Save } from "lucide-react";
+import { User, Calendar, Trash2, Edit2, Plus, PlusCircle, Clock, Download, Bug, Settings2, Info, MessageSquare, Award, Upload, Trophy, BarChart2, Loader2, ImageIcon, ClipboardCheck, Settings, List, ChevronRight, Save } from "lucide-react";
 import Link from "next/link";
 import { ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import clsx from "clsx";
@@ -139,57 +139,25 @@ function AdminContent() {
     pdoInputDate: "",
     pdoExpiresAt: "",
     pdoAutoExpire: true,
+    pdoNotes: "",
     contractStartDate: "",
     contractEndDate: "",
     rchAccess: false
   });
 
-  const calculateThreeMonths = (startDateStr: string) => {
-    if (!startDateStr) return "";
-    const d = new Date(startDateStr);
-    const targetMonth = d.getMonth() + 3;
-    d.setMonth(targetMonth);
-    if (d.getMonth() > (targetMonth % 12)) {
-      d.setDate(0);
-    }
-    return d.toISOString().split('T')[0];
-  };
-
-  const handlePdoChange = (newPdo: number) => {
-    setFormDataUser(prev => {
-      let nextInputDate = prev.pdoInputDate;
-      let nextExpiresAt = prev.pdoExpiresAt;
-      
-      if (newPdo > 0 && !nextInputDate) {
-        nextInputDate = new Date().toISOString().split('T')[0];
-        if (prev.pdoAutoExpire) {
-          nextExpiresAt = calculateThreeMonths(nextInputDate);
-        }
-      }
-      return {
-        ...prev,
-        pdo: newPdo,
-        pdoInputDate: nextInputDate,
-        pdoExpiresAt: nextExpiresAt
-      };
-    });
-  };
-
-  const handlePdoInputDateChange = (newDate: string) => {
-    setFormDataUser(prev => ({
-      ...prev,
-      pdoInputDate: newDate,
-      pdoExpiresAt: prev.pdoAutoExpire ? calculateThreeMonths(newDate) : prev.pdoExpiresAt
-    }));
-  };
-
-  const handleTogglePdoAutoExpire = (checked: boolean) => {
-    setFormDataUser(prev => ({
-      ...prev,
-      pdoAutoExpire: checked,
-      pdoExpiresAt: checked && prev.pdoInputDate ? calculateThreeMonths(prev.pdoInputDate) : prev.pdoExpiresAt
-    }));
-  };
+  // PDO Top-Up Ledger Modal State
+  const [showPdoModal, setShowPdoModal] = useState(false);
+  const [selectedPdoUser, setSelectedPdoUser] = useState<any>(null);
+  const [pdoRecords, setPdoRecords] = useState<any[]>([]);
+  const [loadingPdoRecords, setLoadingPdoRecords] = useState(false);
+  const [isSubmittingPdoTopup, setIsSubmittingPdoTopup] = useState(false);
+  const [pdoTopUpForm, setPdoTopUpForm] = useState({
+    days: 1,
+    inputDate: "",
+    autoExpire: true,
+    expiresAt: "",
+    notes: ""
+  });
 
   // Schedule Form State
   const [formDataSchedule, setFormDataSchedule] = useState({
@@ -525,7 +493,7 @@ function AdminContent() {
   }, [user, activeTab, selectedApprovalModule, selectedApprovalDepartment, bugStartDate, bugEndDate]);
  
   const exportStaffCSV = () => {
-    const headers = ["Name","Email","Role","Department","LeaveQuota","PDO","PDOInputDate","PDOExpiresAt","ContractStart","ContractEnd","CreatedAt"];
+    const headers = ["Name","Email","Role","Department","LeaveQuota","PDO","PDOExpiresAt","ContractStart","ContractEnd","CreatedAt"];
     const rows = users.map(u => [
       u.name,
       u.email,
@@ -533,7 +501,6 @@ function AdminContent() {
       u.department || "",
       u.leaveQuota ?? 12,
       u.pdo ?? 0,
-      u.pdoInputDate ? formatWibDate(u.pdoInputDate) : "",
       u.pdoExpiresAt ? formatWibDate(u.pdoExpiresAt) : "",
       u.contractStartDate ? formatWibDate(u.contractStartDate) : "",
       u.contractEndDate ? formatWibDate(u.contractEndDate) : "",
@@ -642,6 +609,7 @@ function AdminContent() {
             pdoInputDate: "",
             pdoExpiresAt: "",
             pdoAutoExpire: true,
+            pdoNotes: "",
             contractStartDate: "", 
             contractEndDate: "",
             rchAccess: false 
@@ -673,8 +641,6 @@ function AdminContent() {
 
   const handleEditUser = (user: any) => {
       setEditingUser(user);
-      const inputDate = user.pdoInputDate ? new Date(user.pdoInputDate).toISOString().split('T')[0] : "";
-      const expiresAt = user.pdoExpiresAt ? new Date(user.pdoExpiresAt).toISOString().split('T')[0] : "";
       setFormDataUser({
           name: user.name,
           email: user.email,
@@ -684,14 +650,120 @@ function AdminContent() {
           employmentType: user.employmentType || "CONTRACT",
           leaveQuota: typeof user.leaveQuota === "number" ? user.leaveQuota : 12,
           pdo: typeof user.pdo === "number" ? user.pdo : 0,
-          pdoInputDate: inputDate,
-          pdoExpiresAt: expiresAt,
-          pdoAutoExpire: user.pdoAutoExpire ?? true,
+          pdoInputDate: user.pdoInputDate ? new Date(user.pdoInputDate).toISOString().split('T')[0] : "",
+          pdoExpiresAt: user.pdoExpiresAt ? new Date(user.pdoExpiresAt).toISOString().split('T')[0] : "",
+          pdoAutoExpire: user.pdoAutoExpire !== undefined ? user.pdoAutoExpire : true,
+          pdoNotes: "",
           contractStartDate: user.contractStartDate ? new Date(user.contractStartDate).toISOString().split('T')[0] : "",
           contractEndDate: user.contractEndDate ? new Date(user.contractEndDate).toISOString().split('T')[0] : "",
           rchAccess: user.rchAccess || false
       });
       setShowUserModal(true);
+  };
+
+  const computeThreeMonthsAhead = (dateStr: string) => {
+    if (!dateStr) return "";
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setMonth(date.getMonth() + 3);
+    return format(date, 'yyyy-MM-dd');
+  };
+
+  const fetchPdoRecords = async (userId: number) => {
+    setLoadingPdoRecords(true);
+    try {
+      const res = await api.get(`/users/${userId}/pdo-records`);
+      setPdoRecords(res.data || []);
+    } catch (err: any) {
+      console.error("Error fetching PDO records:", err);
+    } finally {
+      setLoadingPdoRecords(false);
+    }
+  };
+
+  const handleOpenPdoModal = (u: any) => {
+    setSelectedPdoUser(u);
+    const today = format(new Date(), 'yyyy-MM-dd');
+    setPdoTopUpForm({
+      days: 1,
+      inputDate: today,
+      autoExpire: true,
+      expiresAt: computeThreeMonthsAhead(today),
+      notes: ""
+    });
+    setShowPdoModal(true);
+    fetchPdoRecords(u.id);
+  };
+
+  const handlePdoInputDateChange = (newDate: string) => {
+    setPdoTopUpForm(prev => ({
+      ...prev,
+      inputDate: newDate,
+      expiresAt: prev.autoExpire ? computeThreeMonthsAhead(newDate) : prev.expiresAt
+    }));
+  };
+
+  const handleToggleAutoExpire = (checked: boolean) => {
+    setPdoTopUpForm(prev => ({
+      ...prev,
+      autoExpire: checked,
+      expiresAt: checked ? computeThreeMonthsAhead(prev.inputDate || format(new Date(), 'yyyy-MM-dd')) : prev.expiresAt
+    }));
+  };
+
+  const handlePdoTopUpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPdoUser) return;
+    if (!pdoTopUpForm.days || pdoTopUpForm.days <= 0) {
+      alert("Jumlah hari PDO harus lebih dari 0");
+      return;
+    }
+
+    setIsSubmittingPdoTopup(true);
+    try {
+      const res = await api.post(`/users/${selectedPdoUser.id}/pdo-topup`, {
+        days: pdoTopUpForm.days,
+        inputDate: pdoTopUpForm.inputDate,
+        autoExpire: pdoTopUpForm.autoExpire,
+        expiresAt: pdoTopUpForm.autoExpire ? pdoTopUpForm.expiresAt : null,
+        notes: pdoTopUpForm.notes
+      });
+
+      alert(res.data.message || "Top-up PDO berhasil disimpan");
+      
+      setPdoTopUpForm(prev => ({
+        ...prev,
+        days: 1,
+        notes: ""
+      }));
+
+      await fetchPdoRecords(selectedPdoUser.id);
+      await fetchUsers();
+      if (res.data.user) {
+        setSelectedPdoUser(res.data.user);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Gagal melakukan top-up PDO");
+    } finally {
+      setIsSubmittingPdoTopup(false);
+    }
+  };
+
+  const handleDeletePdoRecord = async (recordId: number) => {
+    if (!confirm("Hapus batch PDO ini? Sisa kuota aktif karyawan akan disesuaikan otomatis.")) return;
+    try {
+      const res = await api.delete(`/users/pdo-records/${recordId}`);
+      alert(res.data.message || "Batch PDO berhasil dihapus");
+      if (selectedPdoUser) {
+        await fetchPdoRecords(selectedPdoUser.id);
+        await fetchUsers();
+        if (res.data.user) {
+          setSelectedPdoUser(res.data.user);
+        }
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Gagal menghapus batch PDO");
+    }
   };
 
   const handleScheduleSubmit = async (e: React.FormEvent) => {
@@ -981,7 +1053,23 @@ function AdminContent() {
                     <button 
                       onClick={() => {
                           setEditingUser(null);
-                          setFormDataUser({ name: "", email: "", password: "", role: "STAFF", department: "", employmentType: "CONTRACT", leaveQuota: 12, pdo: 0, pdoInputDate: "", pdoExpiresAt: "", pdoAutoExpire: true, contractStartDate: "", contractEndDate: "", rchAccess: false });
+                          setFormDataUser({
+                            name: "",
+                            email: "",
+                            password: "",
+                            role: "STAFF",
+                            department: "",
+                            employmentType: "CONTRACT",
+                            leaveQuota: 12,
+                            pdo: 0,
+                            pdoInputDate: "",
+                            pdoExpiresAt: "",
+                            pdoAutoExpire: true,
+                            pdoNotes: "",
+                            contractStartDate: "",
+                            contractEndDate: "",
+                            rchAccess: false
+                          });
                           setShowUserModal(true);
                       }}
                       className="w-full sm:w-auto justify-center bg-[#0F4D39] text-white px-4 py-2 rounded flex items-center space-x-2"
@@ -1040,20 +1128,30 @@ function AdminContent() {
                                     </button>
                                 </td>
                                 <td className="p-3 text-center">{u.leaveQuota ?? 12}</td>
-                                <td className="p-3 text-center">
-                                    <span className="font-semibold text-gray-800">{u.pdo ?? 0}</span>
-                                    {u.pdo > 0 && u.pdoExpiresAt && (
-                                        <div className="text-[10px] text-gray-500 whitespace-nowrap mt-0.5">
-                                            s/d {formatWibMonthDay(u.pdoExpiresAt)} {new Date(u.pdoExpiresAt).getFullYear()}
-                                        </div>
-                                    )}
+                                <td className="p-3">
+                                    <div className="flex flex-col items-center justify-center">
+                                        <span className="font-semibold text-gray-900">{u.pdo ?? 0}</span>
+                                        {u.pdo > 0 && u.pdoExpiresAt && (
+                                            <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 whitespace-nowrap" title={`Kadaluarsa batch terdekat: ${formatWibMonthDay(u.pdoExpiresAt)} ${new Date(u.pdoExpiresAt).getFullYear()}`}>
+                                                s/d {formatWibMonthDay(u.pdoExpiresAt)}
+                                            </span>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenPdoModal(u)}
+                                            className="mt-1 text-[11px] text-[#0F4D39] hover:text-[#0b3829] font-medium flex items-center gap-1 hover:underline"
+                                            title="Kelola & Top Up Batch PDO"
+                                        >
+                                            <PlusCircle size={11} /> Top Up
+                                        </button>
+                                    </div>
                                 </td>
                                 <td className="p-3 text-sm">
                                     {u.contractEndDate ? formatWibMonthDay(u.contractEndDate) + ", " + new Date(u.contractEndDate).getFullYear() : '-'}
                                 </td>
                                 <td className="p-3 flex space-x-2">
-                                    <button onClick={() => handleEditUser(u)} className="text-blue-600 hover:text-blue-800"><Edit2 size={18} /></button>
-                                    <button onClick={() => handleDeleteUser(u.id)} className="text-red-600 hover:text-red-800"><Trash2 size={18} /></button>
+                                    <button onClick={() => handleEditUser(u)} className="text-blue-600 hover:text-blue-800" title="Edit Data Staff"><Edit2 size={18} /></button>
+                                    <button onClick={() => handleDeleteUser(u.id)} className="text-red-600 hover:text-red-800" title="Hapus Staff"><Trash2 size={18} /></button>
                                 </td>
                             </tr>
                         ))}
@@ -2159,71 +2257,76 @@ function AdminContent() {
                               value={formDataUser.leaveQuota} onChange={e => setFormDataUser({...formDataUser, leaveQuota: parseInt(e.target.value) || 0})}
                           />
                       </div>
-                      <div className="bg-gray-50/80 p-3.5 rounded-lg border border-gray-200 space-y-3">
-                        <div>
-                          <div className="flex items-center justify-between">
-                            <label htmlFor="userPdo" className="block text-sm font-semibold text-gray-800">
-                              PDO (Days)
-                            </label>
-                            {formDataUser.pdo > 0 && formDataUser.pdoExpiresAt && (
-                              <span className="text-xs text-[#0F4D39] font-medium bg-[#0F4D39]/10 px-2 py-0.5 rounded">
-                                Berlaku s/d {new Date(formDataUser.pdoExpiresAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                              </span>
+                      <div>
+                          <label className="block text-sm font-medium">PDO (Days)</label>
+                          <div className="flex items-center gap-2">
+                            <input type="number" className="w-full border p-2 rounded" 
+                                value={formDataUser.pdo} onChange={e => setFormDataUser({...formDataUser, pdo: parseInt(e.target.value) || 0})}
+                            />
+                            {editingUser && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowUserModal(false);
+                                  handleOpenPdoModal(editingUser);
+                                }}
+                                className="whitespace-nowrap px-3 py-2 bg-[#0F4D39]/10 text-[#0F4D39] hover:bg-[#0F4D39]/20 rounded text-xs font-semibold"
+                                title="Buka kelola batch & top-up PDO"
+                              >
+                                Kelola Batch
+                              </button>
                             )}
                           </div>
-                          <input 
-                            id="userPdo"
-                            type="number" 
-                            min="0"
-                            className="w-full border border-gray-300 p-2 rounded-md mt-1 focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] bg-white text-gray-800" 
-                            value={formDataUser.pdo} 
-                            onChange={e => handlePdoChange(parseInt(e.target.value) || 0)}
-                          />
-                        </div>
-
-                        <div className="pt-0.5">
-                          <label className="flex items-center space-x-2 text-sm text-gray-700 cursor-pointer select-none">
-                            <input 
-                              type="checkbox"
-                              className="w-4 h-4 text-[#0F4D39] border-gray-300 rounded focus:ring-[#0F4D39]"
-                              checked={formDataUser.pdoAutoExpire}
-                              onChange={e => handleTogglePdoAutoExpire(e.target.checked)}
-                            />
-                            <span className="font-medium">Aktifkan hangus otomatis dalam 3 bulan</span>
-                          </label>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                          <div>
-                            <label htmlFor="userPdoInputDate" className="block text-xs font-medium text-gray-600 mb-1">
-                              Tanggal Input PDO
-                            </label>
-                            <input 
-                              id="userPdoInputDate"
-                              type="date" 
-                              className="w-full border border-gray-300 p-2 rounded-md text-sm focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] bg-white text-gray-800" 
-                              value={formDataUser.pdoInputDate} 
-                              onChange={e => handlePdoInputDateChange(e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label htmlFor="userPdoExpiresAt" className="block text-xs font-medium text-gray-600 mb-1">
-                              Berlaku Sampai {formDataUser.pdoAutoExpire && <span className="text-gray-400 font-normal">(Otomatis 3 Bulan)</span>}
-                            </label>
-                            <input 
-                              id="userPdoExpiresAt"
-                              type="date" 
-                              className={`w-full border border-gray-300 p-2 rounded-md text-sm focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] text-gray-800 ${formDataUser.pdoAutoExpire ? 'bg-gray-100 cursor-not-allowed text-gray-600' : 'bg-white'}`}
-                              value={formDataUser.pdoExpiresAt} 
-                              readOnly={formDataUser.pdoAutoExpire}
-                              onChange={e => setFormDataUser(prev => ({ ...prev, pdoExpiresAt: e.target.value }))}
-                            />
-                          </div>
-                        </div>
-
-                        <p className="text-[11px] text-gray-500 leading-relaxed">
-                          Catatan: Kuota PDO akan berkurang otomatis (hangus) jika tanggal berlaku telah terlewati.
-                        </p>
+                          {!editingUser && formDataUser.pdo > 0 && (
+                            <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded text-xs space-y-2">
+                              <div>
+                                <label className="block text-gray-700 font-medium mb-1">Tanggal Input PDO</label>
+                                <input
+                                  type="date"
+                                  className="w-full border p-1.5 rounded bg-white"
+                                  value={formDataUser.pdoInputDate || format(new Date(), 'yyyy-MM-dd')}
+                                  onChange={e => {
+                                    const d = e.target.value;
+                                    setFormDataUser({
+                                      ...formDataUser,
+                                      pdoInputDate: d,
+                                      pdoExpiresAt: formDataUser.pdoAutoExpire ? computeThreeMonthsAhead(d) : formDataUser.pdoExpiresAt
+                                    });
+                                  }}
+                                />
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  id="addStaffPdoAutoExpire"
+                                  className="w-3.5 h-3.5 text-[#0F4D39] border-gray-300 rounded"
+                                  checked={formDataUser.pdoAutoExpire}
+                                  onChange={e => {
+                                    const checked = e.target.checked;
+                                    setFormDataUser({
+                                      ...formDataUser,
+                                      pdoAutoExpire: checked,
+                                      pdoExpiresAt: checked ? computeThreeMonthsAhead(formDataUser.pdoInputDate || format(new Date(), 'yyyy-MM-dd')) : formDataUser.pdoExpiresAt
+                                    });
+                                  }}
+                                />
+                                <label htmlFor="addStaffPdoAutoExpire" className="text-gray-700 font-medium cursor-pointer">
+                                  Aktifkan hangus otomatis dalam 3 bulan
+                                </label>
+                              </div>
+                              {formDataUser.pdoAutoExpire && (
+                                <div>
+                                  <label className="block text-gray-600 mb-0.5">Berlaku Sampai Tanggal</label>
+                                  <input
+                                    type="date"
+                                    className="w-full border p-1.5 rounded bg-white"
+                                    value={formDataUser.pdoExpiresAt || computeThreeMonthsAhead(formDataUser.pdoInputDate || format(new Date(), 'yyyy-MM-dd'))}
+                                    onChange={e => setFormDataUser({ ...formDataUser, pdoExpiresAt: e.target.value })}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -2256,6 +2359,288 @@ function AdminContent() {
                   </form>
               </div>
           </div>
+      )}
+
+      {/* PDO TOP-UP & LEDGER MODAL */}
+      {showPdoModal && selectedPdoUser && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-gray-900">Kelola PDO & Top-Up</h3>
+                  <span className="bg-[#0F4D39]/10 text-[#0F4D39] text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                    {selectedPdoUser.department || 'All'}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Karyawan: <span className="font-semibold text-gray-800">{selectedPdoUser.name}</span> ({selectedPdoUser.email})
+                </p>
+              </div>
+              <button
+                onClick={() => setShowPdoModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                aria-label="Tutup modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Balance Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-[#0F4D39]/5 border border-[#0F4D39]/15 rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-[#0F4D39]/80 uppercase tracking-wider">Total Kuota PDO Aktif</p>
+                    <p className="text-3xl font-extrabold text-[#0F4D39] mt-1">{selectedPdoUser.pdo ?? 0} <span className="text-sm font-normal text-gray-600">Hari</span></p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-[#0F4D39]/10 flex items-center justify-center text-[#0F4D39]">
+                    <Clock size={24} />
+                  </div>
+                </div>
+                <div className="bg-amber-50/70 border border-amber-200/70 rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-amber-800/80 uppercase tracking-wider">Masa Berlaku Terdekat</p>
+                    <p className="text-base font-bold text-amber-900 mt-1">
+                      {selectedPdoUser.pdoExpiresAt
+                        ? `${formatWibDate(selectedPdoUser.pdoExpiresAt)}`
+                        : (selectedPdoUser.pdo > 0 ? 'Tanpa Kadaluarsa' : 'Tidak Ada')}
+                    </p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      {selectedPdoUser.pdoExpiresAt ? 'Sisa kuota batch tertua akan hangus pada tanggal ini' : 'Semua kuota aktif'}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-800">
+                    <Calendar size={24} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Top-up Form Section */}
+              <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50">
+                <div className="flex items-center gap-2 mb-3">
+                  <PlusCircle size={18} className="text-[#0F4D39]" />
+                  <h4 className="font-bold text-gray-900 text-sm">Top-Up Kuota PDO Baru</h4>
+                </div>
+                <form onSubmit={handlePdoTopUpSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Tanggal Input PDO <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-[#0F4D39] focus:border-[#0F4D39]"
+                        required
+                        value={pdoTopUpForm.inputDate}
+                        onChange={e => handlePdoInputDateChange(e.target.value)}
+                      />
+                      <span className="text-[11px] text-gray-500 mt-0.5 block">
+                        Tanggal saat karyawan melaksanakan tugas Holiday on Duty (HOD)
+                      </span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Jumlah Hari (QTY) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="30"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-[#0F4D39] focus:border-[#0F4D39]"
+                        required
+                        value={pdoTopUpForm.days}
+                        onChange={e => setPdoTopUpForm({ ...pdoTopUpForm, days: parseInt(e.target.value) || 1 })}
+                      />
+                      <span className="text-[11px] text-gray-500 mt-0.5 block">
+                        Jumlah hari kompensasi PDO yang ditambahkan
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-white rounded-lg border border-gray-200 space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="modalAutoExpire"
+                        className="w-4 h-4 text-[#0F4D39] border-gray-300 rounded focus:ring-[#0F4D39]"
+                        checked={pdoTopUpForm.autoExpire}
+                        onChange={e => handleToggleAutoExpire(e.target.checked)}
+                      />
+                      <label htmlFor="modalAutoExpire" className="text-xs font-semibold text-gray-800 cursor-pointer">
+                        Aktifkan hangus otomatis dalam 3 bulan (kuota berkurang otomatis)
+                      </label>
+                    </div>
+
+                    {pdoTopUpForm.autoExpire && (
+                      <div className="pt-2 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Berlaku Sampai Tanggal
+                          </label>
+                          <input
+                            type="date"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-gray-50 focus:ring-2 focus:ring-[#0F4D39]"
+                            value={pdoTopUpForm.expiresAt}
+                            onChange={e => setPdoTopUpForm({ ...pdoTopUpForm, expiresAt: e.target.value })}
+                          />
+                        </div>
+                        <div className="text-[11px] text-gray-500 leading-tight">
+                          Batch ini akan berlaku selama 3 bulan sejak tanggal input. Jika tidak digunakan sebelum tanggal di atas, kuota batch ini akan hangus otomatis.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Catatan / Keterangan (Opsional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: HOD Piket Hari Libur Nasional, Backup event khusus"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-[#0F4D39] focus:border-[#0F4D39]"
+                      value={pdoTopUpForm.notes}
+                      onChange={e => setPdoTopUpForm({ ...pdoTopUpForm, notes: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={isSubmittingPdoTopup}
+                      className="px-4 py-2 bg-[#0F4D39] hover:bg-[#0b3829] text-white text-sm font-medium rounded-lg shadow-sm flex items-center gap-2 disabled:opacity-50 transition-colors"
+                    >
+                      {isSubmittingPdoTopup ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                      <span>Simpan Top-Up PDO</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Batches Ledger List */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-bold text-gray-900 text-sm flex items-center gap-1.5">
+                    <span>Riwayat Batch PDO</span>
+                    <span className="text-xs text-gray-500 font-normal">({pdoRecords.length} batch)</span>
+                  </h4>
+                </div>
+
+                {loadingPdoRecords ? (
+                  <div className="p-8 text-center text-sm text-gray-500 flex items-center justify-center gap-2">
+                    <Loader2 size={18} className="animate-spin text-[#0F4D39]" />
+                    <span>Memuat data batch...</span>
+                  </div>
+                ) : pdoRecords.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-gray-500 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                    Belum ada riwayat top-up PDO untuk karyawan ini. Kuota yang ada saat ini berasal dari sistem legacy atau belum tercatat per-batch.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto border border-gray-200 rounded-xl">
+                    <table className="min-w-full text-xs text-left">
+                      <thead className="bg-gray-50 text-gray-600 font-semibold border-b border-gray-200">
+                        <tr>
+                          <th className="p-2.5">Tgl Input</th>
+                          <th className="p-2.5 text-center">Awal</th>
+                          <th className="p-2.5 text-center">Sisa</th>
+                          <th className="p-2.5">Berlaku Sampai</th>
+                          <th className="p-2.5">Status</th>
+                          <th className="p-2.5">Catatan</th>
+                          <th className="p-2.5 text-center">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {pdoRecords.map((r: any) => {
+                          const isFullyUsed = r.remainingDays === 0 && !r.isExpired;
+                          const isBatchExpired = r.isExpired || (r.expiresAt && new Date(r.expiresAt) <= new Date() && r.remainingDays === 0);
+                          const isActive = r.remainingDays > 0 && !r.isExpired;
+
+                          return (
+                            <tr key={r.id} className={clsx(
+                              "hover:bg-gray-50/80 transition-colors",
+                              isBatchExpired ? "bg-red-50/30 text-gray-400" : isFullyUsed ? "bg-gray-50/50 text-gray-500" : ""
+                            )}>
+                              <td className="p-2.5 font-medium whitespace-nowrap text-gray-800">
+                                {r.inputDate ? formatWibDate(r.inputDate) : "-"}
+                              </td>
+                              <td className="p-2.5 text-center font-semibold text-gray-700">
+                                {r.days} hr
+                              </td>
+                              <td className="p-2.5 text-center font-bold">
+                                <span className={clsx(
+                                  "px-1.5 py-0.5 rounded text-[11px]",
+                                  isActive ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-500"
+                                )}>
+                                  {r.remainingDays} hr
+                                </span>
+                              </td>
+                              <td className="p-2.5 whitespace-nowrap text-gray-700">
+                                {r.expiresAt ? (
+                                  <span className={clsx(
+                                    "font-medium",
+                                    isBatchExpired ? "text-red-600 line-through" : ""
+                                  )}>
+                                    {formatWibDate(r.expiresAt)}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400">Tidak ada</span>
+                                )}
+                              </td>
+                              <td className="p-2.5 whitespace-nowrap">
+                                {isActive ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                                    Aktif
+                                  </span>
+                                ) : isBatchExpired ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-800">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                                    Hangus
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">
+                                    Habis Terpakai
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-2.5 text-gray-600 max-w-xs truncate" title={r.notes || ''}>
+                                {r.notes || "-"}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePdoRecord(r.id)}
+                                  className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
+                                  title="Hapus batch ini"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-gray-100 flex justify-end bg-gray-50">
+              <button
+                type="button"
+                onClick={() => setShowPdoModal(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-white transition-colors"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* SCHEDULE MODAL */}

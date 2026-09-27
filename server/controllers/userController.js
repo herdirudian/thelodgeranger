@@ -2,24 +2,16 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 const { sendOtpWhatsApp, to62 } = require('../services/whatsappService');
-const { checkAndExpirePdoQuotas } = require('../services/pdoService');
-
-function calculateThreeMonths(dateInput) {
-  if (!dateInput) return null;
-  const d = new Date(dateInput);
-  const targetMonth = d.getMonth() + 3;
-  d.setMonth(targetMonth);
-  if (d.getMonth() > (targetMonth % 12)) {
-    d.setDate(0);
-  }
-  return d;
-}
+const pdoService = require('../services/pdoService');
 
 exports.getAllUsers = async (req, res) => {
   try {
     const requesterId = req.userId;
     const requester = await prisma.user.findUnique({ where: { id: requesterId } });
     
+    // Check and expire PDO batches before returning users
+    await pdoService.checkAndExpirePdoQuotas();
+
     let whereClause = {};
 
     if (requester.role === 'HOD') {
@@ -39,8 +31,6 @@ exports.getAllUsers = async (req, res) => {
              };
         }
     }
-
-    await checkAndExpirePdoQuotas();
 
     const users = await prisma.user.findMany({
       where: whereClause,
@@ -87,33 +77,12 @@ exports.getColleagues = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const { 
-      email, 
-      password, 
-      name, 
-      role, 
-      department, 
-      leaveQuota, 
-      pdo, 
-      pdoInputDate, 
-      pdoExpiresAt, 
-      pdoAutoExpire, 
-      contractStartDate, 
-      contractEndDate, 
-      employmentType, 
-      rchAccess 
-    } = req.body;
+    const { email, password, name, role, department, leaveQuota, pdo, contractStartDate, contractEndDate, employmentType, rchAccess } = req.body;
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) return res.status(400).json({ message: 'User already exists' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const parsedPdo = typeof pdo !== 'undefined' ? parseInt(pdo) : 0;
-    const isAutoExpire = pdoAutoExpire !== undefined ? (pdoAutoExpire === true || pdoAutoExpire === 'true') : true;
-    let finalExpiresAt = pdoExpiresAt ? new Date(pdoExpiresAt) : null;
-    if (isAutoExpire && pdoInputDate && !pdoExpiresAt) {
-      finalExpiresAt = calculateThreeMonths(pdoInputDate);
-    }
 
     const user = await prisma.user.create({
       data: {
@@ -124,15 +93,22 @@ exports.createUser = async (req, res) => {
         department,
         employmentType: employmentType || 'CONTRACT',
         leaveQuota: typeof leaveQuota !== 'undefined' ? parseInt(leaveQuota) : 12,
-        pdo: parsedPdo,
-        pdoInputDate: pdoInputDate ? new Date(pdoInputDate) : null,
-        pdoExpiresAt: finalExpiresAt,
-        pdoAutoExpire: isAutoExpire,
+        pdo: typeof pdo !== 'undefined' ? parseInt(pdo) : 0,
         contractStartDate: contractStartDate ? new Date(contractStartDate) : null,
         contractEndDate: contractEndDate ? new Date(contractEndDate) : null,
         rchAccess: rchAccess === true || rchAccess === 'true'
       }
     });
+
+    if (pdo && parseInt(pdo) > 0) {
+      await pdoService.topUpUserPdo(user.id, {
+        days: parseInt(pdo),
+        inputDate: req.body.pdoInputDate || new Date(),
+        expiresAt: req.body.pdoExpiresAt,
+        autoExpire: req.body.pdoAutoExpire !== undefined ? req.body.pdoAutoExpire : true,
+        notes: req.body.pdoNotes || 'Initial PDO on user creation'
+      });
+    }
 
     res.status(201).json({ message: 'User created successfully', user });
   } catch (error) {
@@ -178,22 +154,7 @@ exports.getWhatsAppStatus = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      name, 
-      email, 
-      role, 
-      department, 
-      password, 
-      leaveQuota, 
-      pdo, 
-      pdoInputDate, 
-      pdoExpiresAt, 
-      pdoAutoExpire, 
-      contractStartDate, 
-      contractEndDate, 
-      employmentType, 
-      rchAccess 
-    } = req.body;
+    const { name, email, role, department, password, leaveQuota, pdo, contractStartDate, contractEndDate, employmentType, rchAccess } = req.body;
     
     let dataToUpdate = { name, email, role, department, employmentType };
 
@@ -207,20 +168,6 @@ exports.updateUser = async (req, res) => {
 
     if (pdo !== undefined) {
         dataToUpdate.pdo = parseInt(pdo);
-    }
-
-    if (pdoAutoExpire !== undefined) {
-        dataToUpdate.pdoAutoExpire = pdoAutoExpire === true || pdoAutoExpire === 'true';
-    }
-
-    if (pdoInputDate !== undefined) {
-        dataToUpdate.pdoInputDate = pdoInputDate ? new Date(pdoInputDate) : null;
-    }
-
-    if (pdoExpiresAt !== undefined) {
-        dataToUpdate.pdoExpiresAt = pdoExpiresAt ? new Date(pdoExpiresAt) : null;
-    } else if (dataToUpdate.pdoAutoExpire && dataToUpdate.pdoInputDate) {
-        dataToUpdate.pdoExpiresAt = calculateThreeMonths(dataToUpdate.pdoInputDate);
     }
 
     if (contractStartDate !== undefined) {
@@ -378,6 +325,7 @@ exports.deleteUser = async (req, res) => {
       prisma.review360Form.deleteMany({ where: { createdById: userId } }),
       prisma.checklistSubmission.deleteMany({ where: { userId } }),
       prisma.publicSurveyAccess.deleteMany({ where: { userId } }),
+      prisma.pdoRecord.deleteMany({ where: { userId } }),
       prisma.user.delete({ where: { id: userId } })
     ]);
 
@@ -440,3 +388,104 @@ exports.getExpiringContracts = async (req, res) => {
         res.status(500).json({ message: 'Error fetching expiring contracts', error: error.message });
     }
 };
+
+exports.getUserPdoRecords = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = parseInt(id);
+
+    const requester = await prisma.user.findUnique({ where: { id: req.userId } });
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!targetUser) return res.status(404).json({ message: 'User tidak ditemukan' });
+
+    const adminRoles = ['GM', 'HR', 'ADMIN'];
+    if (!adminRoles.includes(requester.role) && req.userId !== userId) {
+      if (requester.department !== targetUser.department) {
+        return res.status(403).json({ message: 'Unauthorized' });
+      }
+    }
+
+    // Run expiration check first so batch statuses and remaining days are current
+    await pdoService.checkAndExpirePdoQuotas();
+
+    const records = await prisma.pdoRecord.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.status(200).json(records);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching PDO records', error: error.message });
+  }
+};
+
+exports.topUpUserPdo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = parseInt(id);
+    const { days, inputDate, expiresAt, autoExpire, notes } = req.body;
+
+    const requester = await prisma.user.findUnique({ where: { id: req.userId } });
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!targetUser) return res.status(404).json({ message: 'User tidak ditemukan' });
+
+    const adminRoles = ['GM', 'HR', 'ADMIN'];
+    if (!adminRoles.includes(requester.role)) {
+      if (requester.department !== targetUser.department) {
+        return res.status(403).json({ message: 'Unauthorized: Departemen berbeda' });
+      }
+    }
+
+    if (!days || parseInt(days) <= 0) {
+      return res.status(400).json({ message: 'Jumlah hari PDO harus lebih dari 0' });
+    }
+
+    const result = await pdoService.topUpUserPdo(userId, {
+      days: parseInt(days),
+      inputDate,
+      expiresAt,
+      autoExpire,
+      notes
+    });
+
+    res.status(200).json({
+      message: `Top-up PDO sebanyak ${days} hari berhasil ditambahkan`,
+      ...result
+    });
+  } catch (error) {
+    console.error('Error in topUpUserPdo:', error);
+    res.status(500).json({ message: 'Error top-up PDO: ' + error.message });
+  }
+};
+
+exports.deletePdoRecord = async (req, res) => {
+  try {
+    const { recordId } = req.params;
+    const record = await prisma.pdoRecord.findUnique({
+      where: { id: parseInt(recordId) },
+      include: { user: true }
+    });
+
+    if (!record) {
+      return res.status(404).json({ message: 'Record PDO tidak ditemukan' });
+    }
+
+    const requester = await prisma.user.findUnique({ where: { id: req.userId } });
+    const adminRoles = ['GM', 'HR', 'ADMIN'];
+    if (!adminRoles.includes(requester.role)) {
+      if (requester.department !== record.user?.department) {
+        return res.status(403).json({ message: 'Unauthorized: Departemen berbeda' });
+      }
+    }
+
+    const updatedUser = await pdoService.deletePdoRecord(recordId);
+    res.status(200).json({
+      message: 'Batch PDO berhasil dihapus',
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error('Error in deletePdoRecord:', error);
+    res.status(500).json({ message: 'Error deleting PDO record: ' + error.message });
+  }
+};
+

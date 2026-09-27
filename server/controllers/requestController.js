@@ -5,7 +5,7 @@ const { sendWhatsAppMessage } = require('../services/whatsappService');
 const pdfService = require('../services/pdfService');
 const { formatWibDate } = require('../utils/wibDate');
 const { createNotification } = require('./notificationController');
-const { checkAndExpirePdoQuotas } = require('../services/pdoService');
+const { checkAndExpirePdoQuotas, deductUserPdo } = require('../services/pdoService');
 
 exports.createRequest = async (req, res) => {
   try {
@@ -748,16 +748,14 @@ exports.fixPendingGMRequests = async (req, res) => {
 
             if ((reqItem.type === 'LEAVE' || reqItem.type === 'PDO') && reqItem.quantity) {
                 try {
-                    let dataToUpdate = {};
                     if (reqItem.type === 'LEAVE') {
-                        dataToUpdate = { leaveQuota: { decrement: reqItem.quantity } };
+                        await prisma.user.update({
+                            where: { id: reqItem.userId },
+                            data: { leaveQuota: { decrement: reqItem.quantity } }
+                        });
                     } else if (reqItem.type === 'PDO') {
-                        dataToUpdate = { pdo: { decrement: reqItem.quantity } };
+                        await deductUserPdo(reqItem.userId, reqItem.quantity);
                     }
-                    await prisma.user.update({
-                        where: { id: reqItem.userId },
-                        data: dataToUpdate
-                    });
                 } catch (e) {}
             }
 
@@ -1612,17 +1610,14 @@ async function handleLegacyRequestApproval({ res, user, request, action, reason 
 
         if ((request.type === 'LEAVE' || request.type === 'PDO') && request.quantity) {
             try {
-                let dataToUpdate = {};
                 if (request.type === 'LEAVE') {
-                    dataToUpdate = { leaveQuota: { decrement: request.quantity } };
+                    await prisma.user.update({
+                        where: { id: request.userId },
+                        data: { leaveQuota: { decrement: request.quantity } }
+                    });
                 } else if (request.type === 'PDO') {
-                    dataToUpdate = { pdo: { decrement: request.quantity } };
+                    await deductUserPdo(request.userId, request.quantity);
                 }
-
-                await prisma.user.update({
-                    where: { id: request.userId },
-                    data: dataToUpdate
-                });
             } catch (err) {
                 console.error("Error deducting quota:", err);
             }
@@ -1975,17 +1970,14 @@ async function handleConfigRequestApproval({ res, user, request, action, reason,
 
         if ((request.type === 'LEAVE' || request.type === 'PDO') && request.quantity) {
             try {
-                let dataToUpdate = {};
                 if (request.type === 'LEAVE') {
-                    dataToUpdate = { leaveQuota: { decrement: request.quantity } };
+                    await prisma.user.update({
+                        where: { id: request.userId },
+                        data: { leaveQuota: { decrement: request.quantity } }
+                    });
                 } else if (request.type === 'PDO') {
-                    dataToUpdate = { pdo: { decrement: request.quantity } };
+                    await deductUserPdo(request.userId, request.quantity);
                 }
-
-                await prisma.user.update({
-                    where: { id: request.userId },
-                    data: dataToUpdate
-                });
             } catch (err) {
                 console.error("Error deducting quota:", err);
             }
