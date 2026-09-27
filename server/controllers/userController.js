@@ -2,6 +2,18 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 const { sendOtpWhatsApp, to62 } = require('../services/whatsappService');
+const { checkAndExpirePdoQuotas } = require('../services/pdoService');
+
+function calculateThreeMonths(dateInput) {
+  if (!dateInput) return null;
+  const d = new Date(dateInput);
+  const targetMonth = d.getMonth() + 3;
+  d.setMonth(targetMonth);
+  if (d.getMonth() > (targetMonth % 12)) {
+    d.setDate(0);
+  }
+  return d;
+}
 
 exports.getAllUsers = async (req, res) => {
   try {
@@ -28,6 +40,8 @@ exports.getAllUsers = async (req, res) => {
         }
     }
 
+    await checkAndExpirePdoQuotas();
+
     const users = await prisma.user.findMany({
       where: whereClause,
       select: {
@@ -39,6 +53,9 @@ exports.getAllUsers = async (req, res) => {
         employmentType: true,
         leaveQuota: true,
         pdo: true,
+        pdoInputDate: true,
+        pdoExpiresAt: true,
+        pdoAutoExpire: true,
         contractStartDate: true,
         contractEndDate: true,
         rchAccess: true,
@@ -70,12 +87,33 @@ exports.getColleagues = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const { email, password, name, role, department, leaveQuota, pdo, contractStartDate, contractEndDate, employmentType, rchAccess } = req.body;
+    const { 
+      email, 
+      password, 
+      name, 
+      role, 
+      department, 
+      leaveQuota, 
+      pdo, 
+      pdoInputDate, 
+      pdoExpiresAt, 
+      pdoAutoExpire, 
+      contractStartDate, 
+      contractEndDate, 
+      employmentType, 
+      rchAccess 
+    } = req.body;
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) return res.status(400).json({ message: 'User already exists' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const parsedPdo = typeof pdo !== 'undefined' ? parseInt(pdo) : 0;
+    const isAutoExpire = pdoAutoExpire !== undefined ? (pdoAutoExpire === true || pdoAutoExpire === 'true') : true;
+    let finalExpiresAt = pdoExpiresAt ? new Date(pdoExpiresAt) : null;
+    if (isAutoExpire && pdoInputDate && !pdoExpiresAt) {
+      finalExpiresAt = calculateThreeMonths(pdoInputDate);
+    }
 
     const user = await prisma.user.create({
       data: {
@@ -86,7 +124,10 @@ exports.createUser = async (req, res) => {
         department,
         employmentType: employmentType || 'CONTRACT',
         leaveQuota: typeof leaveQuota !== 'undefined' ? parseInt(leaveQuota) : 12,
-        pdo: typeof pdo !== 'undefined' ? parseInt(pdo) : 0,
+        pdo: parsedPdo,
+        pdoInputDate: pdoInputDate ? new Date(pdoInputDate) : null,
+        pdoExpiresAt: finalExpiresAt,
+        pdoAutoExpire: isAutoExpire,
         contractStartDate: contractStartDate ? new Date(contractStartDate) : null,
         contractEndDate: contractEndDate ? new Date(contractEndDate) : null,
         rchAccess: rchAccess === true || rchAccess === 'true'
@@ -137,7 +178,22 @@ exports.getWhatsAppStatus = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, role, department, password, leaveQuota, pdo, contractStartDate, contractEndDate, employmentType, rchAccess } = req.body;
+    const { 
+      name, 
+      email, 
+      role, 
+      department, 
+      password, 
+      leaveQuota, 
+      pdo, 
+      pdoInputDate, 
+      pdoExpiresAt, 
+      pdoAutoExpire, 
+      contractStartDate, 
+      contractEndDate, 
+      employmentType, 
+      rchAccess 
+    } = req.body;
     
     let dataToUpdate = { name, email, role, department, employmentType };
 
@@ -151,6 +207,20 @@ exports.updateUser = async (req, res) => {
 
     if (pdo !== undefined) {
         dataToUpdate.pdo = parseInt(pdo);
+    }
+
+    if (pdoAutoExpire !== undefined) {
+        dataToUpdate.pdoAutoExpire = pdoAutoExpire === true || pdoAutoExpire === 'true';
+    }
+
+    if (pdoInputDate !== undefined) {
+        dataToUpdate.pdoInputDate = pdoInputDate ? new Date(pdoInputDate) : null;
+    }
+
+    if (pdoExpiresAt !== undefined) {
+        dataToUpdate.pdoExpiresAt = pdoExpiresAt ? new Date(pdoExpiresAt) : null;
+    } else if (dataToUpdate.pdoAutoExpire && dataToUpdate.pdoInputDate) {
+        dataToUpdate.pdoExpiresAt = calculateThreeMonths(dataToUpdate.pdoInputDate);
     }
 
     if (contractStartDate !== undefined) {

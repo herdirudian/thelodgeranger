@@ -14,6 +14,9 @@ interface User {
   checklistTemplateId?: number | null;
   leaveQuota?: number;
   pdo?: number;
+  pdoInputDate?: string | null;
+  pdoExpiresAt?: string | null;
+  pdoAutoExpire?: boolean;
   whatsappNumber?: string | null;
   whatsappVerifiedAt?: string | null;
   publicSurveyAccesses?: { id: number; type: string | null }[];

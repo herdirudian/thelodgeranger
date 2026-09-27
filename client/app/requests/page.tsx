@@ -799,7 +799,11 @@ export default function RequestsPage() {
                                         <label className="block text-sm font-medium text-gray-700">
                                             Days Taken (QTY)
                                             {type === 'LEAVE' && <span className="text-sm text-[#0F4D39] font-bold ml-2">(Sisa Cuti: {user?.leaveQuota || 0} hari)</span>}
-                                            {type === 'PDO' && <span className="text-sm text-[#0F4D39] font-bold ml-2">(Sisa PDO: {user?.pdo || 0} hari)</span>}
+                                            {type === 'PDO' && (
+                                                <span className="text-sm text-[#0F4D39] font-bold ml-2">
+                                                    (Sisa PDO: {user?.pdo || 0} hari{user?.pdoExpiresAt ? `, berlaku s/d ${new Date(user.pdoExpiresAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''})
+                                                </span>
+                                            )}
                                         </label>
                                         <input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0F4D39]/20 focus:border-[#0F4D39] transition-all" required />
                                     </div>

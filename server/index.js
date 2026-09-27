@@ -35,6 +35,7 @@ const rchRoutes = require('./routes/rch');
 const { PrismaClient } = require('@prisma/client');
 const { sendWhatsAppMessage } = require('./services/whatsappService');
 const { formatWibTime } = require('./utils/wibDate');
+const { checkAndExpirePdoQuotas } = require('./services/pdoService');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -412,12 +413,20 @@ async function runApprovalReminders() {
   }
 }
 async function startReminders() {
+  // Check and expire PDO quotas on startup
+  try {
+    await checkAndExpirePdoQuotas();
+  } catch (e) {
+    console.error('Error running initial PDO expiration check:', e.message);
+  }
+
   if ((process.env.REMINDERS_ENABLED || '1') !== '1') return;
   const intervalMs = parseInt(process.env.REMINDER_INTERVAL_MS || '60000', 10);
   
-  // Cleanup old reminder logs every hour
+  // Cleanup old reminder logs & check expired PDO quotas every hour
   setInterval(async () => {
     try {
+      await checkAndExpirePdoQuotas();
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       await prisma.systemSetting.deleteMany({
         where: {

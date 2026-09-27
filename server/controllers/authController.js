@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { checkAndExpirePdoQuotas } = require('../services/pdoService');
 
 const prisma = new PrismaClient();
 
@@ -37,6 +38,8 @@ exports.signup = async (req, res) => {
 
 exports.me = async (req, res) => {
     try {
+        await checkAndExpirePdoQuotas();
+
         const user = await prisma.user.findUnique({
             where: { id: req.userId },
             select: {
@@ -48,6 +51,9 @@ exports.me = async (req, res) => {
                 employmentType: true,
                 leaveQuota: true,
                 pdo: true,
+                pdoInputDate: true,
+                pdoExpiresAt: true,
+                pdoAutoExpire: true,
                 whatsappNumber: true,
                 whatsappVerifiedAt: true,
                 publicSurveyAccesses: {
@@ -148,6 +154,8 @@ exports.signin = async (req, res) => {
     const { email, password } = req.body;
     console.log("Attempting login for:", email);
 
+    await checkAndExpirePdoQuotas();
+
     const user = await prisma.user.findUnique({
       where: { email },
       include: {
@@ -187,6 +195,9 @@ exports.signin = async (req, res) => {
       employmentType: user.employmentType,
       leaveQuota: user.leaveQuota,
       pdo: user.pdo,
+      pdoInputDate: user.pdoInputDate,
+      pdoExpiresAt: user.pdoExpiresAt,
+      pdoAutoExpire: user.pdoAutoExpire,
       whatsappNumber: user.whatsappNumber,
       whatsappVerifiedAt: user.whatsappVerifiedAt,
       assignedChecklists: user.assignedChecklists,

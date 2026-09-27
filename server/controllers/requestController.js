@@ -5,6 +5,7 @@ const { sendWhatsAppMessage } = require('../services/whatsappService');
 const pdfService = require('../services/pdfService');
 const { formatWibDate } = require('../utils/wibDate');
 const { createNotification } = require('./notificationController');
+const { checkAndExpirePdoQuotas } = require('../services/pdoService');
 
 exports.createRequest = async (req, res) => {
   try {
@@ -50,6 +51,17 @@ exports.createRequest = async (req, res) => {
         if (requestDate < minDate) {
             return res.status(400).json({ 
                 message: `Pengajuan ${type.replace('_', ' ')} harus dilakukan maksimal H-2. Silakan pilih tanggal mulai minimal ${minDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}.` 
+            });
+        }
+    }
+
+    if (type === 'PDO') {
+        await checkAndExpirePdoQuotas();
+        const freshUser = await prisma.user.findUnique({ where: { id: userId } });
+        const requestedQty = parseInt(quantity) || 1;
+        if ((freshUser?.pdo || 0) < requestedQty) {
+            return res.status(400).json({ 
+                message: `Sisa kuota PDO tidak mencukupi (tersisa ${freshUser?.pdo || 0} hari).` 
             });
         }
     }

@@ -132,6 +132,9 @@ model User {
   department         String?
   leaveQuota         Int            @default(12)
   pdo                Int            @default(0)
+  pdoInputDate       DateTime?
+  pdoExpiresAt       DateTime?
+  pdoAutoExpire      Boolean        @default(true)
   contractStartDate  DateTime?
   contractEndDate    DateTime?
   resetToken         String?
