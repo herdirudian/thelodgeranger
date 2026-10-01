@@ -122,6 +122,27 @@ enum RchProgress {
   DONE
 }
 
+enum LostAndFoundCategory {
+  VALUABLE
+  HIGH_PERSONAL
+  GENERAL
+  LOW_VALUE
+  PERISHABLE_SEALED
+  PERISHABLE_UNSEALED
+}
+
+enum LostAndFoundStatus {
+  STORED
+  CLAIMED
+  UNCLAIMED
+}
+
+enum LostAndFoundFinalAction {
+  RETURNED_TO_FINDER
+  DONATED
+  DISPOSED
+}
+
 model User {
   id                 Int            @id @default(autoincrement())
   email              String         @unique
@@ -179,6 +200,8 @@ model User {
   rchsCreated          RangerCustomerHandling[] @relation("RCHCreatedBy")
   rchAccess            Boolean                  @default(false)
   pdoRecords           PdoRecord[]
+  lostAndFoundFound    LostAndFoundItem[]       @relation("FinderUser")
+  lostAndFoundCreated  LostAndFoundItem[]       @relation("CreatedByLNF")
 }
 
 model IndividualDevelopmentPlan {
@@ -907,4 +930,50 @@ model PdoRecord {
   @@index([expiresAt])
   @@index([isExpired])
 }
+
+model LostAndFoundItem {
+  id                  Int                      @id @default(autoincrement())
+  registrationNo      String                   @unique
+  foundDate           DateTime                 @default(now())
+  foundLocation       String
+  finderName          String
+  finderDept          String                   @default("General")
+  finderUserId        Int?
+  finderUser          User?                    @relation("FinderUser", fields: [finderUserId], references: [id], onDelete: SetNull)
+  category            LostAndFoundCategory
+  itemType            String?
+  description         String                   @db.Text
+  photoUrl            String?                  @db.Text
+  storageLocation     String
+  expiryDate          DateTime
+  status              LostAndFoundStatus       @default(STORED)
+
+  // Claim handover details
+  ownerName           String?
+  ownerPhone          String?
+  claimedDate         DateTime?
+  handoverProofUrl    String?                  @db.Text
+  handoverStaff       String?
+  handoverNotes       String?                  @db.Text
+
+  // Unclaimed final disposition
+  finalAction         LostAndFoundFinalAction?
+  finalActionDate     DateTime?
+  finalActionNotes    String?                  @db.Text
+  finalActionStaff    String?
+
+  // Record audit
+  createdById         Int?
+  createdBy           User?                    @relation("CreatedByLNF", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@index([status])
+  @@index([category])
+  @@index([expiryDate])
+  @@index([foundDate])
+  @@index([registrationNo])
+}
+
 

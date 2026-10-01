@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { Home, Calendar, Clock, FileText, User, LogOut, MessageSquare, ShoppingBag, ClipboardList, BookOpen, ClipboardCheck, Users, Archive, BarChart2, Target, Shield, Award, AlertCircle } from 'lucide-react';
+import { Home, Calendar, Clock, FileText, User, LogOut, MessageSquare, ShoppingBag, ClipboardList, BookOpen, ClipboardCheck, Users, Archive, BarChart2, Target, Shield, Award, AlertCircle, PackageSearch } from 'lucide-react';
 import clsx from 'clsx';
 import { usePathname } from 'next/navigation';
 
@@ -66,6 +66,7 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
   }
   
   links.push({ name: 'RCH', href: '/rch', icon: AlertCircle });
+  links.push({ name: 'Lost & Found', href: '/lost-and-found', icon: PackageSearch });
   
   // Feedback menu visibility
   const hasSurveyAccess = user.role === 'HR' || user.role === 'GM' || user.role === 'ADMIN' || (user.publicSurveyAccesses && user.publicSurveyAccesses.length > 0);

@@ -32,6 +32,8 @@ const votingRoutes = require('./routes/voting');
 const checklistRoutes = require('./routes/checklist');
 const settingsRoutes = require('./routes/settings');
 const rchRoutes = require('./routes/rch');
+const lostAndFoundRoutes = require('./routes/lostAndFound');
+const { checkAndExpireLostAndFound } = require('./controllers/lostAndFoundController');
 const { PrismaClient } = require('@prisma/client');
 const { sendWhatsAppMessage } = require('./services/whatsappService');
 const { formatWibTime } = require('./utils/wibDate');
@@ -243,6 +245,7 @@ app.use('/api/voting', votingRoutes);
 app.use('/api/checklist', checklistRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/rch', rchRoutes);
+app.use('/api/lost-and-found', lostAndFoundRoutes);
 
 const prisma = new PrismaClient();
 const reminderState = { 
@@ -435,6 +438,13 @@ async function startReminders() {
       // await runApprovalReminders(); // Disabled as per user request
     } catch (e) {}
   }, intervalMs);
+
+  // Lost & Found auto-retention check (hourly)
+  setInterval(async () => {
+    try {
+      await checkAndExpireLostAndFound();
+    } catch (e) {}
+  }, 60 * 60 * 1000);
 }
 
 const PORT = process.env.PORT || 5000;
@@ -442,4 +452,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   startReminders();
+  checkAndExpireLostAndFound().catch(() => {});
 });
